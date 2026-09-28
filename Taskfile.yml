@@ -249,12 +249,18 @@ tasks:
     cmds:
       - go run {{.PKG}}
 
-  # День 3 стартує в `-mode=live` (labs3/main.go), тому і console, і web
-  # потребують ключа провайдера — попри те, що сам граф не має жодного
-  # LLM-вузла. Ключ потрібен лише на етапі вибору моделі, і саме там
-  # `modelcfg.Load` завершує процес без нього. Офлайн-шлях існує, але він
-  # явний, а не типовий — і для нього є окрема задача:
-  #   task week2:day3:console:offline
+  # День 3 має один прапорець — `-mode` (labs3/main.go) — і два значення:
+  # `live` (типове: реальна модель через `internal/modelcfg`, потрібен ключ) і
+  # `graph` (граф без жодного LLM-вузла: ні ключа, ні мережі). Третього
+  # значення `offline` у коді НЕМАЄ: `-mode=offline` завершується помилкою
+  # "unknown mode". У назвах задач суфікс `:offline` означає саме `-mode=graph`
+  # — так само, як у `week1:day2:console:offline`. Обидві поверхні (console і
+  # web) підтримують обидва режими, тому матриця повна:
+  #
+  #   console: live (типово), :live, :offline
+  #   web:     live (типово), :live, :offline
+  #
+  # Задачі без суфікса — це `live`, і лишаються для сумісності з README та ДЗ.
   #
   # День 4 — навпаки: labs4 виставляє той самий `-mode=graph` граф Дня 3 за
   # REST, тож сервіс стартує й відповідає БЕЗ жодного ключа (він це сам
@@ -267,25 +273,42 @@ tasks:
   # `console` читає os.Stdin, тож канонічний запит можна подати так:
   #   echo "Мерчант A-114 просить повернення по транзакції txn-2026-07-118845" \
   #     | task week2:day3:console
+  #
+  # Обидві `*:web` задачі (і живий, і графовий режим) слухають :8080, тому
+  # одночасно вони не працюють — і Ctrl-C часто лишає дочірній процес живим.
+  # `task kill:8080` — ліки.
 
   week2:day3:console:
-    desc: 'День 3: граф у консолі — потрібен ключ провайдера (-mode=live; офлайн: task week2:day3:console:offline)'
+    desc: 'День 3: граф у консолі, режим live — потрібен ключ провайдера (офлайн: task week2:day3:console:offline)'
     cmds:
       - go run {{.DAY3}} console
 
-  # Дзеркало `week1:day2:console:offline`: типовий режим Дня 3 — live, і саме
-  # тому явний офлайн-вхід має бути задачею, а не командою з README. Тут
-  # відрізниця суттєвіша, ніж у Дні 2: `-mode=graph` не потребує ні ключа, ні
-  # мережі взагалі — у графі немає жодного LLM-вузла.
+  week2:day3:console:live:
+    desc: 'День 3: граф у консолі, режим live явно (-mode=live) — потрібен ключ провайдера'
+    cmds:
+      - go run {{.DAY3}} -mode=live console
+
+  # `:offline` = `-mode=graph`: у графі немає жодного LLM-вузла, тому ні ключ,
+  # ні мережа не потрібні. Це той самий режим, який День 4 виставляє за REST.
   week2:day3:console:offline:
-    desc: 'День 3: граф у консолі — ключ і мережа НЕ потрібні (-mode=graph)'
+    desc: 'День 3: граф у консолі, режим graph — ключ і мережа НЕ потрібні (-mode=graph)'
     cmds:
       - go run {{.DAY3}} -mode=graph console
 
   week2:day3:web:
-    desc: 'День 3: Web UI на http://localhost:8080/ui/ + REST API на /api (потрібен ключ провайдера)'
+    desc: 'День 3: Web UI на http://localhost:8080/ui/ + REST API на /api, режим live — потрібен ключ провайдера (офлайн: task week2:day3:web:offline)'
     cmds:
       - go run {{.DAY3}} web webui api
+
+  week2:day3:web:live:
+    desc: 'День 3: Web UI + REST API, режим live явно (-mode=live) — потрібен ключ провайдера'
+    cmds:
+      - go run {{.DAY3}} -mode=live web webui api
+
+  week2:day3:web:offline:
+    desc: 'День 3: Web UI + REST API, режим graph — ключ і мережа НЕ потрібні (-mode=graph)'
+    cmds:
+      - go run {{.DAY3}} -mode=graph web webui api
 
   week2:day4:serve:
     desc: 'День 4: HTTP-сервіс на http://localhost:8080 (/health, /readyz, /api/) — ключ НЕ потрібен'
