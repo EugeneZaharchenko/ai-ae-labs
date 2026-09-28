@@ -21,6 +21,8 @@ vars:
   # Lab package paths, so the per-day run tasks stay one line each.
   DAY1: ./week1/Day1_Models_and_Frameworks_Landscape/labs
   DAY2: ./week1/Day2_Structured_Output_Function_Calling/labs
+  DAY3: ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3
+  DAY4: ./week2/Day4_Agent_as_Service_Deploy/labs4
 
 tasks:
   default:
@@ -227,3 +229,70 @@ tasks:
     desc: 'День 2: таблиця NBU vs monobank side-by-side (модель не потрібна)'
     cmds:
       - go run {{.DAY2}} compare
+
+  # --- week2 ---------------------------------------------------------------
+
+  week2:build:
+    desc: 'Build week2'
+    cmds:
+      - go build ./week2/...
+
+  week2:test:
+    desc: 'Test week2 (race detector)'
+    cmds:
+      - go test -race ./week2/...
+
+  week2:run:
+    desc: 'Run a week2 lab: task week2:run PKG=./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3'
+    requires:
+      vars: [PKG]
+    cmds:
+      - go run {{.PKG}}
+
+  # День 3 стартує в `-mode=live` (labs3/main.go), тому і console, і web
+  # потребують ключа провайдера — попри те, що сам граф не має жодного
+  # LLM-вузла. Ключ потрібен лише на етапі вибору моделі, і саме там
+  # `modelcfg.Load` завершує процес без нього. Офлайн-шлях існує, але він
+  # явний, а не типовий — і для нього є окрема задача:
+  #   task week2:day3:console:offline
+  #
+  # День 4 — навпаки: labs4 виставляє той самий `-mode=graph` граф Дня 3 за
+  # REST, тож сервіс стартує й відповідає БЕЗ жодного ключа (він це сам
+  # логує: "ADK service listening ... no model credentials required").
+  #
+  # `/readyz` уже є у стартовому шаблоні (labs4/service.go) і віддає `200`;
+  # `503` він віддає лише в режимі drain, який студент додає за ДЗ 4 — тому
+  # `week2:day4:health` навмисно перевіряє liveness, а не readiness.
+  #
+  # `console` читає os.Stdin, тож канонічний запит можна подати так:
+  #   echo "Мерчант A-114 просить повернення по транзакції txn-2026-07-118845" \
+  #     | task week2:day3:console
+
+  week2:day3:console:
+    desc: 'День 3: граф у консолі — потрібен ключ провайдера (-mode=live; офлайн: task week2:day3:console:offline)'
+    cmds:
+      - go run {{.DAY3}} console
+
+  # Дзеркало `week1:day2:console:offline`: типовий режим Дня 3 — live, і саме
+  # тому явний офлайн-вхід має бути задачею, а не командою з README. Тут
+  # відрізниця суттєвіша, ніж у Дні 2: `-mode=graph` не потребує ні ключа, ні
+  # мережі взагалі — у графі немає жодного LLM-вузла.
+  week2:day3:console:offline:
+    desc: 'День 3: граф у консолі — ключ і мережа НЕ потрібні (-mode=graph)'
+    cmds:
+      - go run {{.DAY3}} -mode=graph console
+
+  week2:day3:web:
+    desc: 'День 3: Web UI на http://localhost:8080/ui/ + REST API на /api (потрібен ключ провайдера)'
+    cmds:
+      - go run {{.DAY3}} web webui api
+
+  week2:day4:serve:
+    desc: 'День 4: HTTP-сервіс на http://localhost:8080 (/health, /readyz, /api/) — ключ НЕ потрібен'
+    cmds:
+      - go run {{.DAY4}}
+
+  week2:day4:health:
+    desc: 'День 4: перевірка liveness одним рядком (сервіс має вже працювати)'
+    cmds:
+      - curl -i http://localhost:{{.PORT | default "8080"}}/health
