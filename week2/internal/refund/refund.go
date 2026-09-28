@@ -1,4 +1,8 @@
-// Package refund implements the shared, model-free Week 2 graph.
+// Package refund implements the shared Week 2 refund domain: the typed
+// contract, the in-memory case register and the `open_refund_case` tool.
+//
+// The workflow graph that wires these steps together is composed per lab
+// (labs3/agent_graph.go, labs4/agent_graph.go), so each lab owns its topology.
 package refund
 
 import (
@@ -8,10 +12,8 @@ import (
 	"sync"
 
 	"google.golang.org/adk/v2/agent"
-	"google.golang.org/adk/v2/agent/workflowagent"
 	"google.golang.org/adk/v2/tool"
 	"google.golang.org/adk/v2/tool/functiontool"
-	"google.golang.org/adk/v2/workflow"
 )
 
 const (
@@ -111,24 +113,4 @@ func NewTool(reg *Registry) (tool.Tool, error) {
 		Name:        "open_refund_case",
 		Description: "Opens a refund case for an existing LEDGERWORKS merchant transaction. Does not transfer money.",
 	}, reg.OpenCase)
-}
-
-func NewGraph(reg *Registry) (agent.Agent, error) {
-	refundTool, err := NewTool(reg)
-	if err != nil {
-		return nil, fmt.Errorf("create refund tool: %w", err)
-	}
-	// No retries: all work is local; validation errors cannot improve on retry.
-	cfg := workflow.NodeConfig{}
-	prepare := workflow.NewFunctionNode("prepare", Prepare, cfg)
-	openCase, err := workflow.NewToolNodeTyped[Input, Output](refundTool, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("create refund node: %w", err)
-	}
-	format := workflow.NewFunctionNode("format", Format, cfg)
-	return workflowagent.New(workflowagent.Config{
-		Name:        AppName,
-		Description: "LEDGERWORKS: prepare a refund request, open its case, format the result.",
-		Edges:       workflow.Chain(workflow.Start, prepare, openCase, format),
-	})
 }

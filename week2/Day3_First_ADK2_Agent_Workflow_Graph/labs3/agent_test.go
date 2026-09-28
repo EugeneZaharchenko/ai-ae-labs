@@ -27,7 +27,7 @@ func TestEventLogIsAuditable(t *testing.T) {
 					}),
 					fakellm.TextTurn("Кейс відкрито.")), reg)
 			} else {
-				a, err = refund.NewGraph(reg)
+				a, err = newGraph(reg)
 			}
 
 			if err != nil {
@@ -129,7 +129,7 @@ func TestFluentAnswerWithoutSideEffect(t *testing.T) {
 	}
 
 	// A first real call against the same registry must still create this case.
-	graph, err := refund.NewGraph(reg)
+	graph, err := newGraph(reg)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,7 +25,7 @@ import (
 const demoInput = "Мерчант A-114 просить повернення по транзакції txn-2026-07-118845"
 
 func runDemo(ctx context.Context, out io.Writer, input string) error {
-	a, err := refund.NewGraph(&refund.Registry{})
+	a, err := newGraph(&refund.Registry{})
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func main() {
 		log.Printf("live model: %s", choice.Reason)
 		a, err = newLiveAgent(m, &refund.Registry{})
 	case "graph":
-		a, err = refund.NewGraph(&refund.Registry{})
+		a, err = newGraph(&refund.Registry{})
 	default:
 		log.Fatalf("unknown mode %q; use live or graph", *mode)
 	}

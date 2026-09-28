@@ -45,7 +45,7 @@ go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 -mode=graph
 
 Зберіть `ADK 2.0 First Agent (Go)` як явний граф зі стартового шаблону [week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3/main.go](https://github.com/dimetron/ai-ae-labs/blob/main/week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3/main.go):
 
-1. Прочитайте й адаптуйте наданий статичний потік `Start → prepare → open_refund_case → format` у `week2/internal/refund/refund.go`: `workflow.NewFunctionNode`, `workflow.NewToolNodeTyped`, `workflow.Chain`. Готову базову реалізацію розділяють Labs 3 і 4.
+1. Прочитайте й адаптуйте наданий статичний потік `Start → prepare → open_refund_case → format` у [`agent_graph.go`](agent_graph.go): `workflow.NewFunctionNode`, `workflow.NewToolNodeTyped`, `workflow.Chain`. Кроки й інструмент беруться з `week2/internal/refund`; топологію графа композирує сама лаба.
 2. Переконайтеся, що граф працює **без API-ключа** (`go run . -mode=graph console` з каталогу `labs3`). Звичайний `go run .` / `go run . console` використовує реальну модель через `internal/modelcfg`; скриптовані відповіді існують тільки в тестах.
 3. Покрийте вузли табличними тестами на `agent.NewStrictContextMock` (див. `agent/context_mock.go`): щонайменше по 2 кейси на `prepare` і `format`, включно з помилковим входом. Для tool-handler перевірте успішний `StateDelta` і порожній `StateDelta` при помилці.
 4. Додайте в README нормалізований фрагмент event log одного рану та розділ «Що дає граф проти imperative-скрипта» (5–7 речень). Не вигадуйте формат `[ev:*]`: зафіксуйте `session.Event` / `StateDelta` через власний стабільний formatter.

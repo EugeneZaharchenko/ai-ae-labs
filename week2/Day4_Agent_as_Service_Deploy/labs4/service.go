@@ -35,7 +35,7 @@ func listenAddress(port string) (string, error) {
 }
 
 func newService() (*service, error) {
-	a, err := refund.NewGraph(&refund.Registry{})
+	a, err := newGraph(&refund.Registry{})
 	if err != nil {
 		return nil, fmt.Errorf("create agent: %w", err)
 	}

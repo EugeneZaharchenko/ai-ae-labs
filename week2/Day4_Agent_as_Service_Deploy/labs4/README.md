@@ -33,7 +33,7 @@ Workflow-події містять `output`; `content` може бути `null`.
 ## Код і перевірки
 
 `main.go` керує сигналами й адресою; `service.go` монтує ADK під `/api/` і керує drain.
-Граф та інструмент імпортуються з [`week2/internal/refund`](../../internal/refund/refund.go), як у Lab 3.
+Кроки графа та інструмент імпортуються з [`week2/internal/refund`](../../internal/refund/refund.go), як у Lab 3; топологію композирує [`agent_graph.go`](agent_graph.go) цієї лаби.
 Готовий базовий шлях можна змінювати у власному форку; у [завданні](Homework.md) потрібно пояснити та продемонструвати результат, а не лише скопіювати файли.
 
 ```bash
