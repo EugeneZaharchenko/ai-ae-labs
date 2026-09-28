@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/dimetron/ai-eng-course/labs/week1/internal/ratecache"
 )
 
 // TestE2ECacheAcrossProvidersAndCalls proves the production shape end-to-end:
@@ -33,7 +35,7 @@ func TestE2ECacheAcrossProvidersAndCalls(t *testing.T) {
 	// long-lived process wires up itself (compare.go builds both providers
 	// in one process; each defaults to its own transport, so cross-provider
 	// sharing needs one explicit client — shown here).
-	tr := NewCachedTransport()
+	tr := ratecache.NewCachedTransport()
 	shared := &http.Client{Timeout: 10 * time.Second, Transport: tr}
 	mono := &MonoProvider{BaseURL: monoSrv.URL, HTTPClient: shared}
 	nbu := &NBUProvider{BaseURL: nbuSrv.URL, HTTPClient: shared}
@@ -75,7 +77,7 @@ func TestE2EConcurrentFetchSingleflight(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tr := NewCachedTransport()
+	tr := ratecache.NewCachedTransport()
 	shared := &http.Client{Timeout: 10 * time.Second, Transport: tr}
 	mono := &MonoProvider{BaseURL: srv.URL, HTTPClient: shared}
 

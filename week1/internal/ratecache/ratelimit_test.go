@@ -1,4 +1,4 @@
-package main
+package ratecache
 
 import (
 	"io"
@@ -25,13 +25,6 @@ func (t *countingTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
 		Body:          io.NopCloser(strings.NewReader(t.body)),
 		ContentLength: int64(len(t.body)),
 	}, nil
-}
-
-func fakeClock(t *testing.T) (*time.Location, func() time.Time) {
-	t.Helper()
-	base := time.Now()
-	// A controllable clock: tests drive time via cachedTransport.Now.
-	return time.UTC, func() time.Time { return base }
 }
 
 func TestCachedTransportServesSameURLFromCache(t *testing.T) {

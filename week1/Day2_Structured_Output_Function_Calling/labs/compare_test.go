@@ -36,55 +36,17 @@ func compareHarness(t *testing.T) []CompareRow {
 	}))
 	defer monoSrv.Close()
 
-	// Point the real providers at the test servers — the same objects the
-	// agent uses, which is the point of the exercise.
+	// Point the real providers at the test servers and run the REAL merge.
+	// Calling CompareWith and not a copy of its body is the whole point: a
+	// re-implemented merge passes while Compare itself is broken.
 	nbu := &NBUProvider{BaseURL: nbuSrv.URL, HTTPClient: nbuSrv.Client()}
 	mono := &MonoProvider{BaseURL: monoSrv.URL, HTTPClient: monoSrv.Client()}
 
-	nbuRates, _, err := nbu.RatesToUAH(context.Background())
+	rows, _, _, err := CompareWith(context.Background(), nbu, mono)
 	if err != nil {
-		t.Fatalf("nbu: %v", err)
+		t.Fatalf("CompareWith: %v", err)
 	}
-	monoQuotes, err := mono.RatesToUAHDetailed(context.Background())
-	if err != nil {
-		t.Fatalf("monobank: %v", err)
-	}
-
-	// Merge exactly like Compare does, minus the live fetch.
-	rows := map[string]*CompareRow{}
-	get := func(cc string) *CompareRow {
-		r := rows[cc]
-		if r == nil {
-			r = &CompareRow{CC: cc}
-			rows[cc] = r
-		}
-		return r
-	}
-	for cc, rate := range nbuRates {
-		v := rate
-		get(cc).NBU = &v
-	}
-	for _, q := range monoQuotes {
-		r := get(q.CC)
-		if q.Buy > 0 {
-			buy, sell, mid := q.Buy, q.Sell, q.Rate
-			r.MonoBuy, r.MonoSell, r.MonoMid = &buy, &sell, &mid
-			sp := (sell - buy) / mid * 100
-			r.Spread = &sp
-		} else {
-			cross := q.Cross
-			r.MonoMid = &cross
-		}
-	}
-	var out []CompareRow
-	for _, r := range rows {
-		if r.NBU != nil && r.MonoMid != nil {
-			d := *r.MonoMid - *r.NBU
-			r.DeltaMid = &d
-		}
-		out = append(out, *r)
-	}
-	return out
+	return rows
 }
 
 func findRow(t *testing.T, rows []CompareRow, cc string) CompareRow {

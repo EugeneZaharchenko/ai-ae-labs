@@ -1,10 +1,10 @@
-// mcptool.go — the external MCP tool boundary, made real.
+// Package mcptool is the external MCP tool boundary, made real.
 //
-// The lecture's "MCP пізніше" slide said: today the tool lives in our Go
-// code, MCP is the next layer. This file is that layer, wired to a real
-// Ukrainian MCP server: dimetron/mono-go-mcp (github.com/dimetron/mono-go-mcp),
-// which exposes the monobank open API as 5 tools through the official
-// Go MCP SDK (github.com/modelcontextprotocol/go-sdk) over stdio.
+// The lecture's "MCP пізніше" slide said: today the tool lives in our Go code,
+// MCP is the next layer. This package is that layer, wired to a real Ukrainian
+// MCP server: dimetron/mono-go-mcp (github.com/dimetron/mono-go-mcp), which
+// exposes the monobank open API as 5 tools through the official Go MCP SDK
+// (github.com/modelcontextprotocol/go-sdk) over stdio.
 //
 // Two shapes are taught in this repo; this lab uses the first:
 //
@@ -18,7 +18,10 @@
 // validates input against its own `inputSchema` before executing, and our
 // side still sanitizes the output. The protocol moves the boundary; it does
 // not remove the responsibility.
-package main
+//
+// It lives outside the lab package because the student's job is the tool
+// contract in rates.go, not the transport that carries someone else's tools.
+package mcptool
 
 import (
 	"context"
@@ -27,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -35,11 +39,11 @@ import (
 	"google.golang.org/adk/v2/tool/mcptoolset"
 )
 
-// monoMCPBin resolves the mono-go-mcp server binary: MONO_MCP_BIN first,
-// then $GOPATH/bin, then $HOME/go/bin. A missing binary is an explicit
-// error, not a silent degradation — the agent still works with its local
-// tools only (least agency: the model sees exactly the tools we wired).
-func monoMCPBin() (string, error) {
+// Bin resolves the mono-go-mcp server binary: MONO_MCP_BIN first, then
+// $GOPATH/bin, then $HOME/go/bin. A missing binary is an explicit error, not a
+// silent degradation — the agent still works with its local tools only (least
+// agency: the model sees exactly the tools we wired).
+func Bin() (string, error) {
 	if bin := os.Getenv("MONO_MCP_BIN"); bin != "" {
 		if st, err := os.Stat(bin); err == nil && !st.IsDir() {
 			return bin, nil
@@ -65,15 +69,15 @@ func monoMCPBin() (string, error) {
 		"or set MONO_MCP_BIN to its path")
 }
 
-// MonoMCPToolset builds an ADK Toolset wired to the mono-go-mcp server over
-// stdio. The public tools (mono_currency_rates, mono_bank_sync) need no
-// token; the /personal/* tools need MONO_TOKEN in the environment —
-// LoadEnv has already loaded it from apps/.env by the time this runs.
+// Toolset builds an ADK Toolset wired to the mono-go-mcp server over stdio.
+// The public tools (mono_currency_rates, mono_bank_sync) need no token; the
+// /personal/* tools need MONO_TOKEN in the environment — the lab's LoadEnv has
+// already loaded it from apps/.env by the time this runs.
 //
 // Optional env: MONO_MCP_BIN (explicit binary path), MONO_TOKEN (passed
 // through to the server process).
-func MonoMCPToolset() (tool.Toolset, error) {
-	bin, err := monoMCPBin()
+func Toolset() (tool.Toolset, error) {
+	bin, err := Bin()
 	if err != nil {
 		return nil, err
 	}
@@ -85,19 +89,19 @@ func MonoMCPToolset() (tool.Toolset, error) {
 	})
 }
 
-// withheldMCPTools names MCP tools the agent deliberately does NOT offer the
-// model, even though the server exposes them.
+// Withheld names MCP tools the agent deliberately does NOT offer the model,
+// even though the server exposes them.
 //
 // mono_set_webhook POSTs to monobank's /personal/webhook and mutates account
 // state. The lab's rule is least agency: a tool the exercise never needs is a
 // tool the model cannot misuse. Keeping the list here — rather than filtering
-// silently inside MonoMCPToolset — keeps the raw boundary honest, so the e2e
-// test can still prove the server exposes all five tools while the agent's
-// narrower surface stays an explicit, reviewable decision.
-var withheldMCPTools = []string{"mono_set_webhook"}
+// silently inside Toolset — keeps the raw boundary honest, so the e2e test can
+// still prove the server exposes all five tools while the agent's narrower
+// surface stays an explicit, reviewable decision.
+var Withheld = []string{"mono_set_webhook"}
 
-// WithholdTools returns tools without the named ones, preserving order.
-func WithholdTools(tools []tool.Tool, withheld []string) []tool.Tool {
+// Withhold returns tools without the named ones, preserving order.
+func Withhold(tools []tool.Tool, withheld []string) []tool.Tool {
 	if len(withheld) == 0 {
 		return tools
 	}
@@ -115,11 +119,11 @@ func WithholdTools(tools []tool.Tool, withheld []string) []tool.Tool {
 	return kept
 }
 
-// AgentMCPTools resolves the mono-go-mcp toolset into exactly the tools the
-// agent offers the model: everything the server exposes, minus
-// withheldMCPTools. It is the single place the lab decides its MCP surface.
-func AgentMCPTools(ctx context.Context) ([]tool.Tool, error) {
-	ts, err := MonoMCPToolset()
+// AgentTools resolves the mono-go-mcp toolset into exactly the tools the agent
+// offers the model: everything the server exposes, minus Withheld. It is the
+// single place the lab decides its MCP surface.
+func AgentTools(ctx context.Context) ([]tool.Tool, error) {
+	ts, err := Toolset()
 	if err != nil {
 		return nil, err
 	}
@@ -127,14 +131,14 @@ func AgentMCPTools(ctx context.Context) ([]tool.Tool, error) {
 	if err != nil {
 		return nil, err
 	}
-	return WithholdTools(all, withheldMCPTools), nil
+	return Withhold(all, Withheld), nil
 }
 
-// HasMonoMCP is a cheap check for the agent wiring: should the external MCP
-// toolset be attached? true when the binary is resolvable. Errors are
-// reported by MonoMCPToolset itself; this only decides.
-func HasMonoMCP() bool {
-	_, err := monoMCPBin()
+// HasServer is a cheap check for the agent wiring: should the external MCP
+// toolset be attached? true when the binary is resolvable. Errors are reported
+// by Toolset itself; this only decides.
+func HasServer() bool {
+	_, err := Bin()
 	return err == nil
 }
 
@@ -182,4 +186,14 @@ func ResolveToolsets(ctx context.Context, toolsets ...tool.Toolset) ([]tool.Tool
 		out = append(out, resolved...)
 	}
 	return out, nil
+}
+
+// Names renders a tool list for a startup log, so the operator can see exactly
+// which tools the model will be offered.
+func Names(tools []tool.Tool) string {
+	names := make([]string, 0, len(tools))
+	for _, t := range tools {
+		names = append(names, t.Name())
+	}
+	return strings.Join(names, ", ")
 }

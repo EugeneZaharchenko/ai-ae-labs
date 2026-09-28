@@ -1,17 +1,13 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"os"
 
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/agent/llmagent"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/tool"
 	"google.golang.org/adk/v2/tool/functiontool"
-
-	"github.com/dimetron/ai-eng-course/labs/internal/adkenv"
 )
 
 // NewRateTool builds the typed function tool.
@@ -81,12 +77,4 @@ func NewAgent(m model.LLM, p Provider, extraTools ...tool.Tool) (agent.Agent, er
 		return nil, fmt.Errorf("build agent: %w", err)
 	}
 	return a, nil
-}
-
-// LoadEnv loads apps/.env relative to the working directory, ignoring a missing
-// file so the key-free path still runs.
-func LoadEnv() {
-	if err := adkenv.Load("."); err != nil && !errors.Is(err, adkenv.ErrNotFound) {
-		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
-	}
 }

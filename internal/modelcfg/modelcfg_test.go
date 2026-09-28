@@ -626,3 +626,46 @@ func TestCredentialVarNameIsARealVariable(t *testing.T) {
 		})
 	}
 }
+
+// TestProviderModelPairsResolve pins that every non-gateway model in the table
+// is routable through pimodels exactly as written: the bare name for gemini and
+// openai, and an explicitly prefixed name for a local Ollama tag.
+//
+// The gateway half of the table is covered by TestGatewayRoutesResolveThroughPimodels
+// (where qualification adds the prefix for you). This is the other half, and it
+// lives here rather than in a lab because the table lives here: a lab that
+// pinned it would be testing this package's data through a copy of it.
+//
+// Moved from the Week 1 Day 2 lab when that lab's provider.go was replaced by
+// this package; the assertion is unchanged.
+func TestProviderModelPairsResolve(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		provider string
+		model    string
+		want     string
+	}{
+		{provider: "gemini", model: "gemini-3.8-flash", want: "gemini"},
+		{provider: "openai", model: "gpt-5.6-luna", want: "openai"},
+		{provider: "ollama", model: "deepseek-v4.1-flash:cloud", want: "ollama"},
+		{provider: "ollama", model: "qwen3.5:4b-mlx", want: "ollama"}, // needs the prefix
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.provider+"/"+tt.model, func(t *testing.T) {
+			t.Parallel()
+			name := tt.model
+			if tt.provider == "ollama" {
+				name = "ollama/" + tt.model
+			}
+			info, err := pimodels.Resolve(name)
+			if err != nil {
+				t.Fatalf("pimodels.Resolve(%q): %v", name, err)
+			}
+			if info.Provider != tt.want {
+				t.Errorf("pimodels.Resolve(%q).Provider = %q, want %q", name, info.Provider, tt.want)
+			}
+		})
+	}
+}
