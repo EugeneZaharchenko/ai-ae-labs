@@ -249,21 +249,32 @@ tasks:
     cmds:
       - go run {{.PKG}}
 
-  # День 3 має один прапорець — `-mode` (labs3/main.go) — і два значення:
-  # `live` (типове: реальна модель через `internal/modelcfg`, потрібен ключ) і
-  # `graph` (граф без жодного LLM-вузла: ні ключа, ні мережі). Третього
-  # значення `offline` у коді НЕМАЄ: `-mode=offline` завершується помилкою
-  # "unknown mode". Тому `:offline` тут — синонім `:graph`, названий так, як
-  # звикли матеріали курсу (пор. `week1:day2:console:offline`).
+  # День 3 має два прапорці (labs3/main.go). `-mode` — як виконується запит, і
+  # два його значення: `live` (типове: реальна модель через `internal/modelcfg`,
+  # потрібен ключ) і `graph` (граф без жодного LLM-вузла: ні ключа, ні мережі).
+  # Третього значення `offline` у коді НЕМАЄ: `-mode=offline` завершується
+  # помилкою "unknown mode". Тому `:offline` тут — синонім `:graph`, названий
+  # так, як звикли матеріали курсу (пор. `week1:day2:console:offline`).
   #
-  # Дві поверхні × три режими = шість входів:
+  # `-classify` — хто обирає маршрут: `rule` (типове: чиста функція
+  # `refund.Classify`, без моделі) або `model` (той самий провайдер, що вже
+  # завантажений, називає одну з трьох гілок словом). Це окремий вимір, а не
+  # третій режим: `-classify=model` потребує провайдера, тож поєднання
+  # `-mode=graph -classify=model` код відкидає з поясненням — граф існує саме
+  # для того, щоб обійтися без ключа. Задачі `:graph-llm` — це `-mode=live
+  # -classify=model`: маршрут обирає модель, а кроки виконує граф; вони
+  # потребують ключа й не мають `:offline`-псевдоніма, бо без ключа не працюють.
   #
-  #   task week2:day3:console:live      -mode=live    реальна модель
-  #   task week2:day3:console:graph     -mode=graph   без LLM, без ключа
-  #   task week2:day3:console:offline   -mode=graph   те саме, що :console:graph
-  #   task week2:day3:web:live          -mode=live    Web UI + REST
-  #   task week2:day3:web:graph         -mode=graph   Web UI + REST, без ключа
-  #   task week2:day3:web:offline       -mode=graph   те саме, що :web:graph
+  # Дві поверхні × три режими = шість входів, плюс два граф-з-моделлю:
+  #
+  #   task week2:day3:console:live      -mode=live                      реальна модель
+  #   task week2:day3:console:graph     -mode=graph                     без LLM, без ключа
+  #   task week2:day3:console:offline   -mode=graph                     те саме, що :console:graph
+  #   task week2:day3:console:graph-llm -mode=live -classify=model      маршрут обирає модель
+  #   task week2:day3:web:live          -mode=live                      Web UI + REST
+  #   task week2:day3:web:graph         -mode=graph                     Web UI + REST, без ключа
+  #   task week2:day3:web:offline       -mode=graph                     те саме, що :web:graph
+  #   task week2:day3:web:graph-llm     -mode=live -classify=model      Web UI + REST, маршрут від моделі
   #
   # `:graph` і `:offline` у кожній поверхні запускають ту саму команду. Друга
   # назва існує, бо `offline` — звичне слово в матеріалах курсу; `:offline`
@@ -302,6 +313,14 @@ tasks:
     desc: 'День 3: граф у консолі — те саме, що :console:graph (-mode=graph)'
     deps: [week2:day3:console:graph]
 
+  # Той самий граф, але маршрут обирає модель: `-mode=live -classify=model`.
+  # Кроки виконує граф — модель лише називає гілку словом, тож у журналі видно
+  # і рішення моделі, і те, що роботу зробив вузол. Потрібен ключ.
+  week2:day3:console:graph-llm:
+    desc: 'День 3: граф у консолі, маршрут обирає модель (-mode=live -classify=model)'
+    cmds:
+      - go run {{.DAY3}} -mode=live -classify=model console
+
   week2:day3:web:live:
     desc: 'День 3: Web UI http://localhost:8080/ui/ + REST API /api, режим live (-mode=live)'
     cmds:
@@ -315,6 +334,13 @@ tasks:
   week2:day3:web:offline:
     desc: 'День 3: Web UI + REST API — те саме, що :web:graph (-mode=graph)'
     deps: [week2:day3:web:graph]
+
+  # Web UI + REST із моделлю-маршрутизатором: та сама команда, що
+  # `:web:live`, плюс `-classify=model`. Слухає :8080 — див. `task kill:8080`.
+  week2:day3:web:graph-llm:
+    desc: 'День 3: Web UI + REST API, маршрут обирає модель (-mode=live -classify=model)'
+    cmds:
+      - go run {{.DAY3}} -mode=live -classify=model web webui api
 
   week2:day4:serve:
     desc: 'День 4: HTTP-сервіс на http://localhost:8080 (/health, /readyz, /api/) — ключ НЕ потрібен'

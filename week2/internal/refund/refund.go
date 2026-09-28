@@ -6,12 +6,15 @@
 package refund
 
 import (
+	"context"
 	"fmt"
+	"iter"
 	"regexp"
 	"strings"
 	"sync"
 
 	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/tool"
 	"google.golang.org/adk/v2/tool/functiontool"
 )
@@ -68,6 +71,37 @@ type Registry struct {
 	// ask about a case in any casing. The entry keeps the minted ID, which is
 	// what the transcript reports back.
 	cases map[string]Output
+	// llm, when set, is the alternative classifier: the router asks a model
+	// for the route name instead of calling Classify. Optional on purpose —
+	// nil is the keyless, network-free default every test relies on.
+	llm Classifier
+}
+
+// Classifier is the model half of routing: the one method a classifier needs to
+// be a model.LLM. It is declared here rather than imported from the ADK so the
+// domain package never depends on a provider SDK, and so a lab can pass a
+// scripted fake in a test.
+type Classifier interface {
+	Name() string
+	GenerateContent(ctx context.Context, req *model.LLMRequest, stream bool) iter.Seq2[*model.LLMResponse, error]
+}
+
+// ClassifierModel returns the model the register routes with, or nil for the
+// deterministic default.
+func (r *Registry) ClassifierModel() Classifier {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.llm
+}
+
+// SetClassifier installs a model as the graph's classifier source. It is
+// separate from Classify because routing is the lab's choice, not the domain's:
+// the register stays the same whether a model or a pure function picked the
+// branch.
+func (r *Registry) SetClassifier(c Classifier) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.llm = c
 }
 
 // canonicalCaseID is the register's key form. Case IDs are compared

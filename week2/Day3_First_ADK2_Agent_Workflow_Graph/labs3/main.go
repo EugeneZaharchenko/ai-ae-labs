@@ -1,5 +1,8 @@
-// ДЗ 3: звичайний запуск використовує реальну модель; -mode=graph — без LLM.
-// Скриптована модель є тільки у тестах. ADK Go v2.4.0, станом на 09/2026.
+// ДЗ 3: -mode обирає поверхню (live — ланцюжок через LlmAgent, graph — явний
+// граф), -classify обирає, хто вирішує маршрут (rule — чиста функція, model —
+// той самий провайдер). `-mode=live -classify=model` запускає граф, у якому
+// маршрут називає модель: кроки виконує граф. Скриптована модель є тільки у
+// тестах. ADK Go v2.4.0, станом на 09/2026.
 package main
 
 import (
@@ -59,7 +62,25 @@ func runAgent(ctx context.Context, a agent.Agent, out io.Writer, input string) e
 func main() {
 	ctx := context.Background()
 	mode := flag.String("mode", "live", "live (configured model) or graph (no model)")
+	classify := flag.String("classify", "rule", "who picks the route: rule (no model) or model (asks the configured model)")
 	flag.Parse()
+	// The classifier choice is separate from the run mode, because they answer
+	// different questions: -mode is where the request runs (a model-driven
+	// LlmAgent, or the explicit graph), -classify is who picks the route.
+	// `-classify=model` needs a provider for the graph, and `-mode=graph` is the
+	// keyless path — so the model classifier is allowed with `-mode=live` only,
+	// where the provider is loaded anyway and drives the graph instead of the
+	// LlmAgent.
+	if *classify != "rule" && *classify != "model" {
+		log.Fatalf("unknown -classify %q; use rule or model", *classify)
+	}
+	if *mode != "live" && *mode != "graph" {
+		log.Fatalf("unknown mode %q; use live or graph", *mode)
+	}
+	if *classify == "model" && *mode != "live" {
+		log.Fatalf("-classify=model needs -mode=live: it calls the provider that -mode=graph exists to avoid")
+	}
+	reg := &refund.Registry{}
 	var a agent.Agent
 	var err error
 	switch *mode {
@@ -72,11 +93,18 @@ func main() {
 			log.Fatalf("live mode: %v\nFor the explicit offline path use -mode=graph.", loadErr)
 		}
 		log.Printf("live model: %s", choice.Reason)
-		a, err = newLiveAgent(m, &refund.Registry{})
+		if *classify == "model" {
+			// Same provider, different job: the graph still runs the steps and
+			// applies the tools, and the model only names the branch. That is
+			// the comparison this flag exists for — same model, one decision.
+			log.Printf("-classify=model: the graph runs the steps, the model picks the route")
+			reg.SetClassifier(m)
+			a, err = newGraph(reg)
+			break
+		}
+		a, err = newLiveAgent(m, reg)
 	case "graph":
-		a, err = newGraph(&refund.Registry{})
-	default:
-		log.Fatalf("unknown mode %q; use live or graph", *mode)
+		a, err = newGraph(reg)
 	}
 	if err != nil {
 		log.Fatal(err)
