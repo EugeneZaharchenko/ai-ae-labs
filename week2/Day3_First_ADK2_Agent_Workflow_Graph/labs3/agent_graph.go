@@ -59,39 +59,16 @@ func newGraph(reg *refund.Registry) (agent.Agent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create refund node: %w", err)
 	}
-	// The three leaves report through sayAsContent: the classifier's info line
-	// is Content, and once any event in the turn carries Content the console
-	// stops printing Output — so a leaf that answered only through Output would
-	// be silent. The domain functions themselves are shared with lab 4 and stay
-	// unaware of this; the wrapping is this lab's business.
-	format := workflow.NewFunctionNode("format", func(ctx agent.Context, in refund.Output) (any, error) {
-		text, err := refund.Format(ctx, in)
-		if err != nil {
-			return nil, err
-		}
-		return sayAsContent(ctx, text), nil
-	}, cfg)
+	format := workflow.NewFunctionNode("format", refund.Format, cfg)
 	prepareStatus := workflow.NewFunctionNode("prepare_status", refund.PrepareStatus, cfg)
 	checkStatus, err := workflow.NewToolNodeTyped[refund.StatusInput, refund.Output](statusTool, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create status node: %w", err)
 	}
-	formatStatus := workflow.NewFunctionNode("format_status", func(ctx agent.Context, in refund.Output) (any, error) {
-		text, err := refund.FormatStatus(ctx, in)
-		if err != nil {
-			return nil, err
-		}
-		return sayAsContent(ctx, text), nil
-	}, cfg)
+	formatStatus := workflow.NewFunctionNode("format_status", refund.FormatStatus, cfg)
 	// The refusal is a declared step, not the absence of one: a request the
 	// domain does not handle gets an answer in the log like every other.
-	refuse := workflow.NewFunctionNode("refuse", func(ctx agent.Context, msg string) (any, error) {
-		text, err := refund.OutOfDomain(ctx, msg)
-		if err != nil {
-			return nil, err
-		}
-		return sayAsContent(ctx, text), nil
-	}, cfg)
+	refuse := workflow.NewFunctionNode("refuse", refund.OutOfDomain, cfg)
 
 	edges := workflow.Concat(
 		workflow.Chain(workflow.Start, classify),
@@ -110,34 +87,13 @@ func newGraph(reg *refund.Registry) (agent.Agent, error) {
 	})
 }
 
-// sayAsContent builds the terminal event of a leaf node, carrying the answer on
-// both channels.
-//
-// Content is the user-visible one: a plain function node normally reports
-// through Event.Output, which the console prints only while no event in the
-// turn carried Content. That rule is why this helper exists — the classifier's
-// info line is Content, so as soon as it is emitted the console stops printing
-// Output, and a leaf answering only through Output would go silent.
-//
-// Output is kept as well, because it is the node's declared result that
-// in-process readers (labrun, tests, resume) resolve through Event.Output. The
-// returned *session.Event is yielded by the engine as-is, so both fields reach
-// the log.
-func sayAsContent(ctx agent.Context, text string) *session.Event {
-	ev := session.NewEvent(ctx, ctx.InvocationID())
-	ev.Content = genai.NewContentFromText(text, genai.RoleModel)
-	ev.Output = text
-	return ev
-}
-
 // classifyRouteText emits the routing event and returns nil, which suppresses
 // the node's own terminal event: the route is the only thing this node is for,
 // and a second event carrying the same string would say nothing new.
 //
 // Output carries the user message into every branch. Without it the successor
 // would receive a nil input and see an empty request instead of the one that
-// was actually asked. One event carries both jobs: Routes for the engine,
-// Content for the user.
+// was actually asked.
 //
 // The name says how the decision is made, not what it produces: the sibling
 // classifyRouteModel produces the same event from the same vocabulary, and the
@@ -151,11 +107,6 @@ func classifyRouteText(ctx agent.Context, msg string, emit func(*session.Event) 
 	ev := session.NewEvent(ctx, ctx.InvocationID())
 	ev.Routes = []string{route}
 	ev.Output = msg
-	// Who decided, and what it decided. The user reads the second half; the
-	// first is what makes the two classifiers tell themselves apart on screen.
-	// The console prints each event's text with no separator, so this line ends
-	// in a newline or the leaf's answer would run into it.
-	ev.Content = genai.NewContentFromText("Класифікатор (правило): "+route+"\n", genai.RoleModel)
 	if err := emit(ev); err != nil {
 		return nil, err
 	}
@@ -194,7 +145,6 @@ func classifyRouteModel(c refund.Classifier) func(agent.Context, string, func(*s
 		ev := session.NewEvent(ctx, ctx.InvocationID())
 		ev.Routes = []string{route}
 		ev.Output = msg
-		ev.Content = genai.NewContentFromText("Класифікатор (модель): "+route+"\n", genai.RoleModel)
 		if err := emit(ev); err != nil {
 			return nil, err
 		}

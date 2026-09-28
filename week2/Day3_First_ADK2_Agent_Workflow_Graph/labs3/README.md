@@ -14,33 +14,37 @@ go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 -mode=graph
 
 Очікуємо два зелені підтести: `LlmAgent` зі скриптованою моделлю та `workflow-граф`.
 Друга команда друкує чотири нормалізовані JSON-події **графа** (маршрут, розбір ID, tool, формат).
-Перша несе `routes` — рішення, яке ухвалив `classify`; третя несе бізнес-результат.
-Перша й остання несуть ще й `content` — те, що бачить користувач:
+Перша несе `routes` — рішення, яке ухвалив `classify`; третя несе бізнес-результат:
 
 ```json
-{"author":"first_graph_agent","routes":["refund"],"output":"Мерчант A-114 просить повернення по транзакції txn-2026-07-118845","content":{"parts":[{"text":"Класифікатор (правило): refund\n"}],"role":"model"}}
+{"author":"first_graph_agent","routes":["refund"],"output":"Мерчант A-114 просить повернення по транзакції txn-2026-07-118845"}
 {"author":"first_graph_agent","output":{"transaction_id":"txn-2026-07-118845","merchant_id":"A-114"}}
 {"author":"first_graph_agent","output":{"case_id":"rc-txn-2026-07-118845-A-114","merchant_id":"A-114","status":"pending","transaction_id":"txn-2026-07-118845"},"state_delta":{"refund:last_case_id":"rc-txn-2026-07-118845-A-114","refund:last_merchant_id":"A-114","refund:last_status":"pending"}}
-{"author":"first_graph_agent","output":"Кейс rc-txn-2026-07-118845-A-114: транзакція txn-2026-07-118845, мерчант A-114, статус pending","content":{"parts":[{"text":"Кейс rc-txn-2026-07-118845-A-114: транзакція txn-2026-07-118845, мерчант A-114, статус pending"}],"role":"model"}}
+{"author":"first_graph_agent","output":"Кейс rc-txn-2026-07-118845-A-114: транзакція txn-2026-07-118845, мерчант A-114, статус pending"}
 ```
 
-ID виклику й час прибрано, але `routes`, `output`, `content` і `state_delta` взято з реальних `session.Event`.
+ID виклику й час прибрано, але `routes`, `output` і `state_delta` взято з реальних `session.Event`.
 
-### `output` і `content` — два різні канали
+### Рішення класифікатора видно в stderr, а не в консолі
 
-Вузол-функція звітує через `Event.Output`, але консоль друкує `Output` **лише
-поки жодна подія ходу не несла `Content`**. Це неочевидно й кусає мовчки: щойно
-класифікатор починає друкувати свою інформаційну стрічку як `Content`, будь-який
-лист, що відповідав тільки через `Output`, зникає з транскрипту.
+`classify` друкує обрану гілку через `log.Printf`:
 
-Тому `classify` і всі три листки (`format`, `format_status`, `refuse`) кладуть
-своє слово в **обидва** поля: `Content` читає користувач (консоль, Web UI, REST),
-`Output` резолвлять внутрішні читачі (`labrun`, тести, resume). Спільний хелпер —
-`sayAsContent` в `agent_graph.go`; доменні функції лишаються незмінними, бо ними
-користується ще й День 4.
+```
+2026/09/28 21:48:12 classify: rule "check status rc-txn-…" → status
+2026/09/28 21:48:12 classify: model "…" → refund
+```
 
-Інформаційна стрічка закінчується `\n` навмисно: консоль друкує текст подій без
-розділювача, тож без нього відповідь листка злилася б з нею в один рядок.
+Перший рядок — `-classify=rule`, другий — `-classify=model`. Це **stderr**, тож
+рядок не змішується з відповіддю агента на stdout і не потрапляє ні у Web UI, ні
+в REST. Рішення лишається в машинному вигляді й у `Event.Routes`, тому аудит не
+залежить від тексту в логах.
+
+Вузли графа звітують через `Event.Output`, а не через `Content`: консоль друкує
+`Output` **лише поки жодна подія ходу не несла `Content`**, і поки всі вузли
+мовчать у `Content`, у консолі видно саме фінальну відповідь графа. Якщо колись
+додасте вузлу `Content` (напр. щоб показати проміжний крок користувачеві), ця
+відповідь зникне — тоді кожному листку (`format`, `format_status`, `refuse`)
+доведеться теж писати в `Content`.
 Інтерактивний граф без моделі:
 
 ```bash
