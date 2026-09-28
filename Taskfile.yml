@@ -253,14 +253,25 @@ tasks:
   # `live` (типове: реальна модель через `internal/modelcfg`, потрібен ключ) і
   # `graph` (граф без жодного LLM-вузла: ні ключа, ні мережі). Третього
   # значення `offline` у коді НЕМАЄ: `-mode=offline` завершується помилкою
-  # "unknown mode". У назвах задач суфікс `:offline` означає саме `-mode=graph`
-  # — так само, як у `week1:day2:console:offline`. Обидві поверхні (console і
-  # web) підтримують обидва режими, тому матриця повна:
+  # "unknown mode". Тому `:offline` тут — синонім `:graph`, названий так, як
+  # звикли матеріали курсу (пор. `week1:day2:console:offline`).
   #
-  #   console: live (типово), :live, :offline
-  #   web:     live (типово), :live, :offline
+  # Три входи, по одному на режим:
   #
-  # Задачі без суфікса — це `live`, і лишаються для сумісності з README та ДЗ.
+  #   task week2:day3:live      -mode=live     реальна модель, потрібен ключ
+  #   task week2:day3:graph     -mode=graph    без LLM, без ключа
+  #   task week2:day3:offline   -mode=graph    те саме, що :graph
+  #
+  # `:graph` і `:offline` запускають ту саму команду. Друга назва існує, бо
+  # `offline` — звичне слово в матеріалах курсу; `:offline` викликає `:graph`
+  # через `deps`, щоб дві копії команди не розійшлися.
+  #
+  # Раніше тут були окремі `console` і `web`-входи; їх прибрано на користь
+  # одного консольного входу на режим. Web UI лишається доступним напряму:
+  #   go run {{.DAY3}} -mode=graph web webui api
+  # Він слухає :8080, як і `week2:day4:serve`, тому одночасно вони не
+  # працюють — і Ctrl-C часто лишає дочірній процес живим. `task kill:8080` —
+  # ліки.
   #
   # День 4 — навпаки: labs4 виставляє той самий `-mode=graph` граф Дня 3 за
   # REST, тож сервіс стартує й відповідає БЕЗ жодного ключа (він це сам
@@ -272,47 +283,24 @@ tasks:
   #
   # `console` читає os.Stdin, тож канонічний запит можна подати так:
   #   echo "Мерчант A-114 просить повернення по транзакції txn-2026-07-118845" \
-  #     | task week2:day3:console
-  #
-  # Обидві `*:web` задачі (і живий, і графовий режим) слухають :8080, тому
-  # одночасно вони не працюють — і Ctrl-C часто лишає дочірній процес живим.
-  # `task kill:8080` — ліки.
+  #     | task week2:day3:live
 
-  week2:day3:console:
-    desc: 'День 3: граф у консолі, режим live (офлайн: task week2:day3:console:offline)'
-    cmds:
-      - go run {{.DAY3}} console
-
-  week2:day3:console:live:
-    desc: 'День 3: граф у консолі, режим live явно (-mode=live)'
+  week2:day3:live:
+    desc: 'День 3: граф у консолі, режим live (-mode=live)'
     cmds:
       - go run {{.DAY3}} -mode=live console
 
-  # `:offline` = `-mode=graph`: у графі немає жодного LLM-вузла, тому ні ключ,
-  # ні мережа не потрібні. Це той самий режим, який День 4 виставляє за REST.
-  week2:day3:console:offline:
-    desc: 'День 3: граф у консолі, режим graph — ключ і мережа НЕ потрібні (-mode=graph)'
+  week2:day3:graph:
+    desc: 'День 3: граф у консолі, режим graph — без LLM, ключ не потрібен (-mode=graph)'
     cmds:
       - go run {{.DAY3}} -mode=graph console
 
-  week2:day3:web:
-    desc: 'День 3: Web UI на http://localhost:8080/ui/ + REST API на /api, режим live (офлайн: task week2:day3:web:offline)'
-    cmds:
-      - go run {{.DAY3}} web webui api
-
-  week2:day3:web:live:
-    desc: 'День 3: Web UI + REST API, режим live явно (-mode=live)'
-    cmds:
-      - go run {{.DAY3}} -mode=live web webui api
-
-  # `:graph` — це псевдонім `:offline` (той самий `-mode=graph`), щоб назва
-  # задачі збігалася зі значенням прапорця. Обидві назви лишаються робочими:
-  # README і матеріали курсу спираються на `:offline`.
-  week2:day3:web:offline:
-    aliases: [week2:day3:web:graph]
-    desc: 'День 3: Web UI + REST API, режим graph — ключ і мережа НЕ потрібні (-mode=graph; :graph — те саме)'
-    cmds:
-      - go run {{.DAY3}} -mode=graph web webui api
+  # `offline` — звичне слово в матеріалах курсу. Це той самий `-mode=graph`,
+  # тож задача викликає `:graph` через `deps`, а не дублює команду: два
+  # однакові `cmds` розійшлися б при першій же правці.
+  week2:day3:offline:
+    desc: 'День 3: граф у консолі — те саме, що :graph (-mode=graph)'
+    deps: [week2:day3:graph]
 
   week2:day4:serve:
     desc: 'День 4: HTTP-сервіс на http://localhost:8080 (/health, /readyz, /api/) — ключ НЕ потрібен'
