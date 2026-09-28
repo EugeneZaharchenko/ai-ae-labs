@@ -18,10 +18,10 @@
 // workflow.StringRoute. This is the canonical "LLM as the brain,
 // engine does the routing" pattern.
 //
-// Requires GOOGLE_API_KEY in the environment.
+// Requires a configured provider, as in the day 3 labs: MODEL /
+// DEFAULT_MODEL_PROVIDER in apps/.env, or the same variables exported.
 //
-//	export GOOGLE_API_KEY=...
-//	go run ./examples/workflow/routing/llm/ console
+//	go run . console
 package main
 
 import (
@@ -31,16 +31,15 @@ import (
 	"os"
 	"strings"
 
-	"google.golang.org/genai"
-
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/agent/llmagent"
 	"google.golang.org/adk/v2/agent/workflowagent"
 	"google.golang.org/adk/v2/cmd/launcher"
 	"google.golang.org/adk/v2/cmd/launcher/full"
-	"google.golang.org/adk/v2/model/gemini"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/adk/v2/workflow"
+
+	"github.com/dimetron/ai-eng-course/labs/internal/modelcfg"
 )
 
 // classifierInstruction is the only prompt the LLM sees. The
@@ -101,15 +100,17 @@ func userMessage(ctx agent.Context) string {
 func main() {
 	ctx := context.Background()
 
-	apiKey := os.Getenv("GOOGLE_API_KEY")
-	if apiKey == "" {
-		log.Fatalf("GOOGLE_API_KEY is required to run this sample")
+	// Same provider resolution as the day 3 labs: apps/.env (found by walking
+	// up from here) supplies the keys, modelcfg decides the provider and model,
+	// and the choice is printed so a wrong answer is traceable.
+	if err := modelcfg.LoadEnv("."); err != nil {
+		log.Fatalf("LoadEnv: %v", err)
 	}
-
-	model, err := gemini.NewModel(ctx, "gemini-flash-latest", &genai.ClientConfig{APIKey: apiKey})
+	model, choice, err := modelcfg.Load(ctx)
 	if err != nil {
 		log.Fatalf("failed to create model: %v", err)
 	}
+	log.Printf("model: %s", choice.Reason)
 
 	classifier, err := llmagent.New(llmagent.Config{
 		Name:        "classify",

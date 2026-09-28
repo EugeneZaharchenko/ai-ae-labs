@@ -32,10 +32,13 @@
 //     retries, and fails open on stalled Google Search calls;
 //   - the default in-memory session service (nothing to configure).
 //
-// Requires GOOGLE_API_KEY in the environment.
+// Requires a configured provider, as in the day 3 labs: MODEL /
+// DEFAULT_MODEL_PROVIDER in apps/.env, or the same variables exported. The
+// provider must be a Gemini one (gemini, or agentgateway/gemini), because
+// Google Search grounding (geminitool.GoogleSearch) only works with a Gemini
+// model, and modelcfg picks the model name.
 //
-//	export GOOGLE_API_KEY=...
-//	go run ./examples/workflow/complex/ console
+//	go run . console
 package main
 
 import (
@@ -46,23 +49,18 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/genai"
-
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/agent/llmagent"
 	"google.golang.org/adk/v2/agent/workflowagent"
 	"google.golang.org/adk/v2/cmd/launcher"
 	"google.golang.org/adk/v2/cmd/launcher/full"
 	"google.golang.org/adk/v2/model"
-	"google.golang.org/adk/v2/model/gemini"
 	"google.golang.org/adk/v2/tool"
 	"google.golang.org/adk/v2/tool/geminitool"
 	"google.golang.org/adk/v2/workflow"
-)
 
-// modelName is the Gemini model every agent in the pipeline uses. Google
-// Search grounding (geminitool.GoogleSearch) requires a Gemini 2 model.
-const modelName = "gemini-flash-latest"
+	"github.com/dimetron/ai-eng-course/labs/internal/modelcfg"
+)
 
 // Agent names double as workflow node names. The JoinNode keys its output
 // map by predecessor node name, so the formatter below looks results up by
@@ -246,15 +244,21 @@ func newResearchPipeline(m model.LLM) (agent.Agent, error) {
 func main() {
 	ctx := context.Background()
 
-	apiKey := os.Getenv("GOOGLE_API_KEY")
-	if apiKey == "" {
-		log.Fatalf("GOOGLE_API_KEY is required to run this sample")
+	// Same provider resolution as the day 3 labs: apps/.env (found by walking
+	// up from here) supplies the keys, modelcfg decides the provider and model,
+	// and the choice is printed so a wrong answer is traceable.
+	//
+	// The provider must be a Gemini one (gemini, or agentgateway/gemini): the
+	// researchers use geminitool.GoogleSearch, and grounding is only supported
+	// on Gemini models. modelcfg chooses the model name; do not hardcode it.
+	if err := modelcfg.LoadEnv("."); err != nil {
+		log.Fatalf("LoadEnv: %v", err)
 	}
-
-	m, err := gemini.NewModel(ctx, modelName, &genai.ClientConfig{APIKey: apiKey})
+	m, choice, err := modelcfg.Load(ctx)
 	if err != nil {
 		log.Fatalf("failed to create model: %v", err)
 	}
+	log.Printf("model: %s", choice.Reason)
 
 	rootAgent, err := newResearchPipeline(m)
 	if err != nil {

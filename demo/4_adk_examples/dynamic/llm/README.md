@@ -1,55 +1,53 @@
-# Dynamic workflow + LLM
+# Динамічний граф + LLM
 
-A dynamic orchestrator that invokes a single `LlmAgent`-backed node via `workflow.RunNode`. The smallest useful composition of `NewDynamicNode`, `NewAgentNode`, and `RunNode`.
+Динамічний оркестратор, який викликає єдиний вузол на базі `LlmAgent` через `workflow.RunNode`. Найменша корисна композиція `NewDynamicNode`, `NewAgentNode` і `RunNode`.
 
-- **Concept:** Call an `LlmAgent` from inside a dynamic node's Go body by wrapping it as an `AgentNode` and invoking it with `RunNode`.
-- **Needs LLM?** Yes (Gemini)
+- **Ідея:** Викликати `LlmAgent` зсередини тіла Go динамічного вузла, обгорнувши його як `AgentNode` і викликавши через `RunNode`.
+- **Потрібна LLM?** Так (Gemini)
 
-## Goal
+## Мета
 
-Bridge the two building blocks: an `LlmAgent` (the model) and a dynamic node (imperative control flow). The agent is wrapped with `workflow.NewAgentNode` so it can be driven from code, then the dynamic orchestrator calls it once and returns its reply. The same shape scales to multi-step pipelines, branching, and loops — just add more `RunNode` calls to the body.
+Поєднати два будівельні блоки: `LlmAgent` (модель) і динамічний вузол (імперативний потік керування). Агента обгорнуто через `workflow.NewAgentNode`, тож ним можна керувати з коду, а далі динамічний оркестратор викликає його один раз і повертає його відповідь. Та сама форма масштабується до багатокрокових конвеєрів, розгалуження та циклів — просто додайте більше викликів `RunNode` у тіло.
 
-## Authentication
+## Провайдер і ключі
 
-The model client reads its config from the environment, so set one of:
+Провайдера обирають `MODEL` / `DEFAULT_MODEL_PROVIDER`, як у лабораторних дня 3. Покладіть ключі в `apps/.env` (див. шаблон `apps/.env-example`) або експортуйте ті самі змінні, і `internal/modelcfg` обере провайдера та модель:
 
 ```bash
-# Option A — Gemini API key
-export GOOGLE_API_KEY=...
+# Вибір провайдера й моделі
+export DEFAULT_MODEL_PROVIDER=...   # напр. gemini, openai, ollama
+export MODEL=...                    # напр. gemini-flash-latest
 
-# Option B — Vertex AI via gcloud Application Default Credentials
-gcloud auth application-default login
-export GOOGLE_GENAI_USE_VERTEXAI=true
-export GOOGLE_CLOUD_PROJECT=your-project
-export GOOGLE_CLOUD_LOCATION=your-region   # e.g. us-central1
+# Облікові дані для обраного провайдера (шаблон містить усі)
+export GOOGLE_API_KEY=...
 ```
 
-## Workflow
+## Граф
 
 ```mermaid
 graph LR
-    User[User]
-    subgraph "ADK Application Workflow"
-        Start((Start)) --> D[Dynamic Node: greeter_workflow]
-        D -.->|"2. RunNode(input)"| G[Agent Node: greeter LLM]
-        G -.->|"3. one-sentence greeting"| D
+    User[Користувач]
+    subgraph "Робочий граф застосунку ADK"
+        Start((Start)) --> D[Динамічний вузол: greeter_workflow]
+        D -.->|"2. RunNode(input)"| G[Вузол-агент: greeter LLM]
+        G -.->|"3. привітання одним реченням"| D
         D --> End((End))
     end
     User -- "1. hi" --> Start
     End -- "4. Hello! How can I help you today?" --> User
 ```
 
-Solid arrows are static graph edges; the dotted arrows are the imperative `RunNode` call into the wrapped `LlmAgent`. The `greeter` agent's only instruction is to greet the user in exactly one short sentence.
+Суцільні стрілки — це статичні ребра графу; пунктирні стрілки — імперативний виклик `RunNode` до обгорнутого `LlmAgent`. Єдина інструкція агента `greeter` — привітати користувача рівно одним коротким реченням.
 
-## Running the sample
+## Запуск
 
 ```bash
-go run ./examples/workflow/dynamic/llm/ console
+go run . console
 ```
 
-## Example session
+## Приклад сесії
 
-The exact wording comes from the model, so it varies between runs.
+Точне формулювання походить від моделі, тож воно змінюється між запусками.
 
 ```text
 User -> hi

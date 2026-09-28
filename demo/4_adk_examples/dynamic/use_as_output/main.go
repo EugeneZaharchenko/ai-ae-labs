@@ -25,25 +25,31 @@ import (
 	"os"
 	"strings"
 
-	"google.golang.org/genai"
-
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/agent/llmagent"
 	"google.golang.org/adk/v2/agent/workflowagent"
 	"google.golang.org/adk/v2/cmd/launcher"
 	"google.golang.org/adk/v2/cmd/launcher/full"
-	"google.golang.org/adk/v2/model/gemini"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/adk/v2/workflow"
+
+	"github.com/dimetron/ai-eng-course/labs/internal/modelcfg"
 )
 
 func main() {
 	ctx := context.Background()
 
-	model, err := gemini.NewModel(ctx, "gemini-3.5-flash", &genai.ClientConfig{})
-	if err != nil {
-		log.Fatalf("gemini.NewModel: %v", err)
+	// Same provider resolution as the day 3 labs: apps/.env (found by walking
+	// up from here) supplies the keys, modelcfg decides the provider and model,
+	// and the choice is printed so a wrong answer is traceable.
+	if err := modelcfg.LoadEnv("."); err != nil {
+		log.Fatalf("LoadEnv: %v", err)
 	}
+	model, choice, err := modelcfg.Load(ctx)
+	if err != nil {
+		log.Fatalf("failed to create model: %v", err)
+	}
+	log.Printf("model: %s", choice.Reason)
 
 	drafterAgent, err := llmagent.New(llmagent.Config{
 		Name:        "drafter",

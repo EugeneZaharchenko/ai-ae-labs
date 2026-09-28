@@ -16,7 +16,7 @@
 // workflow.StringRoute: a node classifies the user's message into a
 // category and the engine dispatches to one of three branches.
 //
-//	go run ./examples/workflow/routing/string/ console
+//	go run . console
 package main
 
 import (

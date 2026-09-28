@@ -1,43 +1,43 @@
-# Dynamic workflow + Human-in-the-Loop
+# Динамічний граф + HITL
 
-A dynamic orchestrator that **pauses for human input** via `workflow.RunNode`, then resumes and greets the user. Demonstrates the dynamic re-entry resume pattern.
+Динамічний оркестратор, який **ставить на паузу для введення від людини** через `workflow.RunNode`, а потім продовжує виконання й вітає користувача. Демонструє патерн продовження з повторним входом у динамічному вузлі.
 
-- **Concept:** Pause a dynamic node for input, then resume by re-running its body and reading the reply from `agent.Context.ResumedInput`.
-- **Needs LLM?** No
+- **Ідея:** Поставити динамічний вузол на паузу для введення, а потім продовжити, повторно запустивши його тіло й прочитавши відповідь із `agent.Context.ResumedInput`.
+- **Потрібна LLM?** Ні
 
-For the static-chain version of the same scenario, see [`../../hitl_simple`](../../hitl_simple).
+Варіант того самого сценарію як статичного ланцюжка див. у [`../../hitl_simple`](../../hitl_simple).
 
-## Goal
+## Мета
 
-Show how Human-in-the-Loop works inside a *dynamic* node. Dynamic nodes default to `RerunOnResume = &true`: after the human replies, the orchestrator body is re-invoked **from the top**, and the reply is delivered through `ResumedInput(interruptID)`. The body checks for that reply first; if it isn't there yet, it calls the `ask_name` node, which emits a `RequestInput` and interrupts the run.
+Показати, як працює HITL (людина в циклі) всередині *динамічного* вузла. Динамічні вузли типово мають `RerunOnResume = &true`: після відповіді людини тіло оркестратора викликається **заново згори**, а відповідь надходить через `ResumedInput(interruptID)`. Тіло спершу перевіряє наявність цієї відповіді; якщо її ще немає, воно викликає вузол `ask_name`, який видає `RequestInput` і перериває виконання.
 
-## Workflow
+## Граф
 
 ```mermaid
 graph LR
-    User[User]
-    subgraph "ADK Application Workflow"
-        Start((Start)) --> G[Dynamic Node: hitl_demo]
-        G -.->|"2. 1st pass: RunNode(ask_name)"| A[Node: ask_name]
-        A -.->|"3. RequestInput, pause"| G
+    User[Користувач]
+    subgraph "Робочий граф застосунку ADK"
+        Start((Start)) --> G[Динамічний вузол: hitl_demo]
+        G -.->|"2. перший прохід: RunNode(ask_name)"| A[Вузол: ask_name]
+        A -.->|"3. RequestInput, пауза"| G
         G --> End((End))
     end
     User -- "1. start" --> Start
     A -- "4. What's your name?" --> User
-    User -- "5. Alice (resume)" --> G
+    User -- "5. Alice (продовження)" --> G
     End -- "6. Hello, Alice!" --> User
 ```
 
-- **First pass:** `hitl_demo` finds no resumed input, so it runs `ask_name`, which emits a `RequestInput` event (keyed by an invocation-derived `InterruptID`) and returns `ErrNodeInterrupted` — the run pauses.
-- **Resume:** the console forwards the human's reply; `hitl_demo` re-runs from the top, finds the reply under the same `InterruptID` via `ResumedInput`, emits the greeting as content, and returns.
+- **Перший прохід:** `hitl_demo` не знаходить відновленого введення, тож запускає `ask_name`, який видає подію `RequestInput` (прив'язану до `InterruptID`, виведеного з виклику) і повертає `ErrNodeInterrupted` — виконання стає на паузу.
+- **Продовження:** консоль передає відповідь людини; `hitl_demo` запускається заново згори, знаходить відповідь під тим самим `InterruptID` через `ResumedInput`, видає привітання як контент і повертається.
 
-## Running the sample
+## Запуск
 
 ```bash
-go run ./examples/workflow/dynamic/hitl/ console
+go run . console
 ```
 
-## Example session
+## Приклад сесії
 
 ```text
 User -> start

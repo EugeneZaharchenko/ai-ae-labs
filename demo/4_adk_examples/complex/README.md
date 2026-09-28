@@ -1,61 +1,66 @@
-# Complex workflow — parallel research → join → synthesize
+# Складний граф — паралельне дослідження → зведення → синтез
 
-A non-trivial graph that fans out to three researchers, gathers their results at a barrier, and merges them with a final agent. It is the graph-native version of the adk-python "parallel web research" sample, and the showcase for the graph workflow engine's fan-out / fan-in.
+Нетривіальний граф, який розгалужується на трьох дослідників, збирає їхні результати на бар'єрі й об'єднує їх фінальним агентом. Це граф-нативна версія прикладу adk-python «parallel web research» і вітрина розгалуження (fan-out) / зведення (fan-in) рушія графових робочих процесів.
 
-- **Concept:** Fan-out to concurrent agents, fan-in at a `JoinNode`, then synthesize (`AddFanOut` + `AddFanIn` + `NewJoinNode`).
-- **Needs LLM?** Yes (Gemini with Google Search grounding)
+- **Ідея:** Розгалуження (fan-out) до паралельних агентів, зведення (fan-in) на `JoinNode`, потім синтез (`AddFanOut` + `AddFanIn` + `NewJoinNode`).
+- **Потрібна LLM?** Так (Gemini з grounding (Google Search))
 
-## Goal
+## Мета
 
-Demonstrate the engine's parallel-branch primitives end to end: three researcher agents run concurrently on independent topics, a join barrier waits for all of them, a function node reshapes the gathered results into one prompt, and a single-turn synthesis agent merges everything into one structured report.
+Продемонструвати паралельні примітиви рушія наскрізно: три агенти-дослідники виконуються паралельно над незалежними темами, бар'єр зведення чекає на всіх них, вузол-функція переформовує зібрані результати в один запит, а одноходовий агент синтезу об'єднує все в один структурований звіт.
 
-## Authentication
+## Провайдер і ключі
 
-The researchers call Gemini with Google Search grounding, so an API key is required:
+Приклад визначає свого провайдера так само, як лабораторні Дня 3, через `internal/modelcfg`: `apps/.env` надає ключі, а `MODEL` / `DEFAULT_MODEL_PROVIDER` вибирають провайдера й модель. Задайте їх у `apps/.env` (шаблон: `apps/.env-example`) або експортуйте в оболонці.
+
+Цьому прикладу потрібен провайдер **Gemini**, бо дослідники викликають Gemini з grounding (Google Search) — провайдер має бути `gemini` або `agentgateway/gemini` (grounding підтримується лише на моделях Gemini). Зі `DEFAULT_MODEL_PROVIDER=gemini` покладіть ключ у `apps/.env`:
 
 ```bash
-export GOOGLE_API_KEY=...
+# apps/.env
+DEFAULT_MODEL_PROVIDER=gemini
+GOOGLE_API_KEY=...
 ```
 
-## Workflow
+Більше нічого не потрібно хардкодити: `modelcfg` вибирає назву моделі.
+
+## Граф
 
 ```mermaid
 graph LR
-    User[User]
-    subgraph "ADK Application Workflow"
+    User[Користувач]
+    subgraph "Робочий граф застосунку ADK"
         Start((Start))
-        Start -->|"2. fan-out (parallel)"| R1[Node: RenewableEnergyResearcher]
-        Start -->|"2. fan-out (parallel)"| R2[Node: EVResearcher]
-        Start -->|"2. fan-out (parallel)"| R3[Node: CarbonCaptureResearcher]
-        R1 --> J[Join Node: gather]
+        Start -->|"2. розгалуження (паралельно)"| R1[Вузол: RenewableEnergyResearcher]
+        Start -->|"2. розгалуження (паралельно)"| R2[Вузол: EVResearcher]
+        Start -->|"2. розгалуження (паралельно)"| R3[Вузол: CarbonCaptureResearcher]
+        R1 --> J[Вузол зведення: gather]
         R2 --> J
         R3 --> J
-        J -->|"3. gathered map"| F[Node: format_summaries]
-        F -->|"4. prompt"| S[Node: SynthesisAgent LLM]
+        J -->|"3. зібрана мапа"| F[Вузол: format_summaries]
+        F -->|"4. запит"| S[Вузол: SynthesisAgent LLM]
         S --> End((End))
     end
-    User -- "1. any message" --> Start
-    End -- "5. structured report" --> User
+    User -- "1. будь-яке повідомлення" --> Start
+    End -- "5. структурований звіт" --> User
 ```
 
-`Start` fans out to three researchers that run concurrently; the `gather` join node is the barrier that waits for all three and hands its successor a `map[nodeName]output`; `format_summaries` turns that map into one prompt; and the `SynthesisAgent` merges everything into the final report.
+`Start` розгалужується на трьох дослідників, які виконуються паралельно; вузол зведення `gather` — це бар'єр, який чекає на всіх трьох і передає своєму наступнику `map[nodeName]output`; `format_summaries` перетворює цю мапу на один запит; а `SynthesisAgent` об'єднує все у фінальний звіт.
 
-## Running the sample
+## Запуск
 
 ```bash
-export GOOGLE_API_KEY=...
-go run ./examples/workflow/complex/ console
+go run . console
 ```
 
-Send any message to start a run — the research topics are fixed, so the message just triggers the pipeline.
+Надішліть будь-яке повідомлення, щоб почати запуск — теми дослідження фіксовані, тож повідомлення лише запускає конвеєр.
 
-Every node emits events, so the console prints **all three researcher summaries first, then the synthesized report**. The summaries appear in nondeterministic order (the researchers run concurrently), and in an interactive terminal the default token streaming interleaves them. For clean, block-at-a-time output, disable streaming:
+Кожен вузол породжує події, тож консоль друкує **спершу всі три підсумки дослідників, а потім синтезований звіт**. Підсумки з'являються в недетермінованому порядку (дослідники працюють паралельно), а в інтерактивному терміналі типове потокове виведення токенів перемішує їх. Для чистого виведення блоками вимкніть потокове виведення:
 
 ```bash
-go run ./examples/workflow/complex/ console -streaming_mode none
+go run . console -streaming_mode none
 ```
 
-## Example session
+## Приклад сесії
 
 ```text
 Agent -> Driven by falling costs, solar PV is projected to overtake ...   (RenewableEnergyResearcher)
@@ -76,21 +81,21 @@ Agent -> ## Recent Sustainable Technology Advancements                    (Synth
          ...
 ```
 
-## What it shows
+## Що показує
 
-| Concept | Where |
+| Ідея | Де |
 |---|---|
-| Fan-out — independent nodes run concurrently | `eb.AddFanOut(workflow.Start, renewableNode, evNode, carbonNode)` |
-| Fan-in — a barrier that waits for every predecessor | `workflow.NewJoinNode("gather")` + `eb.AddFanIn(...)` |
-| Consuming the join's `map[nodeName]output` | `formatSummaries` reads the gathered map by node name |
-| A `FunctionNode` transforming data mid-graph | `format_summaries` turns the map into one prompt |
-| A single-turn `AgentNode` after a predecessor (not `Start`) | the `SynthesisAgent` node consumes the formatter's output |
-| Per-node retries with backoff | `llmNodeConfig.RetryConfig` on the LLM nodes |
-| Built-in Google Search grounding | `geminitool.GoogleSearch{}` on each researcher |
-| Default in-memory session | `launcher.Config` sets only `AgentLoader` |
+| Розгалуження (fan-out) — незалежні вузли виконуються паралельно | `eb.AddFanOut(workflow.Start, renewableNode, evNode, carbonNode)` |
+| Зведення (fan-in) — бар'єр, що чекає на кожного попередника | `workflow.NewJoinNode("gather")` + `eb.AddFanIn(...)` |
+| Споживання `map[nodeName]output` з вузла зведення | `formatSummaries` читає зібрану мапу за іменем вузла |
+| `FunctionNode`, що трансформує дані всередині графа | `format_summaries` перетворює мапу на один запит |
+| Одноходовий `AgentNode` після попередника (не `Start`) | вузол `SynthesisAgent` споживає результат форматувальника |
+| Повторні спроби з наростаючою паузою для кожного вузла | `llmNodeConfig.RetryConfig` на LLM-вузлах |
+| Вбудований grounding (Google Search) | `geminitool.GoogleSearch{}` на кожному досліднику |
+| Типова сесія в пам'яті | `launcher.Config` задає лише `AgentLoader` |
 
-## Notes
+## Нотатки
 
-A `JoinNode` is the only node that may have several **unconditional** incoming edges; converging plain nodes that way is rejected (`ErrUnsupportedFanIn`). An `LlmAgent` that declares no mode runs single-turn at a graph node, which is what lets the synthesis agent sit mid-graph: a chat-mode agent may only be wired directly from `Start`. The mode is resolved per placement, so the agent's own declaration is left untouched and the same instance may be placed elsewhere.
+`JoinNode` — єдиний вузол, який може мати кілька **безумовних** вхідних ребер; зведення звичайних вузлів у такий спосіб відхиляється (`ErrUnsupportedFanIn`). `LlmAgent`, який не оголошує жодного режиму, виконується одноходово у вузлі графа, і саме це дозволяє агенту синтезу стояти всередині графа: агент у режимі чату можна приєднати лише безпосередньо від `Start`. Режим визначається для кожного розміщення, тож власне оголошення агента залишається незмінним, і той самий екземпляр можна розмістити деінде.
 
-This fan-out/gather behavior matches adk-python's graph workflow, which emits the same per-researcher events before the synthesis.
+Ця поведінка розгалуження/зведення збігається з графовим робочим процесом adk-python, який породжує ті самі події для кожного дослідника перед синтезом.

@@ -16,7 +16,7 @@
 // workflow.MultiRoute: a node rolls a random integer 1..10 and the
 // engine dispatches to one of three branches based on the value.
 //
-//	go run ./examples/workflow/routing/int/ console
+//	go run . console
 package main
 
 import (

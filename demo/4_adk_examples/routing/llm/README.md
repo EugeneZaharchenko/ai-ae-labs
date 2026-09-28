@@ -1,33 +1,42 @@
-# LLM-driven routing sample
+# Приклад маршрутизації за допомогою LLM
 
-The smallest sample that uses an actual LLM as the routing brain inside a workflow graph. An `LlmAgent` classifies the user's message into one of three categories; a trivial Go function then emits the corresponding `Event.Routes` value, dispatching to one of three handlers.
+Найменший приклад, який використовує справжню LLM як мозок маршрутизації всередині графа. `LlmAgent` класифікує повідомлення користувача в одну з трьох категорій; тривіальна функція Go видає відповідне значення `Event.Routes`, спрямовуючи його до одного з трьох обробників.
 
-- **Concept:** LLM classifies, a plain function emits the route, the engine dispatches (`NewAgentNode` + `StringRoute`).
-- **Needs LLM?** Yes (Gemini)
+- **Ідея:** LLM класифікує, звичайна функція видає маршрут, рушій спрямовує (`NewAgentNode` + `StringRoute`).
+- **Потрібна LLM?** Так (Gemini)
 
-Same shape as adk-python's `contributing/workflow_samples/route/` sample (LLM classifier + plain function emitting the routing event). For the non-LLM version, see [`../string`](../string).
+Така сама форма, як у прикладі `contributing/workflow_samples/route/` з adk-python (класифікатор на LLM + звичайна функція, що видає подію маршрутизації). Версію без LLM дивіться в [`../string`](../string).
 
-## Goal
+## Мета
 
-Show the canonical "LLM as the brain, engine does the routing" pattern: keep the LLM stateless about routing and keep the routing logic in plain code. The classifier returns one word; the router turns that into an `Event.Routes` value; three `StringRoute` edges dispatch to the matching handler.
+Показати канонічний патерн «LLM як мозок, рушій виконує маршрутизацію»: LLM не зберігає стану про маршрутизацію, а логіка маршрутизації лишається у звичайному коді. Класифікатор повертає одне слово; маршрутизатор перетворює його на значення `Event.Routes`; три ребра `StringRoute` спрямовують до відповідного обробника.
 
-## Authentication
+## Провайдер і ключі
+
+Провайдера й модель обирають `MODEL` / `DEFAULT_MODEL_PROVIDER`, як у лабораторних дня 3. Ключі покладіть у `apps/.env` (шаблон — `apps/.env-example`) або експортуйте ті самі змінні; модель збирає `internal/modelcfg`:
 
 ```bash
-export GOOGLE_API_KEY=<your-key>
+# Вибір провайдера й моделі
+export DEFAULT_MODEL_PROVIDER=...   # напр. gemini або agentgateway/gemini
+export MODEL=...                    # напр. доступна вам модель Gemini
+
+# Облікові дані для обраного провайдера (шаблон містить усі)
+export GOOGLE_API_KEY=***
 ```
 
-## Workflow
+Цьому прикладу потрібен саме провайдер **Gemini** (провайдер `gemini` або `agentgateway/gemini`): `LlmAgent` із `modelcfg` повинен мати змогу спрямувати модель до Gemini, інакше класифікатор не працюватиме.
+
+## Граф
 
 ```mermaid
 graph LR
-    User[User]
-    subgraph "ADK Application Workflow"
-        Start((Start)) --> C[Agent Node: classify LLM]
-        C --> R{Node: route_by_classification}
-        R -- "question" --> Q[Node: answer_question]
-        R -- "statement" --> S[Node: comment_statement]
-        R -- "exclamation" --> E[Node: react_exclamation]
+    User[Користувач]
+    subgraph "Робочий граф застосунку ADK"
+        Start((Start)) --> C[Вузол-агент: classify LLM]
+        C --> R{Вузол: route_by_classification}
+        R -- "question" --> Q[Вузол: answer_question]
+        R -- "statement" --> S[Вузол: comment_statement]
+        R -- "exclamation" --> E[Вузол: react_exclamation]
         Q --> End((End))
         S --> End
         E --> End
@@ -36,13 +45,13 @@ graph LR
     End -- "2. answering question: What time is it?" --> User
 ```
 
-## Running the sample
+## Запуск
 
 ```bash
-go run ./examples/workflow/routing/llm/ console
+go run . console
 ```
 
-## Example session
+## Приклад сесії
 
 ```text
 User -> What time is it?
@@ -58,34 +67,34 @@ Agent -> statement
 commenting on statement: The sky is blue.
 ```
 
-The first line of agent output is the LLM's classification (it prints because the console launcher streams every event with text content). The second line is the handler's reply.
+Перший рядок виведення агента — це класифікація від LLM (вона друкується, бо консольний лаунчер віддає потоком кожну подію з текстовим вмістом). Другий рядок — відповідь обробника.
 
-## What it shows
+## Що показує
 
-| Concept | Where |
+| Ідея | Де |
 |---|---|
-| `workflow.NewAgentNode` wrapping an `LLMAgent` | `classifyNode := workflow.NewAgentNode(classifier, ...)` |
-| LLM reply flowing to the next node | `AgentNode` synthesizes the classifier's final reply into `Event.Output`, which the scheduler feeds to the router as input; `LLMAgent.OutputKey = "output"` is optional here and only persists the reply to session state |
-| Custom `BaseNode` translating the LLM's free-form text into a route value | `route_by_classification` reads the classifier's reply, normalises it, and emits `Event.Routes` |
-| `StringRoute` matching one of three categories | three downstream edges, one per category |
-| Handler reading the original user message from `ctx.UserContent` | each handler calls `userMessage(ctx)` rather than receiving it as graph input — the routing node only forwards the classification, not the original text |
+| `workflow.NewAgentNode`, що обгортає `LLMAgent` | `classifyNode := workflow.NewAgentNode(classifier, ...)` |
+| Відповідь LLM, що потрапляє до наступного вузла | `AgentNode` синтезує фінальну відповідь класифікатора в `Event.Output`, який планувальник подає маршрутизатору як вхід; `LLMAgent.OutputKey = "output"` тут необов'язковий і лише зберігає відповідь у стан сесії |
+| Власний `BaseNode`, що перетворює довільний текст від LLM на значення маршруту | `route_by_classification` читає відповідь класифікатора, нормалізує її та видає `Event.Routes` |
+| `StringRoute`, що зіставляється з однією з трьох категорій | три подальші ребра, по одному на кожну категорію |
+| Обробник, що читає оригінальне повідомлення користувача з `ctx.UserContent` | кожен обробник викликає `userMessage(ctx)`, а не отримує його як вхід графа — вузол маршрутизації передає далі лише класифікацію, а не оригінальний текст |
 
-## Notes
+## Нотатки
 
-### Why two nodes (classifier + router)?
+### Чому два вузли (класифікатор + маршрутизатор)?
 
-Mirrors the canonical adk-python pattern: keep the LLM stateless about routing, keep the routing logic in plain code. The alternative — one custom node that calls the LLM and emits `Routes` from the same Run body — is shorter but mixes "LLM-driven decision" with "graph wiring", and reuses none of the engine's normal LLMAgent machinery (output_key, telemetry, etc.).
+Повторює канонічний патерн adk-python: LLM не зберігає стану про маршрутизацію, а логіка маршрутизації лишається у звичайному коді. Альтернатива — один власний вузол, який викликає LLM і видає `Routes` з того самого тіла Run — коротша, але змішує «рішення на основі LLM» зі «з'єднанням графа» і не використовує жодного звичайного механізму LLMAgent рушія (output_key, телеметрія тощо).
 
-### Why register the classifier in `Config.SubAgents`?
+### Чому класифікатор треба зареєструвати в `Config.SubAgents`?
 
-`workflow.NewAgentNode` wraps an `agent.Agent` for graph execution but does **not** make that agent visible in the runner's agent tree (the structure `runner.findAgentToRun` walks to resolve `event.Author` to an `agent.Agent`). Without the explicit `SubAgents: []agent.Agent{classifier}` registration, the runner logs
+`workflow.NewAgentNode` обгортає `agent.Agent` для виконання в графі, але **не** робить цей агент видимим у дереві агентів раннера (структурі, якою ходить `runner.findAgentToRun`, щоб зіставити `event.Author` з `agent.Agent`). Без явної реєстрації `SubAgents: []agent.Agent{classifier}` раннер логує
 
 ```
 Event from an unknown agent: classify, event id: ...
 ```
 
-on every turn. The warning is harmless — the runner falls back to `rootAgent` (the workflow itself), and `isTransferableAcrossAgentTree` blocks any actual re-routing to the LLM agent because the chain to root contains a non-LLMAgent (the workflow wrapper). But registering the classifier as a sub-agent silences the warning and keeps the agent tree consistent with the workflow graph. Treat it as required boilerplate for any workflow that wraps a sub-agent.
+на кожному ході. Попередження нешкідливе — раннер повертається до `rootAgent` (самого графа), а `isTransferableAcrossAgentTree` блокує будь-яке реальне перемаршрутизування до агента-LLM, бо ланцюг до кореня містить не-LLMAgent (обгортку графа). Проте реєстрація класифікатора як субагента прибирає попередження й тримає дерево агентів узгодженим з графом. Вважайте це обов'язковим шаблонним кодом для будь-якого графа, що обгортає субагента.
 
-### Tunable: pick a different model
+### Як змінити модель
 
-Edit `gemini-flash-latest` in `main.go` to whatever model your key has access to. The classifier prompt is very short and any modern Gemini model handles it.
+Тож установіть `MODEL` (у `apps/.env` або в оточенні) у будь-яку модель, до якої мають доступ ваші облікові дані. Підказка для класифікатора дуже коротка, тож із нею впорається будь-яка сучасна модель Gemini.

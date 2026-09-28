@@ -1,25 +1,25 @@
-# Routing sample — random number → 3 branches
+# Приклад маршрутизації — випадкове число → 3 гілки
 
-The smallest end-to-end demonstration of `workflow.IntRoute` / `workflow.MultiRoute` and the `Event.Routes` contract. No LLM, no HITL, no persistence — just routing.
+Найменша наскрізна демонстрація `workflow.IntRoute` / `workflow.MultiRoute` і контракту `Event.Routes`. Без LLM, без HITL, без збереження стану — лише маршрутизація.
 
-- **Concept:** Numeric routing with `IntRoute` / `MultiRoute[int]` over an `Event.Routes` value.
-- **Needs LLM?** No
+- **Ідея:** Числова маршрутизація за допомогою `IntRoute` / `MultiRoute[int]` на основі значення `Event.Routes`.
+- **Потрібна LLM?** Ні
 
-## Goal
+## Мета
 
-Roll a random integer 1..10 and dispatch to one of three handlers based on which range it falls in. Shows how a node sets `Event.Routes` (and `Event.Output`) so the engine selects the matching downstream edge.
+Кинути випадкове ціле число 1..10 і спрямувати його до одного з трьох обробників залежно від того, у який діапазон воно потрапляє. Показує, як вузол встановлює `Event.Routes` (і `Event.Output`), щоб рушій вибрав відповідне ребро далі за графом.
 
-## Workflow
+## Граф
 
 ```mermaid
 graph LR
-    User[User]
-    subgraph "ADK Application Workflow"
-        Start((Start)) --> N1[Node: roll_die]
-        N1 --> N2{Node: route_by_value}
-        N2 -- "1, 2, 3" --> L[Node: handle_low]
-        N2 -- "4, 5, 6, 7" --> M[Node: handle_mid]
-        N2 -- "8, 9, 10" --> H[Node: handle_high]
+    User[Користувач]
+    subgraph "Робочий граф застосунку ADK"
+        Start((Start)) --> N1[Вузол: roll_die]
+        N1 --> N2{Вузол: route_by_value}
+        N2 -- "1, 2, 3" --> L[Вузол: handle_low]
+        N2 -- "4, 5, 6, 7" --> M[Вузол: handle_mid]
+        N2 -- "8, 9, 10" --> H[Вузол: handle_high]
         L --> End((End))
         M --> End
         H --> End
@@ -28,32 +28,32 @@ graph LR
     End -- "2. rolled 8 — handling HIGH range" --> User
 ```
 
-`roll_die` returns an `int`; `route_by_value` emits an event whose `Routes` is the stringified value and whose `Output` is the value itself, so the matched handler receives a typed `int`. Each `MultiRoute[int]` edge matches a set of values (the LOW / MID / HIGH ranges).
+`roll_die` повертає `int`; `route_by_value` породжує подію, у якій `Routes` — це значення, перетворене на рядок, а `Output` — саме значення, тож відповідний обробник отримує типізований `int`. Кожне ребро `MultiRoute[int]` відповідає набору значень (діапазони LOW / MID / HIGH).
 
-## Running the sample
+## Запуск
 
 ```bash
-go run ./examples/workflow/routing/int/ console
+go run . console
 ```
 
-## Example session
+## Приклад сесії
 
-Type any message; the sample ignores it and rolls a fresh number each turn, so the branch changes from run to run (LOW = 1..3, MID = 4..7, HIGH = 8..10):
+Введіть будь-яке повідомлення; приклад його ігнорує й кидає нове число на кожному ході, тож гілка змінюється від запуску до запуску (LOW = 1..3, MID = 4..7, HIGH = 8..10):
 
 ```text
 User -> hi
 Agent -> rolled 8 — handling HIGH range (8..10)
 ```
 
-## What it shows
+## Що показує
 
-| Concept | Where |
+| Ідея | Де |
 |---|---|
-| `FunctionNode` producing a typed value | `roll_die` returns `int` |
-| Custom `BaseNode` emitting a routing event | `route_by_value` sets `Event.Routes = []string{fmt.Sprint(value)}` and `Event.Output = value` so downstream FunctionNodes get a typed `int` input |
-| `MultiRoute[int]` matching a set of ints | three downstream edges, one per range |
-| Random behaviour to exercise different paths between runs | `math/rand/v2` in `roll_die` |
+| `FunctionNode`, що створює типізоване значення | `roll_die` повертає `int` |
+| Власний `BaseNode`, що породжує подію маршрутизації | `route_by_value` встановлює `Event.Routes = []string{fmt.Sprint(value)}` і `Event.Output = value`, щоб подальші FunctionNode отримали типізований вхід `int` |
+| `MultiRoute[int]`, що зіставляється з набором int-ів | три ребра далі за графом, по одному на діапазон |
+| Випадкова поведінка, щоб задіяти різні шляхи між запусками | `math/rand/v2` у `roll_die` |
 
-## Notes
+## Нотатки
 
-In adk-go, `FunctionNode` cannot emit `Event.Routes`: its wrapper always builds a single output event from the return value, so the routing node drops down to a custom `BaseNode`. (adk-python has no such split — a plain function node there can `yield Event(route=...)` directly.)
+В adk-go `FunctionNode` не може породжувати `Event.Routes`: його обгортка завжди будує одну подію виведення з поверненого значення, тож вузол маршрутизації змушений спуститися до власного `BaseNode`. (В adk-python такого розділення немає — звичайний вузол-функція там може напряму `yield Event(route=...)`.)

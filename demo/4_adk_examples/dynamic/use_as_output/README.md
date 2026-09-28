@@ -1,88 +1,94 @@
-# Dynamic workflow + output delegation
+# Динамічний граф + делегування виведення
 
-A dynamic orchestrator that hands its terminal output to a child node instead
-of producing one. An in-scope request is delegated to an `LlmAgent` child with
-`workflow.WithUseAsOutput()`, so the agent's own event *is* the orchestrator's
-output. An out-of-scope request is answered by the orchestrator itself with an
-ordinary `return`.
+Динамічний оркестратор, який передає своє фінальне виведення дочірньому вузлові
+замість того, щоб породжувати його сам. Запит у межах області делегується
+дочірньому `LlmAgent` за допомогою `workflow.WithUseAsOutput()`, тож власна подія
+агента *і є* виведенням оркестратора. Запит поза областями оркестратор обробляє
+сам, звичайним `return`.
 
-- **Concept:** Promote a child's output to the parent dynamic node's terminal
-  output with `workflow.RunNode(..., workflow.WithUseAsOutput())`.
-- **Needs LLM?** Yes (Gemini). Only the delegating branch calls the model, but
-  credentials are needed to start either one.
+- **Ідея:** Зробити виведення дочірнього вузла фінальним виведенням
+  батьківського динамічного вузла за допомогою
+  `workflow.RunNode(..., workflow.WithUseAsOutput())`.
+- **Потрібна LLM?** Так (Gemini). Лише гілка, що делегує, викликає модель, але
+  облікові дані потрібні, щоб запустити будь-яку з них.
 
-## Goal
+## Мета
 
-By default a dynamic node's output is whatever its Go body returns, so
-delegating to a child means capturing the child's value and returning it again.
-That works, but it emits the same content twice: once on the child's event and
-once on the orchestrator's terminal event.
+За замовчуванням виведенням динамічного вузла є те, що повертає його тіло Go, тож
+делегувати дочірньому вузлові означає захопити значення дочірнього вузла й
+повернути його знову. Це працює, але породжує той самий вміст двічі: один раз на
+події дочірнього вузла і один раз на фінальній події оркестратора.
 
-`WithUseAsOutput()` removes the second one. The child's event is stamped as the
-parent's output and the parent emits no terminal event of its own, so the
-`LlmAgent` child's reply is carried by exactly one event, authored by the agent
-rather than by the workflow. The console prints the reply once either way, so
-the saving shows up in the event stream and not in the transcript below.
+`WithUseAsOutput()` прибирає другу. Подію дочірнього вузла позначено як виведення
+батьківського вузла, і батьківський вузол не породжує власної фінальної події, тож
+відповідь дочірнього `LlmAgent` несеться рівно однією подією, автор якої — сам
+агент, а не граф. Консоль у будь-якому разі друкує відповідь один раз, тож
+економія проявляється в потоці подій, а не у виводі в консолі нижче.
 
-The sample puts both branches in one node so either can be exercised from the
-console: type a request mentioning an email to take the delegating branch, or
-anything else to take the plain-return branch.
+Приклад вміщує обидві гілки в один вузол, щоб будь-яку з них можна було задіяти з
+консолі: введіть запит зі згадкою про email, щоб піти гілкою делегування, або
+будь-що інше, щоб піти гілкою звичайного `return`.
 
-## Authentication
+## Провайдер і ключі
 
-The model client reads its config from the environment, so set one of:
+Налаштуйте провайдера так само, як на лабораторних дня 3: покладіть ключі в
+`apps/.env` (скопіюйте `apps/.env-example`) або експортуйте ті самі змінні, і
+`internal/modelcfg` обере провайдера та модель. `DEFAULT_MODEL_PROVIDER` задає
+провайдера явно; залиште його порожнім — і провайдера буде визначено автоматично
+за наявними обліковими даними (agentgateway → ollama → gemini → openai). `MODEL`
+перевизначає модель. Ніколи не комітьте справжні облікові дані.
 
 ```bash
-# Option A — Gemini API key
-export GOOGLE_API_KEY=...
+# Або заповніть apps/.env:
+cp apps/.env-example apps/.env
 
-# Option B — Vertex AI via gcloud Application Default Credentials
-gcloud auth application-default login
-export GOOGLE_GENAI_USE_VERTEXAI=true
-export GOOGLE_CLOUD_PROJECT=your-project
-export GOOGLE_CLOUD_LOCATION=your-region   # e.g. us-central1
+# Або експортуйте ті самі змінні, наприклад для Gemini:
+export GOOGLE_API_KEY=...
+export DEFAULT_MODEL_PROVIDER=gemini
 ```
 
-The model client is built at startup, before the guard runs, so with neither set
-the sample exits with `api key is required for Google AI backend` instead of
-showing a prompt. That applies to the out-of-scope branch too, even though it
-never calls the model.
+Модель будується під час запуску, до виконання перевірки, тож без налаштованого
+провайдера приклад завершується гучно, а не показує запрошення: `modelcfg.Load`
+падає з повідомленням, яке називає змінну для встановлення (українською, напр.
+`жодного провайдера не налаштовано ... Впишіть ключ у apps/.env (шаблон —
+apps/.env-example) ...`). Це стосується і гілки поза областями, хоча вона й не
+викликає модель.
 
-## Workflow
+## Граф
 
 ```mermaid
 sequenceDiagram
     actor User
-    participant A as assistant<br/>(dynamic node)
-    participant D as drafter<br/>(LlmAgent node)
+    participant A as assistant<br/>(динамічний вузол)
+    participant D as drafter<br/>(вузол LlmAgent)
 
-    User->>A: request
-    Note over A: isEmailRequest(request) decides in Go,<br/>before any model call
+    User->>A: запит
+    Note over A: isEmailRequest(request) вирішує Go-код,<br/>(до будь-якого виклику моделі)
 
-    alt in scope
+    alt у межах області
         A->>D: RunNode(request, WithUseAsOutput())
-        D-->>User: the drafter's own event carries the output
-        Note over A: assistant emits no event of its own
-    else out of scope
-        A-->>User: assistant returns its own string
+        D-->>User: подію з виведенням несе сам drafter
+        Note over A: assistant не породжує власної події
+    else поза областями
+        A-->>User: assistant повертає власний рядок
     end
 ```
 
-The arrow back to the user is the whole point: on the delegating branch it
-leaves `drafter`, not `assistant`. `assistant` is also the graph's last node —
-`Start → assistant` is its only static edge, and everything else above happens
-inside the orchestrator's Go body.
+Стрілка назад до користувача — це і є вся суть: на гілці делегування вона виходить
+від `drafter`, а не від `assistant`. `assistant` також є останнім вузлом графа —
+`Start → assistant` — його єдине статичне ребро, а все інше вище відбувається
+всередині тіла Go оркестратора.
 
-## Running the sample
+## Запуск
 
 ```bash
-go run ./examples/workflow/dynamic/use_as_output/ console
+go run . console
 ```
 
-## Example session
+## Приклад сесії
 
-The email wording comes from the model, so it varies between runs. Which branch
-runs does not — it is decided in Go.
+Формулювання листа походить від моделі, тож воно змінюється між запусками. А яка
+гілка виконується — ні: це вирішує Go-код.
 
 ```text
 User -> what is the weather today
@@ -98,42 +104,43 @@ Best regards,
 [Your Name]
 ```
 
-## What it shows
+## Що показує
 
-| Concept | Where |
+| Ідея | Де |
 |---|---|
-| `workflow.WithUseAsOutput()` | passed to `RunNode` on the in-scope branch, promoting the drafter's output to `assistant`'s terminal output, carried on the drafter's own event |
-| Delegation suppresses the parent's terminal event | the drafter's reply is emitted once, authored by `drafter`, and `assistant` emits no event of its own |
-| Plain return as output | the out-of-scope branch returns a string from the body, which becomes `assistant`'s terminal output |
-| Registering a wrapped agent | `SubAgents: []agent.Agent{drafterAgent}` lets the runner resolve `drafter` as the event author |
+| `workflow.WithUseAsOutput()` | передається в `RunNode` на гілці в межах області, роблячи виведення drafter фінальним виведенням `assistant`, несеним на власній події drafter |
+| Делегування пригнічує фінальну подію батьківського вузла | відповідь drafter породжується один раз, її автор — `drafter`, і `assistant` не породжує власної події |
+| Звичайний return як виведення | гілка поза областями повертає рядок з тіла, який стає фінальним виведенням `assistant` |
+| Реєстрація обгорнутого агента | `SubAgents: []agent.Agent{drafterAgent}` дає рушію змогу визначити `drafter` як автора події |
 
-## Notes
+## Нотатки
 
-### The delegating node is the last node in this graph
+### Вузол, що делегує, — останній у цьому графі
 
-A delegated value travels on the child's event and is not recorded as the parent
-node's own output, so a node chained after a delegating dynamic node receives the
-zero value rather than the delegated text — silently, with no error. That is why
-`assistant` has no successor here. Chaining after a plain `RunNode` behaves
-normally, because there the parent emits a terminal event of its own.
+Делеговане значення подорожує на події дочірнього вузла й не записується як власне
+виведення батьківського вузла, тож вузол, приєднаний після динамічного вузла, що
+делегує, отримує нульове значення, а не делегований текст — мовчки, без помилки.
+Саме тому `assistant` не має наступника. Приєднання після звичайного `RunNode`
+поводиться нормально, бо там батьківський вузол породжує власну фінальну подію.
 
-### Why the branch is decided in plain Go
+### Чому гілку обирає звичайний Go-код
 
-The guard is a substring check on the user's request, not a model call or a
-length check on generated text. That keeps both branches reachable on demand, so
-the run above reproduces. A guard that depends on model output would make which
-branch runs vary per run, which is the wrong property for a sample whose whole
-point is the difference between the two branches.
+Перевірка — це пошук підрядка в запиті користувача, а не виклик моделі чи перевірка
+довжини згенерованого тексту. Це зберігає обидві гілки доступними на вимогу, тож
+наведений вище запуск відтворюється. Перевірка, що залежить від виведення моделі,
+робила б вибір гілки різним від запуску до запуску, а це хибна властивість для
+прикладу, вся суть якого — різниця між двома гілками.
 
-### One delegation per activation
+### Одне делегування на активацію
 
-`WithUseAsOutput()` may be used on at most one child per parent activation. A
-second delegating `RunNode` call in the same body fails with
-`workflow.ErrOutputAlreadyDelegated`. Delegation also chains: if the delegated
-child is itself a dynamic node that delegates, the innermost child's event is
-stamped for the whole ancestor chain.
+`WithUseAsOutput()` можна використати щонайбільше на одному дочірньому вузлі на одну
+активацію батьківського. Другий виклик `RunNode`, що делегує, у тому самому тілі
+завершується помилкою `workflow.ErrOutputAlreadyDelegated`. Делегування також
+утворює ланцюжок: якщо делегований дочірній вузол сам є динамічним вузлом, що
+делегує, подію найглибшого дочірнього вузла позначено для всього ланцюжка предків.
 
-### Tunable: pick a different model
+### Як змінити модель
 
-Edit `gemini-3.5-flash` in `main.go` to whatever model your credentials have
-access to. The drafter prompt is short and any modern Gemini model handles it.
+Встановіть `MODEL` (в `apps/.env` або в середовищі) у будь-яку модель, до якої мають
+доступ ваші облікові дані. Промпт drafter короткий, тож із ним упорається будь-яка
+сучасна модель.

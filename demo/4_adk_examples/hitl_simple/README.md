@@ -1,24 +1,24 @@
-# Human-in-the-Loop (minimal, two nodes)
+# HITL (людина в циклі) — мінімум, два вузли
 
-The minimal end-to-end HITL workflow: two nodes where the first pauses for input and the second consumes the human's reply. No LLM, no API key, no streaming — the smallest thing that exercises the console launcher's pause/resume support.
+Мінімальний наскрізний HITL-граф: два вузли, де перший стає на паузу для введення, а другий споживає відповідь людини. Без LLM, без ключа API, без потокового виведення (жоден провайдер не потрібен) — найменше, що задіює підтримку паузи/продовження в консольному лаунчері.
 
-- **Concept:** Two-node HITL handoff — pause with `RequestInput`, resume into the next node.
-- **Needs LLM?** No
+- **Ідея:** Двовузлове передавання HITL — пауза з `RequestInput`, продовження в наступний вузол.
+- **Потрібна LLM?** Ні
 
-Related variant: [`../hitl_rerun`](../hitl_rerun) — the same scenario as a single re-entry node.
+Споріднений варіант: [`../hitl_rerun`](../hitl_rerun) — той самий сценарій як єдиний вузол повторного входу.
 
-## Goal
+## Мета
 
-Demonstrate the simplest possible Human-in-the-Loop pattern. `ask_name` emits a `RequestInput` event and returns `ErrNodeInterrupted`, which pauses the workflow; the console launcher renders the prompt; the user's reply is delivered to `greet` as its typed input.
+Продемонструвати найпростіший можливий патерн HITL (людина в циклі). `ask_name` породжує подію `RequestInput` і повертає `ErrNodeInterrupted`, що ставить граф на паузу; консольний лаунчер відображає запрошення до введення; відповідь користувача доставляється до `greet` як його типізований вхід.
 
-## Workflow
+## Граф
 
 ```mermaid
 graph LR
-    User[User]
-    subgraph "ADK Application Workflow"
-        Start((Start)) --> N1[Node: ask_name]
-        N1 --> N2[Node: greet]
+    User[Користувач]
+    subgraph "Робочий граф застосунку ADK"
+        Start((Start)) --> N1[Вузол: ask_name]
+        N1 --> N2[Вузол: greet]
         N2 --> End((End))
     end
     User -- "1. hello" --> Start
@@ -27,16 +27,16 @@ graph LR
     End -- "4. Hello, Alice!" --> User
 ```
 
-1. **ask_name**: an emitting `FunctionNode` that yields a `RequestInput` (with a fresh per-request `InterruptID`) and interrupts the run.
-2. **greet**: an ordinary `FunctionNode` that receives the reply string and returns the greeting.
+1. **ask_name**: `FunctionNode`, що породжує події: він видає `RequestInput` (з новим `InterruptID` для кожного запиту) і перериває виконання.
+2. **greet**: звичайний `FunctionNode`, який отримує рядок відповіді й повертає привітання.
 
-## Running the sample
+## Запуск
 
 ```bash
-go run ./examples/workflow/hitl_simple/ console
+go run . console
 ```
 
-## Example session
+## Приклад сесії
 
 ```text
 User -> hello

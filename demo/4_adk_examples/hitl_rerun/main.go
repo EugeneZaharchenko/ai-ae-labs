@@ -22,7 +22,7 @@
 // ErrNodeInterrupted (pause, no output); after resume it returns the
 // human's reply, which the body turns into the terminal output.
 //
-//	go run ./examples/workflow/hitl_rerun/ console
+//	go run . console
 //
 //	User -> hello
 //	Agent -> What's your name?

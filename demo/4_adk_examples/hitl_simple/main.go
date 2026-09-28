@@ -22,7 +22,7 @@
 // workflow. The console launcher renders the prompt; the user's
 // reply is delivered to greet as its input.
 //
-//	go run ./examples/workflow/hitl_simple/ console
+//	go run . console
 //
 //	User -> hello
 //	Agent -> What's your name?

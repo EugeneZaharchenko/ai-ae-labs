@@ -19,14 +19,14 @@
 // top after the human replies, and the reply is delivered via
 // agent.Context.ResumedInput.
 //
-//	go run ./examples/workflow/dynamic/hitl/ console
+//	go run . console
 //
 //	User -> start
 //	Agent -> [HITL input] What's your name?
 //	User -> Alice
 //	Agent -> Hello, Alice!
 //
-// Compare with examples/workflow/hitl_simple/: the static-chain
+// Compare with ../hitl_simple/: the static-chain
 // variant of the same scenario. Both rely on the console launcher's
 // HITL support to render the prompt and forward the reply.
 package main

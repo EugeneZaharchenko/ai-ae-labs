@@ -1,47 +1,143 @@
-# Workflow examples
+# Приклади графових робочих процесів
 
-Runnable samples for the adk-go **graph workflow engine** (`google.golang.org/adk/v2/workflow` + `agent/workflowagent`). Each sample is a `main` package that builds a `workflowagent` from a graph of nodes and serves it through the console launcher.
+Запускні приклади для **графового рушія** adk-go (`google.golang.org/adk/v2/workflow`
+разом з `agent/workflowagent`). Кожен приклад — окремий пакет `main`, який будує
+`workflowagent` з графа вузлів і віддає його консольному лаунчеру.
 
-Every example has its own README with a Mermaid diagram, a goal, run instructions, and an example session.
+Одинадцять прикладів, з них сім працюють **без ключа й без мережі**. Кожен має
+власний `README.md` зі схемою Mermaid, метою, командою запуску та прикладом сесії.
 
-## Running any sample
-
-```bash
-go run ./examples/workflow/<name>/ console
-```
-
-Samples marked **LLM? Yes** call Gemini and need credentials — either a Gemini API key or Vertex AI Application Default Credentials:
+## Швидкий старт
 
 ```bash
-# Gemini API key
-export GOOGLE_API_KEY=...
-
-# or Vertex AI via gcloud ADC
-gcloud auth application-default login
-export GOOGLE_GENAI_USE_VERTEXAI=true
-export GOOGLE_CLOUD_PROJECT=your-project
-export GOOGLE_CLOUD_LOCATION=your-region
+cd demo/4_adk_examples/basic
+go run . console
 ```
 
-## Examples
+З теки цієї збірки (власний `Taskfile.yml`, як у `demo/3_adk2_patterns`) у
+кожного прикладу є **власна задача**, названа за його шляхом: `/` і `_`
+замінюються на `-`. Тож `routing/llm` → `task routing-llm`, а
+`dynamic/use_as_output` → `task dynamic-use-as-output`:
 
-| Example | Theme | What it demonstrates | LLM? |
+```bash
+task list                          # перелік усіх задач і прикладів
+task basic                         # приклад із теки basic/
+task dynamic-llm                   # приклад із теки dynamic/llm/
+task routing-int ARGS=-input       # свої аргументи замість console
+task all                           # прогнати всі 11 прикладів поспіль
+task build                         # зібрати всі (артефактів не лишає)
+task verify                        # fmt + vet + build
+```
+
+Кожна така задача — це просто `go run ./<тека> {{.ARGS}}`, виписаний явно, тож
+рядок із неї працює в терміналі як є. Задача `run P=<шлях>` лишаємо для
+довільного шляху: `task run P=basic`.
+
+### `task all`
+
+Проганяє **кожен** приклад поспіль як смоук-запуск: подає `EOF` на stdin, тож
+кожен приклад стартує, друкує свій слід і виходить, і прогін не залипає в
+інтерактивній консолі. Приклади, яким потрібна модель, а провайдера не
+налаштовано, позначаються `❌`, решта — `✅`; підсумок друкує, скільки впало.
+Задача повертає **ненульовий код**, якщо хоч один приклад не запустився, тож
+`task all` у CI не виглядає зеленим, коли половина каталогу не стартує.
+
+На машині без ключів очікуйте рівно чотири `❌` — `complex`, `dynamic/llm`,
+`dynamic/use_as_output`, `routing/llm`. Щоб прогнати їх, налаштуйте провайдера
+(див. нижче).
+
+Задачі, що вимагають лише одного прикладу, названі за його шляхом: `/` і `_`
+замінюються на `-`. Тож `routing/llm` → `task routing-llm`, а
+`dynamic/use_as_output` → `task dynamic-use-as-output`.
+
+### Web UI
+
+Кожен приклад запускається і як вебсервер — тими самими трьома аргументами
+лаунчера, що й решта демо курсу:
+
+```bash
+task basic ARGS="web webui api"
+```
+
+Три аргументи — це три різні речі: `web` піднімає сервер, `webui` віддає
+сторінку на `/ui/`, `api` відкриває REST на `/api`. Після запуску:
+
+- http://localhost:8080/ui/ — інтерфейс
+- http://localhost:8080/api — REST API
+
+Усі одинадцять перевірено наживо в цьому режимі: `/api/list-apps` віддає ім'я
+застосунку, `/ui/` повертає `200`, і хід справді виконується через
+`/api/run_sse` — `basic` повертає `HELLO WEB`, а `routing/llm` і класифікацію,
+і відповідь на запит.
+
+**Усі одинадцять слухають `:8080`**, тож одночасно працює лише один. Ctrl-C
+часто лишає дочірній процес живим, і наступний запуск падає з
+`address already in use` — ліки ті самі, що й для решти демо:
+
+```bash
+task kill:8080       # звільнити порт
+```
+
+Задачі `all:web` немає навмисно: вона піднімала б одинадцять серверів на
+одному порту. Для прогону «всього поспіль» є `task all` — він запускає
+приклади як консольні смоук-запуски.
+
+З кореня репозиторію той самий Web UI доступний як `demo:4_adk:*` — по задачі на
+кожен приклад плюс узагальнена:
+
+```bash
+task demo:4_adk:basic:web          # Web UI для basic/
+task demo:4_adk:routing:llm:web     # Web UI для routing/llm/
+task demo:4_adk:web P=routing/llm   # Web UI для довільного шляху
+```
+
+Коренева поверхня навмисно лише з `:web`-задачами: щоб подивитися приклад,
+досить відкрити Web UI. Голі консольні входи (`task basic`, `task all`,
+`task run P=...`) живуть у `Taskfile.yml` цієї теки.
+
+## Провайдер і ключі
+
+Приклади, яким потрібна модель, читають провайдера так само, як лабораторні
+дня 3: ключі беруться з `apps/.env` (шаблон — `apps/.env-example`), а
+`MODEL` / `DEFAULT_MODEL_PROVIDER` називають провайдера й модель. Рішення ухвалює
+`internal/modelcfg` і друкує його у stderr, тож хибну відповідь видно одразу.
+Явно експортована змінна завжди перемагає файл.
+
+`DEFAULT_MODEL_PROVIDER` можна лишити порожнім — тоді провайдера визначить
+наявний ключ (порядок: agentgateway → ollama → gemini → openai). Секрети в
+README не записуйте.
+
+`complex` потребує **саме Gemini** (провайдер `gemini` або `agentgateway/gemini`),
+бо дослідники використовують Google Search grounding.
+
+## Приклади
+
+| Приклад | Тема | Що показує | LLM? |
 |---|---|---|---|
-| [`basic`](./basic) | Basics | Sequential chain of `FunctionNode`s with `workflow.Chain` | No |
-| [`complex`](./complex) | Parallel | Fan-out → `JoinNode` fan-in → LLM synthesis (`AddFanOut` + `AddFanIn`) | Yes |
-| [`routing/string`](./routing/string) | Routing | Branch on a string value with `StringRoute` (punctuation classifier) | No |
-| [`routing/int`](./routing/int) | Routing | Branch on a number with `IntRoute` / `MultiRoute[int]` | No |
-| [`routing/llm`](./routing/llm) | Routing | LLM classifies, the engine routes via `StringRoute` | Yes |
-| [`hitl_simple`](./hitl_simple) | Human-in-the-loop | Minimal two-node pause/resume with `RequestInput` | No |
-| [`hitl_rerun`](./hitl_rerun) | Human-in-the-loop | Single-node re-entry HITL with `ResumeOrRequestInput` | No |
-| [`dynamic/basic`](./dynamic/basic) | Dynamic | Orchestrate children imperatively in Go via `NewDynamicNode` + `RunNode` | No |
-| [`dynamic/hitl`](./dynamic/hitl) | Dynamic | Dynamic orchestrator that pauses for human input and resumes | No |
-| [`dynamic/llm`](./dynamic/llm) | Dynamic | Dynamic orchestrator invoking an `LlmAgent` node via `RunNode` | Yes |
-| [`dynamic/use_as_output`](./dynamic/use_as_output) | Dynamic | Promote a child's output to the orchestrator's own with `WithUseAsOutput` | Yes |
+| [`basic`](./basic) | Основи | послідовний ланцюжок `FunctionNode` через `workflow.Chain` | Ні |
+| [`complex`](./complex) | Паралельність | розгалуження → зведення в `JoinNode` → синтез моделлю | Так |
+| [`routing/string`](./routing/string) | Маршрутизація | гілка за рядковим значенням через `StringRoute` | Ні |
+| [`routing/int`](./routing/int) | Маршрутизація | гілка за числом через `IntRoute` / `MultiRoute[int]` | Ні |
+| [`routing/llm`](./routing/llm) | Маршрутизація | класифікує модель, маршрут ставить рушій | Так |
+| [`hitl_simple`](./hitl_simple) | HITL | мінімальна пауза/продовження на двох вузлах | Ні |
+| [`hitl_rerun`](./hitl_rerun) | HITL | повторний вхід в один вузол через `ResumeOrRequestInput` | Ні |
+| [`dynamic/basic`](./dynamic/basic) | Динаміка | імперативна оркестрація дочірніх вузлів | Ні |
+| [`dynamic/hitl`](./dynamic/hitl) | Динаміка | динамічний оркестратор, що зупиняється на ввід людини | Ні |
+| [`dynamic/llm`](./dynamic/llm) | Динаміка | динамічний оркестратор викликає вузол `LlmAgent` | Так |
+| [`dynamic/use_as_output`](./dynamic/use_as_output) | Динаміка | виведення дитини стає виведенням оркестратора | Так |
 
-## Core concepts at a glance
+## Базові поняття
 
-- **Nodes** — units of work: `FunctionNode` (a Go function), `AgentNode` (wraps an `LlmAgent`), `ToolNode` (wraps a `tool.Tool`), `JoinNode` (fan-in barrier), and `DynamicNode` (imperative orchestrator).
-- **Edges** — declared with `workflow.Chain`, `workflow.Concat`, and `EdgeBuilder` (`Add`, `AddFanOut`, `AddFanIn`).
-- **Routing** — a node sets `Event.Routes`; matching edges use `StringRoute`, `IntRoute`, or `MultiRoute`.
-- **Human-in-the-loop** — a node emits `RequestInput` to pause; the run resumes when the human replies.
+- **Вузли** — одиниці роботи: `FunctionNode` (Go-функція), `AgentNode` (обгортка
+  над `LlmAgent`), `ToolNode` (обгортка над `tool.Tool`), `JoinNode` (бар'єр
+  зведення) і `DynamicNode` (імперативний оркестратор).
+- **Ребра** — задаються через `workflow.Chain`, `workflow.Concat` і `EdgeBuilder`
+  (`Add`, `AddFanOut`, `AddFanIn`).
+- **Маршрутизація** — вузол ставить `Event.Routes`; відповідні ребра
+  використовують `StringRoute`, `IntRoute` або `MultiRoute`.
+- **HITL** — вузол породжує `RequestInput`, щоб зупинити виконання; запуск
+  продовжується, коли людина відповість.
+
+---
+
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0` · Go 1.27.1

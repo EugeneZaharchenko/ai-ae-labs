@@ -1,26 +1,26 @@
-# Human-in-the-Loop (single-node re-entry)
+# HITL (людина в циклі) — повторний вхід в один вузол
 
-A Human-in-the-Loop workflow where **one** emitting `FunctionNode` both pauses for input and produces the final output. On resume the node is re-run from scratch (`NodeConfig.RerunOnResume = &true`).
+Робочий процес HITL (людина в циклі), у якому **один** емітний `FunctionNode` і робить паузу для введення, і видає фінальний результат. Після продовження вузол запускається заново згори (`NodeConfig.RerunOnResume = &true`).
 
-- **Concept:** Single-node re-entry HITL with `workflow.ResumeOrRequestInput`.
-- **Needs LLM?** No
+- **Ідея:** HITL з повторним входом в один вузол за допомогою `workflow.ResumeOrRequestInput`.
+- **Потрібна LLM?** Ні
 
-For the two-node handoff variant, see [`../hitl_simple`](../hitl_simple).
+Двовузловий варіант із передаванням див. у [`../hitl_simple`](../hitl_simple).
 
-## Goal
+## Мета
 
-Contrast two ways to do HITL. The two-node *handoff* variant ([`../hitl_simple`](../hitl_simple)) has one node ask and a separate node consume the reply. This sample collapses both phases into a single re-run node:
+Порівняти два способи зробити HITL. У двовузловому варіанті з *передаванням* ([`../hitl_simple`](../hitl_simple)) один вузол запитує, а окремий вузол споживає відповідь. Цей приклад зводить обидві фази в один вузол із повторним запуском:
 
-- `workflow.ResumeOrRequestInput` emits a `RequestInput` and returns `ErrNodeInterrupted` on the **first** pass (pause, no output);
-- after the human replies, the node is **re-run from the top**, and the same call now returns the reply, which the body turns into the terminal output.
+- `workflow.ResumeOrRequestInput` емітить `RequestInput` і на **першому** проході повертає `ErrNodeInterrupted` (пауза, без виведення);
+- після відповіді людини вузол **запускається заново згори**, і той самий виклик тепер повертає відповідь, яку тіло вузла перетворює на фінальне виведення.
 
-## Workflow
+## Граф
 
 ```mermaid
 graph LR
-    User[User]
-    subgraph "ADK Application Workflow"
-        Start((Start)) --> G[Node: greet]
+    User[Користувач]
+    subgraph "Робочий граф застосунку ADK"
+        Start((Start)) --> G[Вузол: greet]
         G --> End((End))
     end
     User -- "1. hello" --> Start
@@ -29,15 +29,15 @@ graph LR
     End -- "4. Hello, Alice!" --> User
 ```
 
-The numbered edges are the user ↔ application exchange, in order. Because `RerunOnResume = &true`, the reply at step 3 re-enters `greet` (instead of flowing on to a successor, as it would in [`../hitl_simple`](../hitl_simple)), so the same node executes twice: first it asks and pauses (step 2), then on resume it is re-run from the top and produces the greeting (step 4). The `InterruptID` embeds the invocation ID so the reply still correlates across the re-run within a single run, yet a later run re-prompts.
+Пронумеровані ребра — це обмін між користувачем і застосунком, по порядку. Оскільки `RerunOnResume = &true`, відповідь на кроці 3 знову входить у `greet` (а не тече далі до наступника, як було б у [`../hitl_simple`](../hitl_simple)), тож один і той самий вузол виконується двічі: спершу він запитує й робить паузу (крок 2), а потім під час продовження запускається заново згори й видає вітання (крок 4). `InterruptID` містить ID виклику, тож відповідь усе ще зіставляється крізь повторний запуск у межах одного запуску, проте пізніший запуск знову видає запрошення до введення.
 
-## Running the sample
+## Запуск
 
 ```bash
-go run ./examples/workflow/hitl_rerun/ console
+go run . console
 ```
 
-## Example session
+## Приклад сесії
 
 ```text
 User -> hello

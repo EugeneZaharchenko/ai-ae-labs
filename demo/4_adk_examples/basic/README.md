@@ -1,40 +1,40 @@
-# Basic sequential workflow
+# Базовий послідовний граф
 
-The smallest possible workflow: two `FunctionNode`s wired into a straight chain with `workflow.Chain`. The first node uppercases the user's message, the second appends a suffix. No LLM, no routing, no HITL — just the sequential happy path.
+Найменший можливий граф: два `FunctionNode`, з'єднані в прямий ланцюжок через `workflow.Chain`. Перший вузол переводить повідомлення користувача у верхній регістр, другий додає суфікс. Без LLM, без маршрутизації, без HITL — лише послідовний «щасливий шлях».
 
-- **Concept:** Chain nodes in order with `workflow.Chain(Start, nodeA, nodeB)`.
-- **Needs LLM?** No
+- **Ідея:** З'єднати вузли по порядку через `workflow.Chain(Start, nodeA, nodeB)`.
+- **Потрібна LLM?** Ні
 
-## Goal
+## Мета
 
-Show the absolute minimum needed to stand up a workflow agent: define plain Go functions, wrap each as a `FunctionNode`, connect them with `Chain`, and hand the result to the launcher. Each node's output becomes the next node's input.
+Показати абсолютний мінімум, потрібний, щоб підняти агента-граф: визначити звичайні функції Go, обгорнути кожну як `FunctionNode`, з'єднати їх через `Chain` і передати результат лаунчеру. Виведення кожного вузла стає входом наступного вузла.
 
-## Workflow
+## Граф
 
 ```mermaid
 graph LR
-    User[User]
-    subgraph "ADK Application Workflow"
-        Start((Start)) --> N1[Node: upper]
-        N1 --> N2[Node: suffix]
+    User[Користувач]
+    subgraph "Робочий граф застосунку ADK"
+        Start((Start)) --> N1[Вузол: upper]
+        N1 --> N2[Вузол: suffix]
         N2 --> End((End))
     end
     User -- "hello world" --> Start
     End -- "HELLO WORLD IS AWESOME!" --> User
 ```
 
-1. **upper**: a `FunctionNode` that receives the user message and returns `strings.ToUpper(input)`.
-2. **suffix**: a `FunctionNode` that appends `" IS AWESOME!"` to its input.
+1. **upper**: `FunctionNode`, який отримує повідомлення користувача й повертає `strings.ToUpper(input)`.
+2. **suffix**: `FunctionNode`, який додає `" IS AWESOME!"` до свого входу.
 
-Only the final node's output is surfaced to the user; the intermediate `HELLO WORLD` flows on as `suffix`'s input but is not printed on its own. Both nodes use `workflow.DefaultRetryConfig()` so a transient failure is retried with backoff.
+Лише виведення кінцевого вузла показується користувачеві; проміжний `HELLO WORLD` передається далі як вхід `suffix`, але не друкується окремо. Обидва вузли використовують `workflow.DefaultRetryConfig()`, тож тимчасовий збій повторюється з експоненційною затримкою.
 
-## Running the sample
+## Запуск
 
 ```bash
-go run ./examples/workflow/basic/ console
+go run . console
 ```
 
-## Example session
+## Приклад сесії
 
 ```text
 User -> hello world
