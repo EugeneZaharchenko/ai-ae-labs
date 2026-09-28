@@ -54,6 +54,40 @@ ID мають пріоритет над словами. Запит `check the st
 Читання ніколи не вигадує статус: ID, якого немає в реєстрі, — це помилка, а не
 `pending`.
 
+### Другий класифікатор: маршрут обирає модель
+
+`classify` — це вузол, а хто саме ухвалює рішення — окремий прапорець `-classify`:
+
+| Значення | Хто обирає маршрут | Ключ |
+|---|---|---|
+| `rule` (типове) | `refund.Classify` — чиста функція від тексту | не потрібен |
+| `model` | провайдер із `internal/modelcfg` називає одну з трьох гілок словом | потрібен |
+
+Спитати модель можна тільки там, де провайдер уже завантажений, тож
+`-classify=model` поєднується лише з `-mode=live`, і тоді граф **замінює**
+`LlmAgent`: кроки виконують вузли, а модель лише називає гілку. Поєднання
+`-mode=graph -classify=model` код відкидає з причиною — `graph` існує саме для
+того, щоб обійтися без ключа.
+
+```bash
+go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 -mode=live -classify=model
+```
+
+Друга колонка `routes` доводить, що рішення справді ухвалила модель: та сама
+подія несе маршрут, а бізнес-результат з'являється вже з `state_delta` вузла.
+Порівняйте два запуски на одному запиті — `-mode=graph` і
+`-mode=live -classify=model` — і подивіться, чи та сама гілка. Розбіжність і є
+те, що чиста функція купує ціною гнучкості: `refund.Classify` дає однаковий
+маршрут на однаковий текст, модель — ні. Тому відповідь моделі нормалізується
+(`refund` / `status` / `out_of_domain`), а нерозпізнана стає `out_of_domain`:
+невідомий рядок не має лишити `classify` без жодного ребра.
+
+У журналі обидва випадки видно з першого рядка: задача друкує
+`-classify=model: the graph runs the steps, the model picks the route`.
+
+`task week2:day3:console:graph-llm` і `task week2:day3:web:graph-llm` — ті самі
+команди для термінала й Web UI.
+
 ## Звичайний запуск — реальна модель, не mock
 
 Налаштуйте провайдера як у Тижні 1: `apps/.env` або явні environment variables, `DEFAULT_MODEL_PROVIDER` та `MODEL`. Завантаження й gateway-routing виконує існуючий `internal/modelcfg`; секрети не записуйте в README.
@@ -72,12 +106,13 @@ go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 console
 
 | Файл | Призначення |
 |---|---|
-| [`main.go`](main.go) | Вибір live/graph, одноразовий прогін або ADK launcher |
+| [`main.go`](main.go) | Прапорці `-mode` і `-classify`, одноразовий прогін або ADK launcher |
 | [`agent.go`](agent.go) | `LlmAgent` з ін'єкцією моделі та **обома** реальними tools |
-| [`agent_graph.go`](agent_graph.go) | Граф трьох маршрутів — топологія цієї лаби |
+| [`agent_graph.go`](agent_graph.go) | Граф трьох маршрутів — топологія лаби; обидва класифікатори |
 | [`agent_test.go`](agent_test.go) | Обидва tools у live-шляху; стабільність аудит-демо |
 | [`agent_graph_test.go`](agent_graph_test.go) | По одному кейсу на маршрут, читання реєстру, вигаданий статус |
-| [`../../internal/refund/refund.go`](../../internal/refund/refund.go) | `Input`/`StatusInput`/`Output`, реєстр, `Prepare`, `PrepareStatus`, `Classify`, `Format`, `FormatStatus`, `NewTool`, `NewStatusTool` |
+| [`agent_classify_test.go`](agent_classify_test.go) | Маршрут від моделі, нормалізація відповіді, помилка провайдера |
+| [`../../internal/refund/refund.go`](../../internal/refund/refund.go) | `Input`/`StatusInput`/`Output`, реєстр, `Classifier` + `SetClassifier`, `Prepare`, `PrepareStatus`, `Classify`, `Format`, `FormatStatus`, `NewTool`, `NewStatusTool` |
 | [`../../internal/refund/refund_test.go`](../../internal/refund/refund_test.go) | Табличні тести вузлів на `StrictContextMock`, класифікатор, помилки, конкурентність |
 
 Граф уже запускається, з маршрутизацією:
