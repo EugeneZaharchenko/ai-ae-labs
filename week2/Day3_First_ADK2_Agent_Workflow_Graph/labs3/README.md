@@ -50,13 +50,18 @@ go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 console
 |---|---|
 | [`main.go`](main.go) | Вибір live/graph, одноразовий прогін або ADK launcher |
 | [`agent.go`](agent.go) | `LlmAgent` з ін'єкцією моделі та реальним refund-tool |
+| [`agent_graph.go`](agent_graph.go) | Граф `Start → prepare → open_refund_case → format` — топологія цієї лаби |
 | [`agent_test.go`](agent_test.go) | Один інструмент у двох топологіях; стабільність аудит-демо |
-| [`../../internal/refund/refund.go`](../../internal/refund/refund.go) | `Input`/`Output`, реєстр, `Prepare`, `OpenCase`, `Format`, `NewGraph` |
+| [`agent_graph_test.go`](agent_graph_test.go) | Вузли графа: валідні запити, відмова, відсутність стану після відмови |
+| [`../../internal/refund/refund.go`](../../internal/refund/refund.go) | `Input`/`Output`, реєстр, `Prepare`, `OpenCase`, `Format`, `NewTool` |
 | [`../../internal/refund/refund_test.go`](../../internal/refund/refund_test.go) | Табличні тести вузлів на `StrictContextMock`, помилки, повтори й конкурентність |
 
 Граф уже запускається: `Start → prepare → open_refund_case → format`.
 Це робоча основа для пояснення й модифікації у [завданні](Homework.md), не порожній шаблон.
-Спільний пакет розташований у `week2/internal/refund`, щоб Lab 4 використовувала **той самий код**, а не копію без аудит-подій.
+Спільний пакет `week2/internal/refund` тримає **домен**: typed-контракт, реєстр і сам
+інструмент `open_refund_case`. Топологію графа кожна лаба композирує у своєму
+`agent_graph.go` — тому День 4 може розширювати свій потік (drain, readiness,
+другий вузол), не змінюючи те, що здає День 3.
 
 ```bash
 go build ./week2/...

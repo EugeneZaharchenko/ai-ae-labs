@@ -8,3 +8,6 @@ demo/1_ai-gateway/mock-llm/mock-llm
 # 80+ MB Mach-O/ELF executable at the root, named "labs" — which is a directory
 # in this tree. Never commit it.
 /labs
+
+# Local scratch checkouts (e.g. a reference clone of adk-go). Never published.
+tmp/
