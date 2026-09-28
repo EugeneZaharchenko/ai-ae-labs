@@ -9,10 +9,14 @@
 // DEFAULT_MODEL_PROVIDER did nothing, and a raised gateway was silently
 // bypassed, leaving holes in the traces and the cost ledger.
 //
-// Week 1's labs keep their own provider.go on purpose: there, model choice is
-// the subject being taught, so the table and its reasoning belong in the
-// learner's hands. This package is for the days whose subject is something else
-// and which only need the capability.
+// Week 1's Day 1 lab keeps its own provider.go on purpose: there, model choice
+// IS the subject being taught, so the table and its reasoning belong in the
+// learner's hands, in the learner's own file. Day 2 is the counter-example and
+// the reason this package exists — its subject is the tool contract, so it
+// imports this package instead of carrying a second copy of the table. When a
+// lab's model choice is a side detail, sharing beats duplicating: a copy that
+// drifts makes two labs disagree about which model answered, which is exactly
+// the failure this package was written to end.
 //
 // What lives here:
 //

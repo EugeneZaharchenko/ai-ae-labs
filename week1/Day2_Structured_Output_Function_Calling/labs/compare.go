@@ -36,9 +36,18 @@ type CompareRow struct {
 // go through the shared cached transport, Compare costs at most one upstream
 // request per source per minute, no matter how many times it is called.
 func Compare(ctx context.Context) ([]CompareRow, string, string, error) {
-	nbu := &NBUProvider{}
-	mono := &MonoProvider{}
+	return CompareWith(ctx, &NBUProvider{}, &MonoProvider{})
+}
 
+// CompareWith merges two explicit providers. Compare is this, wired to the two
+// live ones.
+//
+// The seam exists so tests can point both sources at httptest servers and still
+// exercise THIS merge — the real one. The first version of compare_test.go
+// re-implemented the merge instead, which meant a bug here would have passed
+// every test while the printed table stayed wrong. Duplicating logic in a test
+// does not test the logic.
+func CompareWith(ctx context.Context, nbu *NBUProvider, mono *MonoProvider) ([]CompareRow, string, string, error) {
 	nbuRates, nbuDate, err := nbu.RatesToUAH(ctx)
 	if err != nil {
 		return nil, "", "", fmt.Errorf("nbu: %w", err)

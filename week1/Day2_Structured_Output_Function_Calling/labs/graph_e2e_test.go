@@ -32,6 +32,8 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/dimetron/ai-eng-course/labs/internal/fakellm"
+	"github.com/dimetron/ai-eng-course/labs/internal/modelcfg"
+	"github.com/dimetron/ai-eng-course/labs/week1/internal/mcptool"
 )
 
 // fakeToolset is a Toolset whose tools are known without a network call, so
@@ -124,9 +126,9 @@ func TestGraphShowsEagerlyResolvedTools(t *testing.T) {
 		stubTool{name: "mono_bank_sync"},
 	}}
 
-	extra, err := ResolveToolsets(context.Background(), ts)
+	extra, err := mcptool.ResolveToolsets(context.Background(), ts)
 	if err != nil {
-		t.Fatalf("ResolveToolsets() error = %v", err)
+		t.Fatalf("mcptool.ResolveToolsets() error = %v", err)
 	}
 
 	dot := graphDot(t, m, extra...)
@@ -189,89 +191,6 @@ func TestToolsAreListedExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestResolveToolsetsPropagatesError proves a broken server is reported rather
-// than silently yielding zero tools — the lab's "no silent degradation" rule.
-func TestResolveToolsetsPropagatesError(t *testing.T) {
-	ts := &fakeToolset{name: "broken", err: context.DeadlineExceeded}
-
-	got, err := ResolveToolsets(context.Background(), ts)
-	if err == nil {
-		t.Fatalf("ResolveToolsets() error = nil, want a wrapped error")
-	}
-	if got != nil {
-		t.Errorf("ResolveToolsets() tools = %v, want nil on error", got)
-	}
-	if !strings.Contains(err.Error(), "broken") {
-		t.Errorf("error %q does not name the failing toolset", err)
-	}
-	if !strings.Contains(err.Error(), "resolve toolset") {
-		t.Errorf("error %q is not wrapped with context", err)
-	}
-}
-
-// TestResolveToolsetsSkipsNil keeps the variadic call site forgiving: passing a
-// nil toolset (an unwired optional boundary) must not panic.
-func TestResolveToolsetsSkipsNil(t *testing.T) {
-	got, err := ResolveToolsets(context.Background(), nil)
-	if err != nil {
-		t.Fatalf("ResolveToolsets() error = %v", err)
-	}
-	if len(got) != 0 {
-		t.Errorf("ResolveToolsets() = %v, want empty", got)
-	}
-}
-
-// TestWithholdToolsRemovesNamedTools pins the exclusion policy: a mutating MCP
-// tool must not reach the model, while every other tool survives in order.
-func TestWithholdToolsRemovesNamedTools(t *testing.T) {
-	in := []tool.Tool{
-		stubTool{name: "mono_currency_rates"},
-		stubTool{name: "mono_bank_sync"},
-		stubTool{name: "mono_client_info"},
-		stubTool{name: "mono_statement"},
-		stubTool{name: "mono_set_webhook"},
-	}
-
-	got := WithholdTools(in, []string{"mono_set_webhook"})
-
-	var names []string
-	for _, tl := range got {
-		names = append(names, tl.Name())
-	}
-	want := []string{
-		"mono_currency_rates", "mono_bank_sync", "mono_client_info", "mono_statement",
-	}
-	if len(names) != len(want) {
-		t.Fatalf("WithholdTools() = %v, want %v", names, want)
-	}
-	for i := range want {
-		if names[i] != want[i] {
-			t.Errorf("WithholdTools()[%d] = %q, want %q (order must be preserved)", i, names[i], want[i])
-		}
-	}
-	for _, n := range names {
-		if n == "mono_set_webhook" {
-			t.Errorf("withheld tool %q is still offered to the model", n)
-		}
-	}
-}
-
-// TestWithholdToolsNoopCases covers the two ways the filter must not surprise:
-// an empty deny-list, and a name that was never there.
-func TestWithholdToolsNoopCases(t *testing.T) {
-	in := []tool.Tool{stubTool{name: "a"}, stubTool{name: "b"}}
-
-	if got := WithholdTools(in, nil); len(got) != 2 {
-		t.Errorf("WithholdTools(in, nil) dropped tools: got %d, want 2", len(got))
-	}
-	if got := WithholdTools(in, []string{"absent"}); len(got) != 2 {
-		t.Errorf("WithholdTools with an absent name dropped tools: got %d, want 2", len(got))
-	}
-	if got := WithholdTools(nil, []string{"x"}); len(got) != 0 {
-		t.Errorf("WithholdTools(nil, ...) = %v, want empty", got)
-	}
-}
-
 // TestWithheldToolIsAbsentFromGraph ties the policy to the thing the user
 // reported: the withheld tool must not appear in the agent graph, so what the
 // UI shows stays equal to what the model is offered.
@@ -282,12 +201,12 @@ func TestWithheldToolIsAbsentFromGraph(t *testing.T) {
 		stubTool{name: "mono_currency_rates"},
 		stubTool{name: "mono_set_webhook"},
 	}}
-	all, err := ResolveToolsets(context.Background(), ts)
+	all, err := mcptool.ResolveToolsets(context.Background(), ts)
 	if err != nil {
-		t.Fatalf("ResolveToolsets() error = %v", err)
+		t.Fatalf("mcptool.ResolveToolsets() error = %v", err)
 	}
 
-	dot := graphDot(t, m, WithholdTools(all, withheldMCPTools)...)
+	dot := graphDot(t, m, mcptool.Withhold(all, mcptool.Withheld)...)
 
 	if !strings.Contains(dot, "mono_currency_rates") {
 		t.Errorf("graph is missing the offered tool mono_currency_rates; DOT source:\n%s", dot)
@@ -306,7 +225,9 @@ func TestLoadEnvProvidesMonoToken(t *testing.T) {
 	if _, exported := os.LookupEnv("MONO_TOKEN"); exported {
 		t.Skip("MONO_TOKEN already exported; env wins over apps/.env by design")
 	}
-	LoadEnv()
+	if err := modelcfg.LoadEnv("."); err != nil {
+		t.Fatalf("LoadEnv: %v", err)
+	}
 	v, ok := os.LookupEnv("MONO_TOKEN")
 	if !ok || v == "" {
 		t.Skipf("no MONO_TOKEN in apps/.env; the public tools need no token")

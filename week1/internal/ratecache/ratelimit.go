@@ -1,4 +1,5 @@
-// ratelimit.go — cached transport for outbound rate-provider HTTP calls.
+// Package ratecache is a cached, rate-limited transport for outbound
+// rate-provider HTTP calls.
 //
 // Every GET through this RoundTripper is served from cache while fresh (TTL,
 // 1 minute by default) and limited to one real upstream hit per MinInterval
@@ -18,8 +19,11 @@
 // Why a RoundTripper and not a cache inside the providers: both providers
 // already take an *http.Client, so the cache composes exactly like a timeout
 // or a tracing transport would — the agent, the compare tool and tests get it
-// without touching the Provider interface. stdlib only (CLAUDE.md §0).
-package main
+// without touching the Provider interface. stdlib only.
+//
+// This lives outside the lab package because it is infrastructure the exercise
+// never asks anyone to edit: the student reads rates.go, not the cache.
+package ratecache
 
 import (
 	"bytes"

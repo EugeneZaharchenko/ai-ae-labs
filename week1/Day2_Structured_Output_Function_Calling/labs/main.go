@@ -8,8 +8,9 @@
 //	go run . -offline console       # fixture rates, no key and no network
 //	go run . compare                # NBU vs monobank side-by-side table, no model key
 //
-// Provider selection is the SAME logic as Day 1 (provider.go, `LoadModel`), so
-// the two days cannot disagree about which model answers. Resolution order:
+// Provider selection is the SAME logic as Day 1, now shared through
+// internal/modelcfg (`modelcfg.Load`), so the two days cannot disagree about
+// which model answers. Resolution order:
 //
 //  1. DEFAULT_MODEL_PROVIDER names the provider; model from MODEL, else
 //     <PROVIDER>_MODEL, else that provider's table default.
@@ -43,6 +44,9 @@ import (
 	"google.golang.org/adk/v2/cmd/launcher"
 	"google.golang.org/adk/v2/cmd/launcher/full"
 	"google.golang.org/adk/v2/tool"
+
+	"github.com/dimetron/ai-eng-course/labs/internal/modelcfg"
+	"github.com/dimetron/ai-eng-course/labs/week1/internal/mcptool"
 )
 
 func main() {
@@ -61,7 +65,9 @@ func main() {
 	noMCP := flag.Bool("no-mcp", false, "run with only the local rate tool (no mono-go-mcp toolset)")
 	flag.Parse()
 
-	LoadEnv()
+	if err := modelcfg.LoadEnv("."); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+	}
 
 	ctx := context.Background()
 
@@ -91,27 +97,27 @@ func main() {
 	// The MCP toolset is expanded eagerly rather than passed as a Toolset so
 	// the web UI agent graph shows every tool. The graph draws
 	// Reveal(agent).Tools and ignores .Toolsets entirely, and MCP tool names
-	// only exist after a live tools/list call. See ResolveToolsets.
+	// only exist after a live tools/list call. See mcptool.ResolveToolsets.
 	//
 	// LoadEnv has already run, so MONO_TOKEN from apps/.env is in this
 	// process environment and is inherited by the MCP server subprocess.
 	var extraTools []tool.Tool
 	if !*noMCP {
-		tools, err := AgentMCPTools(ctx)
+		tools, err := mcptool.AgentTools(ctx)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "mcp: %v (continuing with the local tool only)\n", err)
 		} else {
 			extraTools = tools
 			fmt.Fprintf(os.Stderr, "mcp: mono-go-mcp toolset attached (%d tools: %s)\n",
-				len(tools), toolNames(tools))
-			if len(withheldMCPTools) > 0 {
+				len(tools), mcptool.Names(tools))
+			if len(mcptool.Withheld) > 0 {
 				fmt.Fprintf(os.Stderr, "mcp: withheld from the model (least agency): %s\n",
-					strings.Join(withheldMCPTools, ", "))
+					strings.Join(mcptool.Withheld, ", "))
 			}
 		}
 	}
 
-	m, choice, err := LoadModel(ctx)
+	m, choice, err := modelcfg.Load(ctx)
 	if err != nil {
 		log.Fatalf("model: %v", err)
 	}
@@ -127,16 +133,6 @@ func main() {
 	if err := l.Execute(ctx, cfg, flag.Args()); err != nil {
 		log.Fatalf("run failed: %v\n\n%s", err, l.CommandLineSyntax())
 	}
-}
-
-// toolNames renders a tool list for the startup log, so the operator can see
-// exactly which tools the model will be offered.
-func toolNames(tools []tool.Tool) string {
-	names := make([]string, 0, len(tools))
-	for _, t := range tools {
-		names = append(names, t.Name())
-	}
-	return strings.Join(names, ", ")
 }
 
 // runCompare executes the side-by-side rate comparison. It uses a fresh
