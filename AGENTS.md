@@ -67,9 +67,10 @@ cd week2/Day4_Agent_as_Service_Deploy/labs4 && go run . -offline console
 ```
 
 ```bash
-# Демо — кожне вкладається своїм модулем, команди з його теки
+# Демо — кожне зі своєю текою команд (деякі з власним Taskfile.yml і/або go.mod)
 # 1_ai-gateway: див. demo/1_ai-gateway/README.md
-# adk-quickstart: див. demo/adk-quickstart/README.md
+# 3_adk2_patterns: cd demo/3_adk2_patterns && task --list (власний Taskfile.yml)
+# adk-quickstart: див. demo/adk-quickstart/README.md (власні Taskfile.yml і go.mod)
 ```
 
 Перед комітом мають проходити: `go build ./...`, `go test ./...` і `task build:all`.
@@ -86,11 +87,12 @@ week1/<День>/labs/solution/ еталонний розв'язок (публі
 internal/                   спільні helper-пакети (adkenv, fakellm, labrun)
 apps/.env-example           шаблон ключів провайдерів (копія → apps/.env)
 1_ai-gateway/               agentgateway + Jaeger/Prometheus/Grafana — локальний моніторинг (bonus-трек)
+3_adk2_patterns/            каталог патернів ADK Go v2.4.0 (16 патернів + 2 додатки) — власний Taskfile.yml
 adk-quickstart/             ADK Go v2 агент, який студенти запускають локально
 Taskfile.yml                команди репозиторію (task check, task test, task cover)
 AGENTS.md                   конвенції репозиторію для агентів і розробників
 .devcontainer/              dev container: Go + Docker + kind (див. §6)
-.agents/skills/             скіли для AI-агентів: go-senior-developer, asd-ste100 (§7)
+.agents/skills/             скіли для AI-агентів: go-senior-developer, asd-ste100, adk-go-workflow (§8)
 ```
 
 ---
@@ -191,6 +193,7 @@ devcontainer exec --workspace-folder . bash
 |---|---|
 | `go-senior-developer` | пишете або рецензуєте Go: ідіоми, TDD, архітектура, безпека |
 | `asd-ste100` | пишете тексти інструкцій: короткі однозначні речення (Simplified Technical English) |
+| `adk-go-workflow` | обираєте стиль (граф / dynamic / prebuilt) і патерн агентної системи або пишете/тестуєте граф ADK Go v2.4.0: маршрути, JoinNode, DynamicNode, режими агентів, HITL |
 
 Кожен скіл — тека зі `SKILL.md` (коли застосовувати + стислий огляд) і
 `references/`, `examples/` із докладними матеріалами. Посилання всередині
@@ -202,6 +205,11 @@ devcontainer exec --workspace-folder . bash
   для кожної горутини та заборона пакетів `util`/`common`/`helpers`.
 - `asd-ste100` допомагає з формулюваннями в README, Homework і описах
   інструментів — там, де важлива однозначність.
+- `adk-go-workflow` — три стилі workflow (граф / dynamic / prebuilt), вісь
+  «хто вирішує наступний крок», дерево рішень, індекс 18 патернів із посиланнями
+  на `demo/3_adk2_patterns/`, звірена з v2.4.0 шпаргалка API, запобіжники графа
+  та офлайн-тестування. Приклади в `examples/` компілюються й тестуються:
+  `go test ./.agents/skills/adk-go-workflow/examples/`.
 
 Скіли читають агенти (Claude Code, Codex, Gemini CLI тощо), які підтримують
 конвенцію `.agents/`; для людини це просто корисні довідники.

@@ -1,0 +1,71 @@
+# https://taskfile.dev
+#
+# Командна поверхня каталогу патернів ADK 2.x — окремо від кореневого
+# `Taskfile.yml`, як у demo/adk-quickstart. Окремого `go.mod` тут немає: пакети
+# належать кореневому модулю, тому `go test ./...` з цієї теки резолвиться
+# через нього. Усі задачі виконуються з теки цього Taskfile.
+#
+# Типовий запуск — офлайн (rule-based «мозок» з internal/kit): ні ключа, ні
+# мережі. Прапорець -live перемикає патерн на реальну модель з apps/.env.
+version: '3'
+
+set: [pipefail]
+
+tasks:
+  default:
+    desc: Показати перелік доступних команд
+    cmds:
+      - task --list
+    silent: true
+
+  list:
+    desc: Перелік патернів каталогу
+    cmds:
+      - ls -d [a-z][0-9]_* x_*
+    silent: true
+
+  run:
+    desc: 'Запустити один патерн офлайн: task run P=b4_conditional_route [ARGS="-live" | ARGS="console"]'
+    requires:
+      vars: [P]
+    cmds:
+      - go run ./{{.P}} {{.ARGS}}
+
+  all:
+    desc: Прогнати сценарні демо всіх патернів поспіль — ключ і мережа НЕ потрібні
+    cmds:
+      - |
+        set -e
+        for d in [a-z][0-9]_* x_*; do
+          go run "./$d"
+          echo
+        done
+
+  test:
+    desc: Тести каталогу патернів (race detector, офлайн) — ключ і мережа НЕ потрібні
+    cmds:
+      - go test -race ./...
+
+  cover:
+    desc: Гейт покриття 85% на кожен пакет (AGENTS.md §4)
+    cmds:
+      - sh ../../scripts/covgate.sh 85 demo/3_adk2_patterns
+
+  vet:
+    desc: Перевірити код за допомогою go vet
+    cmds:
+      - go vet ./...
+
+  fmt:
+    desc: Відформатувати всі Go файли через gofmt
+    cmds:
+      - gofmt -w .
+
+  verify:
+    desc: 'Повний цикл верифікації перед комітом (форматування, vet, тести, покриття)'
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: test
+      - task: cover
+      - echo "==> Все успішно перевірено!"
