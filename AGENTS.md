@@ -67,9 +67,10 @@ cd week2/Day4_Agent_as_Service_Deploy/labs4 && go run . -offline console
 ```
 
 ```bash
-# Демо — кожне вкладається своїм модулем, команди з його теки
+# Демо — кожне зі своєю текою команд (деякі з власним Taskfile.yml і/або go.mod)
 # 1_ai-gateway: див. demo/1_ai-gateway/README.md
-# adk-quickstart: див. demo/adk-quickstart/README.md
+# 3_adk2_patterns: cd demo/3_adk2_patterns && task --list (власний Taskfile.yml)
+# adk-quickstart: див. demo/adk-quickstart/README.md (власні Taskfile.yml і go.mod)
 ```
 
 Перед комітом мають проходити: `go build ./...`, `go test ./...` і `task build:all`.
@@ -86,6 +87,7 @@ week1/<День>/labs/solution/ еталонний розв'язок (публі
 internal/                   спільні helper-пакети (adkenv, fakellm, labrun)
 apps/.env-example           шаблон ключів провайдерів (копія → apps/.env)
 1_ai-gateway/               agentgateway + Jaeger/Prometheus/Grafana — локальний моніторинг (bonus-трек)
+3_adk2_patterns/            каталог патернів ADK Go v2.4.0 (16 патернів + 2 додатки) — власний Taskfile.yml
 adk-quickstart/             ADK Go v2 агент, який студенти запускають локально
 Taskfile.yml                команди репозиторію (task check, task test, task cover)
 AGENTS.md                   конвенції репозиторію для агентів і розробників

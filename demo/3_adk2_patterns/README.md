@@ -17,15 +17,20 @@ go run . console              # інтерактивно (офлайн-«моз�
 go run . web api webui        # ADK Web UI на http://localhost:8080/ui/
 ```
 
-З кореня репозиторію:
+З теки цієї лаби (власний `Taskfile.yml`, як у `demo/adk-quickstart`):
 
 ```bash
-task patterns:list                              # перелік тек
-task patterns:run P=b4_conditional_route        # один патерн
-task patterns:run P=e1_human_in_the_loop ARGS=console
-task patterns:all                               # усі демо поспіль
-task patterns:test                              # тести, race detector, офлайн
+task list                                  # перелік тек
+task run P=b4_conditional_route            # один патерн
+task run P=e1_human_in_the_loop ARGS=console
+task all                                   # усі демо поспіль
+task test                                  # тести, race detector, офлайн
+task cover                                 # гейт 85% на кожен пакет
+task verify                                # fmt + vet + test + cover
 ```
+
+Окремого `go.mod` тут немає: пакети належать кореневому модулю, тому `task`
+працює з теки лаби, а `go test ./...` резолвиться через кореневий модуль.
 
 ## Каталог
 
@@ -82,8 +87,15 @@ demo/3_adk2_patterns/
 ## Перевірка
 
 ```bash
+task test      # go test -race ./... — офлайн, без ключа
+task cover     # гейт 85% на кожен пакет (AGENTS.md §4)
+```
+
+Ті самі команди без `task` — з кореня репозиторію:
+
+```bash
 go test -race ./demo/3_adk2_patterns/...
-sh ./scripts/covgate.sh 85 demo/3_adk2_patterns     # гейт 85% на кожен пакет
+sh ./scripts/covgate.sh 85 demo/3_adk2_patterns
 ```
 
 ## Суміжне
