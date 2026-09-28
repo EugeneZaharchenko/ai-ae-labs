@@ -2,14 +2,20 @@ package refund
 
 import (
 	"context"
+	"iter"
 	"strings"
 	"sync"
 	"testing"
 
 	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/adk/v2/tool"
 )
+
+// The interface assertion: if a future ADK release changes model.LLM, this line
+// stops compiling, which is cheaper than a runtime surprise in a lab.
+var _ Classifier = (*stubClassifier)(nil)
 
 func TestPrepare(t *testing.T) {
 	for _, tc := range []struct {
@@ -254,5 +260,50 @@ func TestToolsExposeBothSides(t *testing.T) {
 		if got.Name() != tc.name {
 			t.Fatalf("tool name = %q, want %q", got.Name(), tc.name)
 		}
+	}
+}
+
+// stubClassifier is the smallest model.LLM: it proves the interface is
+// satisfied and lets the accessor tests run without a provider.
+type stubClassifier struct {
+	name  string
+	calls int
+}
+
+func (s *stubClassifier) Name() string { return s.name }
+
+func (s *stubClassifier) GenerateContent(_ context.Context, _ *model.LLMRequest, _ bool) iter.Seq2[*model.LLMResponse, error] {
+	s.calls++
+	return func(yield func(*model.LLMResponse, error) bool) {}
+}
+
+// The model classifier is optional, and its off state is the one every other
+// test depends on: a fresh Registry must route without a provider.
+func TestRegistryClassifierIsOptIn(t *testing.T) {
+	reg := &Registry{}
+	if got := reg.ClassifierModel(); got != nil {
+		t.Fatalf("a fresh registry already has a classifier: %v", got)
+	}
+	// A zero-value Registry must be usable before and after the setter, so the
+	// switch cannot be the thing that lazily initialises it.
+	newCtx := func() *toolContext {
+		return &toolContext{StrictContextMock: agent.NewStrictContextMock(context.Background())}
+	}
+	if _, err := reg.OpenCase(newCtx(), Input{"txn-123", "A-114"}); err != nil {
+		t.Fatal(err)
+	}
+	m := &stubClassifier{name: "stub"}
+	reg.SetClassifier(m)
+	if got := reg.ClassifierModel(); got != m {
+		t.Fatalf("ClassifierModel() = %v, want the model that was set", got)
+	}
+	// Routing with a classifier installed still opens cases: the register does
+	// not care who picked the branch.
+	if _, err := reg.OpenCase(newCtx(), Input{"txn-456", "B-207"}); err != nil {
+		t.Fatal(err)
+	}
+	reg.SetClassifier(nil)
+	if got := reg.ClassifierModel(); got != nil {
+		t.Fatalf("SetClassifier(nil) left a classifier: %v", got)
 	}
 }
