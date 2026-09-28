@@ -193,7 +193,7 @@ devcontainer exec --workspace-folder . bash
 |---|---|
 | `go-senior-developer` | пишете або рецензуєте Go: ідіоми, TDD, архітектура, безпека |
 | `asd-ste100` | пишете тексти інструкцій: короткі однозначні речення (Simplified Technical English) |
-| `adk-go-workflow` | обираєте патерн агентної системи або пишете/тестуєте граф ADK Go v2.4.0: маршрути, JoinNode, DynamicNode, режими агентів, HITL |
+| `adk-go-workflow` | обираєте стиль (граф / dynamic / prebuilt) і патерн агентної системи або пишете/тестуєте граф ADK Go v2.4.0: маршрути, JoinNode, DynamicNode, режими агентів, HITL |
 
 Кожен скіл — тека зі `SKILL.md` (коли застосовувати + стислий огляд) і
 `references/`, `examples/` із докладними матеріалами. Посилання всередині
@@ -205,10 +205,11 @@ devcontainer exec --workspace-folder . bash
   для кожної горутини та заборона пакетів `util`/`common`/`helpers`.
 - `asd-ste100` допомагає з формулюваннями в README, Homework і описах
   інструментів — там, де важлива однозначність.
-- `adk-go-workflow` — вісь «хто вирішує наступний крок», дерево рішень,
-  індекс 16 патернів із посиланнями на `demo/3_adk2_patterns/`, звірена з
-  v2.4.0 шпаргалка API, запобіжники графа та офлайн-тестування. Приклади в
-  `examples/` компілюються й тестуються: `go test ./.agents/skills/adk-go-workflow/examples/`.
+- `adk-go-workflow` — три стилі workflow (граф / dynamic / prebuilt), вісь
+  «хто вирішує наступний крок», дерево рішень, індекс 18 патернів із посиланнями
+  на `demo/3_adk2_patterns/`, звірена з v2.4.0 шпаргалка API, запобіжники графа
+  та офлайн-тестування. Приклади в `examples/` компілюються й тестуються:
+  `go test ./.agents/skills/adk-go-workflow/examples/`.
 
 Скіли читають агенти (Claude Code, Codex, Gemini CLI тощо), які підтримують
 конвенцію `.agents/`; для людини це просто корисні довідники.

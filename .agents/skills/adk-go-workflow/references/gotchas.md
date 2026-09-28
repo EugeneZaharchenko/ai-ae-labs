@@ -64,3 +64,21 @@ These fire before any model call. Match them with `errors.Is`.
 11. **Mode placement.** An `llmagent` with unset `Mode` behaves as chat when it
     is a sub-agent and as single-turn when it is a graph node. Set `Mode`
     explicitly when the difference matters.
+12. **`loopagent.MaxIterations: 0` is an infinite loop, not a no-op.** The
+    zero value reads like "default" but means *unbounded*: the loop runs until
+    a sub-agent escalates. Nothing else stops it. Always pass a real cap.
+13. **The prebuilt `loopagent` cap is checked after a full pass.** With
+    `MaxIterations: n` the sub-agent list runs exactly `n` times, not `n-1`.
+    Do not also decrement a counter expecting the two to agree.
+14. **A prebuilt `parallelagent` cannot fan in.** Branches run in isolated
+    contexts (distinct `Branch` names) and cannot read each other's state; the
+    results arrive in completion order, not list order. There is no join node
+    here. If you need the branches combined, add a following merging agent or
+    build the shape as a graph with `AddFanOut` + `NewJoinNode`.
+15. **A prebuilt agent accepts no custom `Run`.** All three return an error if
+    `AgentConfig.Run` is set — they own the run loop. Wrap them in a graph node
+    or a dynamic node instead of trying to override them.
+16. **Style is not either/or.** A prebuilt agent can be a graph node
+    (`NewAgentNode(seq, cfg)`) and can be driven from a dynamic node
+    (`workflow.RunNode(ctx, seq, in)`). Mix per level rather than rewriting a
+    working orchestrator by hand.

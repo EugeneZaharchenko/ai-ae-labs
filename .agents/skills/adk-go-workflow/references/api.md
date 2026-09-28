@@ -9,7 +9,11 @@ Every identifier below was read from `google.golang.org/adk/v2@v2.4.0` source
 import (
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/agent/llmagent"
-	"google.golang.org/adk/v2/agent/workflowagent"
+	"google.golang.org/adk/v2/agent/workflowagent"   // graph → agent.Agent
+	// Prebuilt orchestrators. Note the PLURAL directory.
+	"google.golang.org/adk/v2/agent/workflowagents/loopagent"
+	"google.golang.org/adk/v2/agent/workflowagents/parallelagent"
+	"google.golang.org/adk/v2/agent/workflowagents/sequentialagent"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/adk/v2/tool"
 	"google.golang.org/adk/v2/tool/agenttool"
@@ -18,6 +22,19 @@ import (
 	"google.golang.org/adk/v2/workflow"
 )
 ```
+
+## The three workflow styles
+
+ADK composes multi-step work three ways. Pick the style before the pattern.
+
+| Style | Entry point | Notes |
+|---|---|---|
+| Graph-based | `workflow.New` / `workflowagent.New` | Declarative nodes + edges, explicit routing. Deterministic, structured. |
+| Dynamic | `workflow.NewDynamicNode` + `workflow.RunNode` | Plain Go loops, conditionals, recursion. For control flow a static graph cannot express. |
+| Prebuilt | `sequentialagent.New`, `parallelagent.New`, `loopagent.New` | No graph assembly at all. See [Prebuilt workflow agents](#prebuilt-workflow-agents). |
+
+They nest: a graph node can wrap a prebuilt agent (`NewAgentNode`), and a
+dynamic node can drive any of them via `RunNode`.
 
 ## Graph construction
 
@@ -104,7 +121,54 @@ node := workflow.NewDynamicNode("orchestrate",
 | `llmagent.ModeTask` | Multi-turn task sub-agent. Forbidden as a static graph node. |
 | `agenttool.New(agent, *agenttool.Config)` | Agent as a tool. Args `{"request": string}` unless the agent has an `InputSchema`. `Config{SkipSummarization}`. |
 | `functiontool.New(functiontool.Config{Name, Description}, handler)` | `handler func(agent.Context, TArgs) (TResults, error)`; schema is inferred from the Go types. |
-| `loopagent.New`, `sequentialagent.New`, `parallelagent.New` | 1.x-style workflow agents; still present. `loopagent.Config.MaxIterations uint`. |
+| `loopagent.New`, `sequentialagent.New`, `parallelagent.New` | Prebuilt workflow agents (the third style). Still present and working in v2.4.0 despite the docs calling template workflows "superseded". See below. |
+
+## Prebuilt workflow agents
+
+All three live under `agent/workflowagents/` and return `(agent.Agent, error)`.
+Each takes `Config{AgentConfig: agent.Config{Name, Description, SubAgents}}`.
+None of them accepts a custom `Run` — passing one is an error.
+
+```go
+seq, err := sequentialagent.New(sequentialagent.Config{
+	AgentConfig: agent.Config{Name: "pipeline", SubAgents: []agent.Agent{a, b}},
+})
+
+par, err := parallelagent.New(parallelagent.Config{
+	AgentConfig: agent.Config{Name: "research", SubAgents: []agent.Agent{x, y}},
+})
+
+loop, err := loopagent.New(loopagent.Config{
+	AgentConfig:   agent.Config{Name: "refine", SubAgents: []agent.Agent{critic, refiner}},
+	MaxIterations: 5,
+})
+```
+
+| Agent | Runs | Cap / termination |
+|---|---|---|
+| `sequentialagent` | Sub-agents once each, in list order. | None needed. Last sub-agent's text is the result. |
+| `parallelagent` | Sub-agents concurrently, each in an isolated branch. | Waits for all branches. **No fan-in.** |
+| `loopagent` | The whole sub-agent list, repeatedly. | `MaxIterations uint`; also stops on any sub-agent's `Escalate`. |
+
+`loopagent` specifics, read from the v2.4.0 source:
+
+- `MaxIterations: 0` **loops forever** (until an escalation). It is not "skip".
+- The cap is checked *after* a full pass, so `MaxIterations: 3` runs the list
+  exactly 3 times.
+- Early exit is `ctx.Actions().Escalate = true` from a tool body; the loop
+  inspects `event.Actions.Escalate` after each sub-agent and returns.
+
+`parallelagent` specifics:
+
+- Each branch gets its own `InvocationContext` with a distinct `Branch` name
+  (`parent.child`), so branches cannot read each other's state.
+- Results arrive in completion order, not list order.
+- To merge branch output, add a following agent — or use the graph form
+  (`AddFanOut` + `NewJoinNode`), which joins by construction.
+
+Naming trap: `agent/workflowagent` (**singular**, no `s`) is a different
+package — it adapts a `*workflow.Workflow` graph into an `agent.Agent`. The
+three prebuilt agents are in `agent/workflowagents/` (**plural**).
 
 ## Human in the loop
 
