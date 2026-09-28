@@ -201,7 +201,7 @@ tasks:
   # "address already in use". `task kill:8080` is the remedy.
 
   week1:day1:console:
-    desc: 'День 1: агент в інтерактивній консолі (потрібен ключ провайдера)'
+    desc: 'День 1: агент в інтерактивній консолі'
     cmds:
       - go run {{.DAY1}} console
 
@@ -211,7 +211,7 @@ tasks:
       - go run {{.DAY1}} web webui api
 
   week1:day2:console:
-    desc: 'День 2: консоль з живими курсами НБУ (потрібен ключ провайдера)'
+    desc: 'День 2: консоль з живими курсами НБУ'
     cmds:
       - go run {{.DAY2}} console
 
@@ -279,12 +279,12 @@ tasks:
   # `task kill:8080` — ліки.
 
   week2:day3:console:
-    desc: 'День 3: граф у консолі, режим live — потрібен ключ провайдера (офлайн: task week2:day3:console:offline)'
+    desc: 'День 3: граф у консолі, режим live (офлайн: task week2:day3:console:offline)'
     cmds:
       - go run {{.DAY3}} console
 
   week2:day3:console:live:
-    desc: 'День 3: граф у консолі, режим live явно (-mode=live) — потрібен ключ провайдера'
+    desc: 'День 3: граф у консолі, режим live явно (-mode=live)'
     cmds:
       - go run {{.DAY3}} -mode=live console
 
@@ -296,12 +296,12 @@ tasks:
       - go run {{.DAY3}} -mode=graph console
 
   week2:day3:web:
-    desc: 'День 3: Web UI на http://localhost:8080/ui/ + REST API на /api, режим live — потрібен ключ провайдера (офлайн: task week2:day3:web:offline)'
+    desc: 'День 3: Web UI на http://localhost:8080/ui/ + REST API на /api, режим live (офлайн: task week2:day3:web:offline)'
     cmds:
       - go run {{.DAY3}} web webui api
 
   week2:day3:web:live:
-    desc: 'День 3: Web UI + REST API, режим live явно (-mode=live) — потрібен ключ провайдера'
+    desc: 'День 3: Web UI + REST API, режим live явно (-mode=live)'
     cmds:
       - go run {{.DAY3}} -mode=live web webui api
 
