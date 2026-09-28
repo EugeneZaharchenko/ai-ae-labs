@@ -1,0 +1,195 @@
+# https://taskfile.dev
+#
+# Командна поверхня збірки прикладів графових робочих процесів — окремо від
+# кореневого `Taskfile.yml`, як у demo/3_adk2_patterns і demo/adk-quickstart.
+# Окремого `go.mod` тут немає: пакети належать кореневому модулю, тому
+# `go build ./...` з цієї теки резолвиться через нього. Усі задачі виконуються
+# з теки цього Taskfile.
+#
+# У кожного прикладу є ВЛАСНА задача, названа за його шляхом: `/` замінено на
+# `-`, а `_` — теж на `-`. Так `routing/llm` стає `routing-llm`, а
+# `dynamic/use_as_output` — `dynamic-use-as-output`:
+#
+#   task basic            # приклад із теки basic/
+#   task dynamic-llm      # приклад із теки dynamic/llm/
+#   task routing-int ARGS="-input \"...\""   # передати свої аргументи
+#
+# Задачі йдуть у тому ж порядку, що їх друкує `task list`, щоб перелік у
+# консолі збігався з порядком у файлі.
+#
+# Сім прикладів із одинадцяти ніколи не звертаються до мережі (у їхньому
+# описі стоїть «без ключа»). Решта чотири (`complex`, `dynamic-llm`,
+# `dynamic-use-as-output`, `routing-llm`) на старті будують модель через
+# internal/modelcfg, тож потребують налаштованого провайдера — як у
+# лабораторних дня 3 (apps/.env, MODEL, DEFAULT_MODEL_PROVIDER).
+#
+# `task all` проганяє всі приклади поспіль як смоук-запуск і повертає
+# ненульовий код, якщо хоч один не стартував.
+version: '3'
+
+set: [pipefail]
+
+vars:
+  # Типові аргументи лаунчера. `console` — інтерактивна консоль; саме цей
+  # режим мають на увазі README прикладів. Перекривається як ARGS="..." або
+  # ARGS="console -streaming_mode none".
+  ARGS: console
+
+tasks:
+  default:
+    desc: Показати перелік доступних команд
+    cmds:
+      - task --list
+    silent: true
+
+  list:
+    desc: Перелік прикладів каталогу
+    cmds:
+      # maxdepth 3, бо приклади лежать на двох рівнях: `basic/` і `routing/llm/`.
+      # З maxdepth 2 вкладені сім прикладів зникали зі списку — саме тому
+      # перелік збирається пошуком, а не статичним списком.
+      - find . -mindepth 1 -maxdepth 3 -name main.go -exec dirname {} \; | sed 's|^\./||' | sort
+    silent: true
+
+  # --- Приклади ---------------------------------------------------------------
+  #
+  # Кожна задача — це той самий `go run ./<тека> {{.ARGS}}`, виписаний явно:
+  # скопійований звідси рядок працює в терміналі як є. Запускати зі своїми
+  # аргументами: `task basic ARGS="console -streaming_mode none"`.
+
+  basic:
+    desc: 'basic — послідовний ланцюжок FunctionNode (без ключа)'
+    cmds:
+      - go run ./basic {{.ARGS}}
+
+  complex:
+    desc: 'complex — розгалуження → зведення в JoinNode → синтез моделлю (потрібен провайдер)'
+    cmds:
+      - go run ./complex {{.ARGS}}
+
+  dynamic-basic:
+    desc: 'dynamic/basic — імперативна оркестрація дочірніх вузлів (без ключа)'
+    cmds:
+      - go run ./dynamic/basic {{.ARGS}}
+
+  dynamic-hitl:
+    desc: 'dynamic/hitl — динамічний оркестратор зупиняється на ввід людини (без ключа)'
+    cmds:
+      - go run ./dynamic/hitl {{.ARGS}}
+
+  dynamic-llm:
+    desc: 'dynamic/llm — динамічний оркестратор викликає вузол LlmAgent (потрібен провайдер)'
+    cmds:
+      - go run ./dynamic/llm {{.ARGS}}
+
+  dynamic-use-as-output:
+    desc: 'dynamic/use_as_output — виведення дитини стає виведенням оркестратора (потрібен провайдер)'
+    cmds:
+      - go run ./dynamic/use_as_output {{.ARGS}}
+
+  hitl-rerun:
+    desc: 'hitl_rerun — повторний вхід в один вузол через ResumeOrRequestInput (без ключа)'
+    cmds:
+      - go run ./hitl_rerun {{.ARGS}}
+
+  hitl-simple:
+    desc: 'hitl_simple — мінімальна пауза/продовження на двох вузлах (без ключа)'
+    cmds:
+      - go run ./hitl_simple {{.ARGS}}
+
+  routing-int:
+    desc: 'routing/int — гілка за числом через IntRoute / MultiRoute[int] (без ключа)'
+    cmds:
+      - go run ./routing/int {{.ARGS}}
+
+  routing-llm:
+    desc: 'routing/llm — класифікує модель, маршрут ставить рушій (потрібен провайдер Gemini)'
+    cmds:
+      - go run ./routing/llm {{.ARGS}}
+
+  routing-string:
+    desc: 'routing/string — гілка за рядковим значенням через StringRoute (без ключа)'
+    cmds:
+      - go run ./routing/string {{.ARGS}}
+
+  # --- Загальні задачі --------------------------------------------------------
+
+  run:
+    desc: 'Запустити приклад за шляхом (те саме, що й задача вище): task run P=basic'
+    requires:
+      vars: [P]
+    cmds:
+      - go run ./{{.P}} {{.ARGS}}
+
+  # Web UI. Той самий набір аргументів лаунчера, що й у решти демо курсу:
+  # `web` піднімає сервер, `webui` віддає сторінку на /ui/, `api` відкриває
+  # REST на /api. Після запуску — http://localhost:8080/ui/.
+  #
+  #   task web P=basic            # Web UI для basic/
+  #   task basic ARGS="web webui api"   # те саме: у кожної задачі є ARGS
+  #
+  # Одночасно працює лише ОДИН приклад: усі одинадцять слухають :8080, і
+  # Ctrl-C часто лишає дочірній процес живим. Тоді:
+  #
+  #   task kill:8080   (з кореня репозиторію)
+  #
+  # Задачі `all:web` немає навмисно: вона піднімала б 11 серверів на одному
+  # порту. Для прогону поспіль є `task all` — консольний смоук-запуск.
+  web:
+    desc: 'Web UI для одного прикладу: task web P=routing/llm'
+    requires:
+      vars: [P]
+    cmds:
+      - go run ./{{.P}} web webui api
+
+  all:
+    desc: 'Прогнати КОЖЕН приклад поспіль — смоук-запуск; 4 з 11 потребують провайдера'
+    cmds:
+      - |
+        set -uo pipefail
+        dirs=$(find . -mindepth 1 -maxdepth 3 -name main.go -exec dirname {} \; | sed 's|^\./||' | sort)
+        total=$(printf '%s\n' "$dirs" | wc -l | tr -d ' ')
+        failed=0
+        for d in $dirs; do
+          printf '\n──── %s ────\n' "$d"
+          # </dev/null: приклад одразу дістає EOF і виходить, тож прогін не
+          # залипає в інтерактивній консолі. Саме тому тут `go run`, а не
+          # виклик задачі за назвою: перенаправити stdin у `task: <назва>` не можна.
+          if go run "./$d" </dev/null; then
+            printf '✅ %s\n' "$d"
+          else
+            printf '❌ %s — потрібен налаштований провайдер (див. apps/.env)\n' "$d"
+            failed=$((failed + 1))
+          fi
+        done
+        printf '\n==> %d з %d прикладів упали\n' "$failed" "$total"
+        # Ненульовий код, якщо хоч один приклад не запустився: інакше `all`
+        # виглядав би зеленим, навіть коли половина каталогу не стартує.
+        [ "$failed" -eq 0 ]
+
+  build:
+    desc: Зібрати всі приклади (типи й компіляцію перевірено; артефактів не лишає)
+    cmds:
+      # `go build ./...` із кількома пакетами компілює їх, але нічого не
+      # записує на диск. Саме тому тут немає `-o` і немає правки .gitignore:
+      # на відміну від `go build ./<тека>`, ця форма не кидає 80 МБ бінарник
+      # у поточний каталог.
+      - go build ./...
+
+  vet:
+    desc: Перевірити код за допомогою go vet
+    cmds:
+      - go vet ./...
+
+  fmt:
+    desc: Відформатувати всі Go файли через gofmt
+    cmds:
+      - gofmt -w .
+
+  verify:
+    desc: 'Повний цикл верифікації перед комітом (форматування, vet, збірка)'
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: build
+      - echo "==> Все успішно перевірено!"
