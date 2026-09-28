@@ -305,8 +305,12 @@ tasks:
     cmds:
       - go run {{.DAY3}} -mode=live web webui api
 
+  # `:graph` — це псевдонім `:offline` (той самий `-mode=graph`), щоб назва
+  # задачі збігалася зі значенням прапорця. Обидві назви лишаються робочими:
+  # README і матеріали курсу спираються на `:offline`.
   week2:day3:web:offline:
-    desc: 'День 3: Web UI + REST API, режим graph — ключ і мережа НЕ потрібні (-mode=graph)'
+    aliases: [week2:day3:web:graph]
+    desc: 'День 3: Web UI + REST API, режим graph — ключ і мережа НЕ потрібні (-mode=graph; :graph — те саме)'
     cmds:
       - go run {{.DAY3}} -mode=graph web webui api
 
