@@ -13,13 +13,17 @@ go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 -mode=graph
 ```
 
 Очікуємо два зелені підтести: `LlmAgent` зі скриптованою моделлю та `workflow-граф`.
-Друга команда друкує чотири нормалізовані JSON-події **графа** (маршрут, розбір ID, tool, формат), зокрема:
+Друга команда друкує чотири нормалізовані JSON-події **графа** (маршрут, розбір ID, tool, формат).
+Перша несе `routes` — рішення, яке ухвалив `classify`; третя несе бізнес-результат:
 
 ```json
+{"author":"first_graph_agent","routes":["refund"],"output":"Мерчант A-114 просить повернення по транзакції txn-2026-07-118845"}
+{"author":"first_graph_agent","output":{"transaction_id":"txn-2026-07-118845","merchant_id":"A-114"}}
 {"author":"first_graph_agent","output":{"case_id":"rc-txn-2026-07-118845-A-114","merchant_id":"A-114","status":"pending","transaction_id":"txn-2026-07-118845"},"state_delta":{"refund:last_case_id":"rc-txn-2026-07-118845-A-114","refund:last_merchant_id":"A-114","refund:last_status":"pending"}}
+{"author":"first_graph_agent","output":"Кейс rc-txn-2026-07-118845-A-114: транзакція txn-2026-07-118845, мерчант A-114, статус pending"}
 ```
 
-ID виклику й час прибрано, але `output` і `state_delta` взято з реальних `session.Event`.
+ID виклику й час прибрано, але `routes`, `output` і `state_delta` взято з реальних `session.Event`.
 Інтерактивний граф без моделі:
 
 ```bash

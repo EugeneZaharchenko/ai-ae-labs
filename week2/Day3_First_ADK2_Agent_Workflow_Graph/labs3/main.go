@@ -38,14 +38,17 @@ func runAgent(ctx context.Context, a agent.Agent, out io.Writer, input string) e
 		return err
 	}
 	enc := json.NewEncoder(out)
-	// Omit timestamps and invocation IDs; keep real outputs and business deltas.
+	// Omit timestamps and invocation IDs; keep real outputs, business deltas
+	// and the selected route. Without Routes the classification event would
+	// echo the request and discard the decision this lab exists to audit.
 	for _, event := range result.Events {
 		row := struct {
 			Author     string         `json:"author"`
+			Routes     []string       `json:"routes,omitempty"`
 			Output     any            `json:"output,omitempty"`
 			Content    *genai.Content `json:"content,omitempty"`
 			StateDelta map[string]any `json:"state_delta,omitempty"`
-		}{event.Author, event.Output, event.Content, event.Actions.StateDelta}
+		}{event.Author, event.Routes, event.Output, event.Content, event.Actions.StateDelta}
 		if err := enc.Encode(row); err != nil {
 			return fmt.Errorf("write audit event: %w", err)
 		}

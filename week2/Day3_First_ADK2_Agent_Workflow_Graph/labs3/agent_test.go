@@ -67,7 +67,10 @@ func TestDemo(t *testing.T) {
 	if first.String() != second.String() {
 		t.Fatal("normalized output changes across identical runs")
 	}
-	for _, want := range []string{"refund:last_case_id", "pending", "rc-txn-2026-07-118845-A-114"} {
+	// The routing decision is part of the audit trail, not a detail of the
+	// engine: without it the log shows a request and a result but not why the
+	// graph took this branch.
+	for _, want := range []string{"refund:last_case_id", "pending", "rc-txn-2026-07-118845-A-114", `"routes":["refund"]`} {
 		if !strings.Contains(first.String(), want) {
 			t.Fatalf("missing %q in %s", want, first.String())
 		}
