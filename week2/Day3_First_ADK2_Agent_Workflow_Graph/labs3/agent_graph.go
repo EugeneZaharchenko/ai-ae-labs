@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"google.golang.org/adk/v2/agent"
@@ -51,23 +52,46 @@ func newGraph(reg *refund.Registry) (agent.Agent, error) {
 	if c := reg.ClassifierModel(); c != nil {
 		classify = workflow.NewEmittingFunctionNode("classify", classifyRouteModel(c), cfg)
 	} else {
-		classify = workflow.NewEmittingFunctionNode("classify", classifyRoute, cfg)
+		classify = workflow.NewEmittingFunctionNode("classify", classifyRouteText, cfg)
 	}
 	prepare := workflow.NewFunctionNode("prepare", refund.Prepare, cfg)
 	openCase, err := workflow.NewToolNodeTyped[refund.Input, refund.Output](refundTool, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create refund node: %w", err)
 	}
-	format := workflow.NewFunctionNode("format", refund.Format, cfg)
+	// The three leaves report through sayAsContent: the classifier's info line
+	// is Content, and once any event in the turn carries Content the console
+	// stops printing Output — so a leaf that answered only through Output would
+	// be silent. The domain functions themselves are shared with lab 4 and stay
+	// unaware of this; the wrapping is this lab's business.
+	format := workflow.NewFunctionNode("format", func(ctx agent.Context, in refund.Output) (any, error) {
+		text, err := refund.Format(ctx, in)
+		if err != nil {
+			return nil, err
+		}
+		return sayAsContent(ctx, text), nil
+	}, cfg)
 	prepareStatus := workflow.NewFunctionNode("prepare_status", refund.PrepareStatus, cfg)
 	checkStatus, err := workflow.NewToolNodeTyped[refund.StatusInput, refund.Output](statusTool, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create status node: %w", err)
 	}
-	formatStatus := workflow.NewFunctionNode("format_status", refund.FormatStatus, cfg)
+	formatStatus := workflow.NewFunctionNode("format_status", func(ctx agent.Context, in refund.Output) (any, error) {
+		text, err := refund.FormatStatus(ctx, in)
+		if err != nil {
+			return nil, err
+		}
+		return sayAsContent(ctx, text), nil
+	}, cfg)
 	// The refusal is a declared step, not the absence of one: a request the
 	// domain does not handle gets an answer in the log like every other.
-	refuse := workflow.NewFunctionNode("refuse", refund.OutOfDomain, cfg)
+	refuse := workflow.NewFunctionNode("refuse", func(ctx agent.Context, msg string) (any, error) {
+		text, err := refund.OutOfDomain(ctx, msg)
+		if err != nil {
+			return nil, err
+		}
+		return sayAsContent(ctx, text), nil
+	}, cfg)
 
 	edges := workflow.Concat(
 		workflow.Chain(workflow.Start, classify),
@@ -86,21 +110,52 @@ func newGraph(reg *refund.Registry) (agent.Agent, error) {
 	})
 }
 
-// classifyRoute emits the routing event and returns nil, which suppresses the
-// node's own terminal event: the route is the only thing this node is for, and
-// a second event carrying the same string would say nothing new.
+// sayAsContent builds the terminal event of a leaf node, carrying the answer on
+// both channels.
+//
+// Content is the user-visible one: a plain function node normally reports
+// through Event.Output, which the console prints only while no event in the
+// turn carried Content. That rule is why this helper exists — the classifier's
+// info line is Content, so as soon as it is emitted the console stops printing
+// Output, and a leaf answering only through Output would go silent.
+//
+// Output is kept as well, because it is the node's declared result that
+// in-process readers (labrun, tests, resume) resolve through Event.Output. The
+// returned *session.Event is yielded by the engine as-is, so both fields reach
+// the log.
+func sayAsContent(ctx agent.Context, text string) *session.Event {
+	ev := session.NewEvent(ctx, ctx.InvocationID())
+	ev.Content = genai.NewContentFromText(text, genai.RoleModel)
+	ev.Output = text
+	return ev
+}
+
+// classifyRouteText emits the routing event and returns nil, which suppresses
+// the node's own terminal event: the route is the only thing this node is for,
+// and a second event carrying the same string would say nothing new.
 //
 // Output carries the user message into every branch. Without it the successor
 // would receive a nil input and see an empty request instead of the one that
-// was actually asked.
-func classifyRoute(ctx agent.Context, msg string, emit func(*session.Event) error) (any, error) {
+// was actually asked. One event carries both jobs: Routes for the engine,
+// Content for the user.
+//
+// The name says how the decision is made, not what it produces: the sibling
+// classifyRouteModel produces the same event from the same vocabulary, and the
+// two are interchangeable at the use site in newGraph.
+func classifyRouteText(ctx agent.Context, msg string, emit func(*session.Event) error) (any, error) {
 	route, err := refund.Classify(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("classify: rule %q → %s", msg, route)
 	ev := session.NewEvent(ctx, ctx.InvocationID())
 	ev.Routes = []string{route}
 	ev.Output = msg
+	// Who decided, and what it decided. The user reads the second half; the
+	// first is what makes the two classifiers tell themselves apart on screen.
+	// The console prints each event's text with no separator, so this line ends
+	// in a newline or the leaf's answer would run into it.
+	ev.Content = genai.NewContentFromText("Класифікатор (правило): "+route+"\n", genai.RoleModel)
 	if err := emit(ev); err != nil {
 		return nil, err
 	}
@@ -116,7 +171,7 @@ status — питають про вже відкритий кейс;
 out_of_domain — усе інше.`
 
 // classifyRouteModel is the alternative classifier: the same node body as
-// classifyRoute — same event, same route vocabulary — decided by a model
+// classifyRouteText — same event, same route vocabulary — decided by a model
 // instead of by refund.Classify. It is what `-classify=model` selects
 // (main.go), and it is why that flag needs a provider: this path calls one on
 // every request, and its route is not reproducible — one wording may land on a
@@ -132,9 +187,14 @@ func classifyRouteModel(c refund.Classifier) func(agent.Context, string, func(*s
 		if err != nil {
 			return nil, err
 		}
+		// Console log beside the event, not instead of it: the event is the
+		// audit trail a test asserts on, this line is what a human watches to
+		// see which branch the model picked while the graph runs.
+		log.Printf("classify: model %q → %s", msg, route)
 		ev := session.NewEvent(ctx, ctx.InvocationID())
 		ev.Routes = []string{route}
 		ev.Output = msg
+		ev.Content = genai.NewContentFromText("Класифікатор (модель): "+route+"\n", genai.RoleModel)
 		if err := emit(ev); err != nil {
 			return nil, err
 		}
