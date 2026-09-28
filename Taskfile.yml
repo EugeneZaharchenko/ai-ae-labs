@@ -23,6 +23,7 @@ vars:
   DAY2: ./week1/Day2_Structured_Output_Function_Calling/labs
   DAY3: ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3
   DAY4: ./week2/Day4_Agent_as_Service_Deploy/labs4
+  PATTERNS: ./demo/3_adk2_patterns
 
 tasks:
   default:
@@ -323,3 +324,37 @@ tasks:
     desc: 'День 4: перевірка liveness одним рядком (сервіс має вже працювати)'
     cmds:
       - curl -i http://localhost:{{.PORT | default "8080"}}/health
+
+  # --- demo/3_adk2_patterns --------------------------------------------------
+  #
+  # Каталог патернів ADK 2.x: кожен патерн — окрема тека з main.go і README.md.
+  # Типовий запуск — офлайн (rule-based модель з internal/kit), ключ не потрібен;
+  # `-live` бере модель з apps/.env так само, як лаби тижня 2.
+
+  patterns:list:
+    desc: 'Каталог ADK 2.x: список патернів (demo/3_adk2_patterns)'
+    cmds:
+      - ls -d {{.PATTERNS}}/[a-z][0-9]_* {{.PATTERNS}}/x_*
+    silent: true
+
+  patterns:run:
+    desc: 'Запустити один патерн офлайн: task patterns:run P=b4_conditional_route [ARGS="-live" | ARGS="console"]'
+    requires:
+      vars: [P]
+    cmds:
+      - go run {{.PATTERNS}}/{{.P}} {{.ARGS}}
+
+  patterns:all:
+    desc: 'Прогнати сценарні демо всіх патернів поспіль — ключ і мережа НЕ потрібні'
+    cmds:
+      - |
+        set -e
+        for d in {{.PATTERNS}}/[a-z][0-9]_* {{.PATTERNS}}/x_*; do
+          go run "$d"
+          echo
+        done
+
+  patterns:test:
+    desc: 'Тести каталогу патернів (race detector, офлайн)'
+    cmds:
+      - go test -race {{.PATTERNS}}/...
