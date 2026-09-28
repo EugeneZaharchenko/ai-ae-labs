@@ -155,3 +155,63 @@ func TestModelErrorDoesNotFallBack(t *testing.T) {
 		t.Fatalf("unexpected success output: %s", out.String())
 	}
 }
+
+// The live path must be able to answer a status question too. Without the
+// check_refund_status tool the model has nothing to read with and refuses —
+// the failure this test pins down.
+func TestLiveAgentDispatchesStatusTool(t *testing.T) {
+	reg := &refund.Registry{}
+	// Seed the register as a refund turn would, so the read has something real
+	// to find rather than a status the model could have written itself.
+	seed, err := newGraph(reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := labrun.Run(t.Context(), seed, demoInput); err != nil {
+		t.Fatal(err)
+	}
+
+	m := fakellm.New("scripted",
+		fakellm.CallTurn("check_refund_status", map[string]any{"case_id": demoCaseID}),
+		fakellm.TextTurn("Статус: pending."))
+	a, err := newLiveAgent(m, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := labrun.Run(t.Context(), a, "check status "+demoCaseID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.CalledTool("check_refund_status") || m.Remaining() != 0 {
+		t.Fatalf("status tool was not dispatched: %+v", res)
+	}
+	if !deltaCarries(res, refund.StateKeyCaseID, demoCaseID) {
+		t.Fatalf("status turn left no case ID in the log: %+v", res.Events)
+	}
+	if len(res.ToolResults) == 0 {
+		t.Fatal("the tool response never reached the event stream")
+	}
+}
+
+// Both tools are declared on the live agent. A model that can only open cases
+// invents statuses; this asserts the read tool is actually offered to it.
+func TestLiveAgentDeclaresBothTools(t *testing.T) {
+	m := fakellm.New("scripted", fakellm.TextTurn("нічого"))
+	a, err := newLiveAgent(m, &refund.Registry{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := labrun.Run(t.Context(), a, "що ти вмієш?"); err != nil {
+		t.Fatal(err)
+	}
+	// The request the model received carries the tool declarations, keyed by
+	// tool name.
+	if len(m.Requests()) == 0 {
+		t.Fatal("no request reached the model")
+	}
+	for _, want := range []string{"open_refund_case", "check_refund_status"} {
+		if _, ok := m.Requests()[0].Tools[want]; !ok {
+			t.Fatalf("%s not declared; declared: %v", want, m.Requests()[0].Tools)
+		}
+	}
+}

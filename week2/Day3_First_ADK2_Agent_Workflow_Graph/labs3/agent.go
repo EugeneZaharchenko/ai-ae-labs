@@ -14,14 +14,24 @@ func newLiveAgent(m model.LLM, reg *refund.Registry) (agent.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	statusTool, err := refund.NewStatusTool(reg)
+	if err != nil {
+		return nil, err
+	}
 	return llmagent.New(llmagent.Config{
 		Name:  refund.AppName,
 		Model: m,
-		Instruction: `You handle LEDGERWORKS refund case requests only.
-For a request containing transaction and merchant IDs, call open_refund_case.
-Never claim a case was opened without a successful tool result.
-Report the case ID and status from the tool in Ukrainian.
-Opening a case does not transfer money. Ask for missing IDs; refuse unrelated requests.`,
-		Tools: []tool.Tool{refundTool},
+		// Both tools are declared, and the instruction says which one answers
+		// a status question. Declaring only the opener was the bug: a model
+		// with no read tool has nothing to read with, so it refuses the
+		// request instead of answering it.
+		Instruction: `You handle LEDGERWORKS refund cases only, two ways.
++ A request with transaction and merchant IDs asks to open a case: call open_refund_case.
++ A request about an existing case asks for its status: call check_refund_status with the case ID.
++ Never claim a case was opened or has a status without a successful tool result.
++ Report the case ID and status from the tool in Ukrainian.
++ If a status request names no case ID, ask for it; never guess one from a transaction ID.
++ Opening a case does not transfer money. Refuse unrelated requests.`,
+		Tools: []tool.Tool{refundTool, statusTool},
 	})
 }
