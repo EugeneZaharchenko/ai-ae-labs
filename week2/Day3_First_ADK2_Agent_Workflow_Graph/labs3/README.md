@@ -1,6 +1,6 @@
 # Лабораторна 3 — граф, який залишає перевірюваний слід
 
-**Станом на 09/2026:** Go 1.27.1, ADK Go v2.4.0; точні залежності — у кореневому `go.mod`.
+**Станом на 09/2026:** Go 1.27.1, `google.golang.org/adk/v2` v2.4.0; точні залежності — у кореневому `go.mod`.
 Потрібен Go. Тести та явний `-mode=graph` не потребують ключа чи LLM; **звичайний запуск використовує реальну модель**. Перше завантаження Go-модулів потребує мережі.
 
 ## Перший результат
@@ -13,13 +13,17 @@ go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 -mode=graph
 ```
 
 Очікуємо два зелені підтести: `LlmAgent` зі скриптованою моделлю та `workflow-граф`.
-Друга команда друкує три нормалізовані JSON-події **графа**, зокрема:
+Друга команда друкує чотири нормалізовані JSON-події **графа** (маршрут, розбір ID, tool, формат).
+Перша несе `routes` — рішення, яке ухвалив `classify`; третя несе бізнес-результат:
 
 ```json
+{"author":"first_graph_agent","routes":["refund"],"output":"Мерчант A-114 просить повернення по транзакції txn-2026-07-118845"}
+{"author":"first_graph_agent","output":{"transaction_id":"txn-2026-07-118845","merchant_id":"A-114"}}
 {"author":"first_graph_agent","output":{"case_id":"rc-txn-2026-07-118845-A-114","merchant_id":"A-114","status":"pending","transaction_id":"txn-2026-07-118845"},"state_delta":{"refund:last_case_id":"rc-txn-2026-07-118845-A-114","refund:last_merchant_id":"A-114","refund:last_status":"pending"}}
+{"author":"first_graph_agent","output":"Кейс rc-txn-2026-07-118845-A-114: транзакція txn-2026-07-118845, мерчант A-114, статус pending"}
 ```
 
-ID виклику й час прибрано, але `output` і `state_delta` взято з реальних `session.Event`.
+ID виклику й час прибрано, але `routes`, `output` і `state_delta` взято з реальних `session.Event`.
 Інтерактивний граф без моделі:
 
 ```bash
@@ -28,7 +32,27 @@ go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 -mode=graph console
 
 Введіть `Мерчант A-114 просить повернення по транзакції txn-2026-07-118845`.
 Повторіть запит у тому самому процесі: статус стане `already_open`, ID кейса не зміниться.
+Тепер введіть `check status rc-txn-2026-07-118845-A-114` — граф прочитає реєстр і
+відповість статусом зі спільної пам'яті процесу, а не з тексту моделі.
 `Ctrl+C` завершує консоль.
+
+### Три маршрути графа
+
+`classify` дивиться на запит **до** будь-якої роботи й обирає одну з трьох гілок:
+
+| Маршрут | Що розпізнає | Куди йде |
+|---|---|---|
+| `refund` | ID транзакції **і** ID мерчанта | `prepare → open_refund_case → format` |
+| `status` | ID кейса (`rc-…`), або слова `status` / `статус` | `prepare_status → check_refund_status → format_status` |
+| `out_of_domain` | усе інше | `refuse` |
+
+ID мають пріоритет над словами. Запит `check the status of the refund rc-…` — це
+статус, бо питати про наявний кейс означає лише читати. Запит `refund txn-123 Z-999`
+з нерозпізнаним мерчантом усе одно йде в `refund` і там падає з причиною — краще
+пояснити відмову, ніж назвати свій же домен «поза доменом».
+
+Читання ніколи не вигадує статус: ID, якого немає в реєстрі, — це помилка, а не
+`pending`.
 
 ## Звичайний запуск — реальна модель, не mock
 
@@ -39,7 +63,7 @@ go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3
 go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 console
 ```
 
-Перша команда робить один реальний `Runner + LlmAgent + open_refund_case` прогін із лімітом 60 секунд; друга відкриває діалог. Це може коштувати токени. Перевіряйте `content.functionCall`/`functionResponse` та `state_delta`, а не конкретне формулювання моделі.
+Перша команда робить один реальний `Runner + LlmAgent + open_refund_case` прогін із лімітом 60 секунд; друга відкриває діалог. Live-агент має **обидва** tools — без `check_refund_status` модель, яку питають про статус, не має чим читати й тому відмовляє. Це може коштувати токени. Перевіряйте `content.functionCall`/`functionResponse` та `state_delta`, а не конкретне формулювання моделі.
 При відсутній конфігурації чи помилці провайдера запуск завершується з причиною — **не перемикається на fake або граф мовчки**.
 
 Тести викликають **той самий** `newLiveAgent`, але передають `fakellm.Model` замість провайдера. Фейк імпортується тільки з `*_test.go`. «Реальний» тут означає inference і виконання нашого Go-tool; реєстр кейсів усе ще навчальний in-memory, не платіжне API.
@@ -49,19 +73,39 @@ go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 console
 | Файл | Призначення |
 |---|---|
 | [`main.go`](main.go) | Вибір live/graph, одноразовий прогін або ADK launcher |
-| [`agent.go`](agent.go) | `LlmAgent` з ін'єкцією моделі та реальним refund-tool |
-| [`agent_graph.go`](agent_graph.go) | Граф `Start → prepare → open_refund_case → format` — топологія цієї лаби |
-| [`agent_test.go`](agent_test.go) | Один інструмент у двох топологіях; стабільність аудит-демо |
-| [`agent_graph_test.go`](agent_graph_test.go) | Вузли графа: валідні запити, відмова, відсутність стану після відмови |
-| [`../../internal/refund/refund.go`](../../internal/refund/refund.go) | `Input`/`Output`, реєстр, `Prepare`, `OpenCase`, `Format`, `NewTool` |
-| [`../../internal/refund/refund_test.go`](../../internal/refund/refund_test.go) | Табличні тести вузлів на `StrictContextMock`, помилки, повтори й конкурентність |
+| [`agent.go`](agent.go) | `LlmAgent` з ін'єкцією моделі та **обома** реальними tools |
+| [`agent_graph.go`](agent_graph.go) | Граф трьох маршрутів — топологія цієї лаби |
+| [`agent_test.go`](agent_test.go) | Обидва tools у live-шляху; стабільність аудит-демо |
+| [`agent_graph_test.go`](agent_graph_test.go) | По одному кейсу на маршрут, читання реєстру, вигаданий статус |
+| [`../../internal/refund/refund.go`](../../internal/refund/refund.go) | `Input`/`StatusInput`/`Output`, реєстр, `Prepare`, `PrepareStatus`, `Classify`, `Format`, `FormatStatus`, `NewTool`, `NewStatusTool` |
+| [`../../internal/refund/refund_test.go`](../../internal/refund/refund_test.go) | Табличні тести вузлів на `StrictContextMock`, класифікатор, помилки, конкурентність |
 
-Граф уже запускається: `Start → prepare → open_refund_case → format`.
+Граф уже запускається, з маршрутизацією:
+
+```
+Start → classify ─┬─ "refund"        → prepare → open_refund_case → format
+                  ├─ "status"        → prepare_status → check_refund_status → format_status
+                  └─ "out_of_domain" → refuse
+```
+
 Це робоча основа для пояснення й модифікації у [завданні](Homework.md), не порожній шаблон.
-Спільний пакет `week2/internal/refund` тримає **домен**: typed-контракт, реєстр і сам
-інструмент `open_refund_case`. Топологію графа кожна лаба композирує у своєму
-`agent_graph.go` — тому День 4 може розширювати свій потік (drain, readiness,
-другий вузол), не змінюючи те, що здає День 3.
+Спільний пакет `week2/internal/refund` тримає **домен**: typed-контракт, реєстр і обидва
+інструменти — `open_refund_case` (запис) і `check_refund_status` (читання). Топологію
+графа кожна лаба композирує у своєму `agent_graph.go` — тому День 4 може розширювати
+свій потік (drain, readiness, другий вузол), не змінюючи те, що здає День 3.
+
+### Що дає граф проти imperative-скрипта
+
+Скрипт викликав би `open_refund_case` безумовно: рядок за рядком, завжди, навіть коли
+запит про статус. Граф робить рішення **даними, а не порядком рядків**: `classify`
+друкує `Event.Routes`, і двигун обирає ребро за цим значенням. Кожен крок — вузол з
+іменем, тож event log показує `prepare_status`, а не «десь усередині функції».
+Помилку видно на конкретному вузлі: невідомий мерчант падає в `open_refund_case`, а не
+в середині довгого скрипта. Той самий набір кроків композирує День 4 у своєму
+`agent_graph.go` — домен спільний, топологія своя. І маршрут тестується без моделі:
+`Classify` — чиста функція від тексту, тому «refund / status / поза доменом» має
+табличні тести, а не залежить від температури моделі. Скрипт зберіг би цю логіку в
+`if`-ах, невидимих для аудиту.
 
 ```bash
 go build ./week2/...
@@ -72,6 +116,8 @@ go vet ./week2/...
 ## Межі навчальної моделі
 
 Реєстр відкриває **кейс**, а не переказує гроші. Він і сесії живуть у пам'яті процесу.
+Тому `check_refund_status` читає лише те, що відкрив цей самий процес: після перезапуску
+кейс знову невідомий, і граф чесно каже `unknown case id`, а не `pending`.
 Непрефіксовані ключі стану зберігаються між ходами однієї сесії, не після перезапуску.
 Помилкові ID не змінюють бізнес-стан. Повторів вузлів немає: локальну валідацію не виправити backoff-ом.
 
@@ -81,7 +127,9 @@ go vet ./week2/...
 
 - **Не знаходить пакет:** поверніться в корінь репозиторію, не в каталог окремого файлу.
 - **Стара версія Go:** перевірте `go version` проти кореневого `go.mod`.
-- **Запит відхилено:** потрібні обидва ID; підтримані мерчанти `A-114` та `B-207`.
+- **Запит відхилено:** для відкриття потрібні обидва ID; підтримані мерчанти `A-114` та `B-207`.
+- **`статус` без ID кейса:** граф піде в `status` і попросить ID — транзакцію він не приймає замість кейса.
+- **`unknown case id`:** кейс не відкривали в цьому процесі; реєстр in-memory, не база даних.
 - **Немає звичного `tool_call` у графі:** ToolNode повертає `Event.Output`; перевіряйте також `StateDelta`, а не лише LLM function calls.
 - **Після перезапуску знову `pending`:** це очікувана межа in-memory реєстру.
 
