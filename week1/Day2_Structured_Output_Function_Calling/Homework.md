@@ -14,7 +14,7 @@
 
 Перш ніж писати власний контракт — подивіться, як межа системи ловить зіпсований виклик і **каже вголос, що саме з ним не так**. Ключ і мережа не потрібні.
 
-Спершу переконайтесь, що базовий тест зелений (врізка «Перші 15 хвилин» вище). Далі покладіть у папку лаби файл `earlywin_test.go` — це навмисно зіпсована «відповідь моделі», яку ви пропускаєте через ту саму валідацію, що й справжній tool-call:
+Спершу переконайтесь, що базовий тест зелений (врізка «Перші 15 хвилин» вище). Далі відкрийте файл `earlywin_test.go` у папці лаби — він уже там, і містить навмисно зіпсовану «відповідь моделі», яку ви пропускаєте через ту саму валідацію, що й справжній tool-call:
 
 ```go
 package main
@@ -47,7 +47,6 @@ func TestEarlyWin(t *testing.T) {
 Запустіть:
 
 ```bash
-cd courses/AI_Agents_Engineering/lectures/week1/Day2_Structured_Output_Function_Calling/labs
 go test -run TestEarlyWin -v .
 ```
 
@@ -63,14 +62,14 @@ go test -run TestEarlyWin -v .
 
 ## Основне завдання
 
-**Ваше завдання —** розширити стартовий шаблон [courses/AI_Agents_Engineering/lectures/week1/Day2_Structured_Output_Function_Calling/labs/main.go](https://github.com/dimetron/ai-ae-labs/blob/main/week1/Day2_Structured_Output_Function_Calling/labs/main.go) до `Strict Schema Enforcer`:
+**Ваше завдання —** розширити стартовий шаблон [week1/Day2_Structured_Output_Function_Calling/labs/main.go](https://github.com/dimetron/ai-ae-labs/blob/main/week1/Day2_Structured_Output_Function_Calling/labs/main.go) до `Strict Schema Enforcer`:
 
 1. Реалізуйте типізований інструмент курсу валют через `functiontool.New`: вхід `RateInput{Base, Target}`, вихід `RateOutput{Rate, AsOf}` — з `json`-тегами та **описами** полів у `jsonschema`-тегах. У pinned лабі тег не задає `required`/enum: такі обмеження робіть явною `InputSchema` або доменною валідацією. Джерело даних — публічний API або чесний мок: **НБУ** (`https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json`, офіційні курси) або **monobank** (`https://api.monobank.ua/bank/currency`, купівля/продаж банку; у стартовій лабі вже є `MonoProvider` — обидва без ключа, обидва з опублікованими лімітами).
 2. Додайте валідацію входу всередині інструмента: невідомий код валюти → зрозуміла помилка (`fmt.Errorf`), яку модель бачить і виправляє свій виклик.
 3. Ускладніть вихідну структуру до мінімум 3 рівнів вкладеності з масивом та enum-полем (наприклад, `RateOutput` → `[]HistoricalPoint` → `Source{Kind: "api"|"cache"|"mock"}`) — схема генерується автоматично з Go-структур.
 4. Задокументуйте у README 3 діалоги: коректний запит, запит із помилковою валютою (агент самовиправився), запит двох конвертацій в одному повідомленні.
 5. Додайте короткий розділ README «Prompt vs Contract»: 3–5 речень, чому добра інструкція агента потрібна, але не замінює JSON Schema, validation і typed tool result.
-6. Додайте один рядок «MCP пізніше»: поясніть, чому в цьому ДЗ tool локальний у Go-коді, а MCP буде зовнішньою tool boundary у наступних тижнях. Назвіть `inputSchema`/`outputSchema` та правило: MCP-сервер валідує input до виконання й санітизує output; A2A — це вже agent ↔ agent, не інша назва MCP. Це пояснення, не частина core path. **У стартовій лабі ця межа вже не «пізніше», а наживо:** агент дефолтно підключає MCP-сервер [`github.com/dimetron/mono-go-mcp`](https://github.com/dimetron/mono-go-mcp) (monobank API як 5 tools через офіційний Go SDK MCP; див. `labs/mcptool.go` та `labs/README.md` §«Зовнішня tool межа наживо») — запустіть `go run . console` і подивіться на stderr `mcp: mono-go-mcp toolset attached`, а `-no-mcp` прибирає його, щоб порівняти поверхню інструментів, яку бачить модель.
+6. Додайте один рядок «MCP пізніше»: поясніть, чому в цьому ДЗ tool локальний у Go-коді, а MCP буде зовнішньою tool boundary у наступних тижнях. Назвіть `inputSchema`/`outputSchema` та правило: MCP-сервер валідує input до виконання й санітизує output; A2A — це вже agent ↔ agent, не інша назва MCP. Це пояснення, не частина core path. **У стартовій лабі ця межа вже не «пізніше», а наживо:** агент дефолтно підключає MCP-сервер [`github.com/dimetron/mono-go-mcp`](https://github.com/dimetron/mono-go-mcp) (monobank API як 5 tools через офіційний Go SDK MCP; див. `week1/internal/mcptool` та `labs/README.md` §«Зовнішня tool межа наживо») — запустіть `go run . console` і подивіться на stderr `mcp: mono-go-mcp toolset attached`, а `-no-mcp` прибирає його, щоб порівняти поверхню інструментів, яку бачить модель.
 7. Додайте мінімальний fail path: якщо інструмент не може виправити аргументи після зрозумілої помилки, система має чесно повернути помилку/уточнення, а не вигадати курс. У README покажіть один такий сценарій або поясніть, як він обробляється.
 8. Додайте Week 2 bridge: 3–5 рядків псевдокоду або короткий фрагмент README, як `RateInput`/`RateOutput` стануть `InputSchema`/`OutputSchema` вузла workflow-графа ADK. Запускати повний workflow node у Week 1 не потрібно.
 
@@ -78,7 +77,7 @@ go test -run TestEarlyWin -v .
 
 Обидва варіанти — той самий урок «зовнішня tool boundary»: `tools/list` повертає схеми, `tools/call` передає аргументи, а валідувати, обмежувати й логувати все одно мусить ваш код. Станція пізнання — `tools/list` на старті агента: точні назви, аргументи та JSON Schema завжди повертає сам сервер.
 
-- **MCP-клієнт.** Офіційний Go SDK MCP — [`github.com/modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk) (пакет `mcp`; ADK Go v2.4.0 сам використовує цей SDK у `tool/mcptoolset`). Підключіться до живого українського MCP-сервера «Сільпо» — `https://mcp.silpo.ua/mcp` (Streamable HTTP, OAuth 2.1 + PKCE; [документація](https://ai-factory.silpo.ua/docs/mcp)): `mcp.NewClient` → `mcp.StreamableClientTransport{Endpoint: ...}` → `session.ListTools()` → подивіться на реальні `inputSchema` чужих tool-ів → викличте один read-only tool. Мета — подивитися, як **чужий** сервер описує схеми і як клієнт автентифікується (401 → `.well-known/oauth-authorization-server` → OAuth-потік). Порівняйте в README: що схема дає клієнтові, а що все одно лишається відповідальністю клієнта. **Уже зроблено у стартовій лабі для monobank:** `mono-go-mcp` ([github.com/dimetron/mono-go-mcp](https://github.com/dimetron/mono-go-mcp)) — агент підключається до нього дефолтно (`labs/mcptool.go`, `-no-mcp` щоб вимкнути), тож залишок бонусу — підключитися до **іншого** сервера («Сільпо») тим самим кодом.
+- **MCP-клієнт.** Офіційний Go SDK MCP — [`github.com/modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk) (пакет `mcp`; ADK Go v2.4.0 сам використовує цей SDK у `tool/mcptoolset`). Підключіться до живого українського MCP-сервера «Сільпо» — `https://mcp.silpo.ua/mcp` (Streamable HTTP, OAuth 2.1 + PKCE; [документація](https://ai-factory.silpo.ua/docs/mcp)): `mcp.NewClient` → `mcp.StreamableClientTransport{Endpoint: ...}` → `session.ListTools()` → подивіться на реальні `inputSchema` чужих tool-ів → викличте один read-only tool. Мета — подивитися, як **чужий** сервер описує схеми і як клієнт автентифікується (401 → `.well-known/oauth-authorization-server` → OAuth-потік). Порівняйте в README: що схема дає клієнтові, а що все одно лишається відповідальністю клієнта. **Уже зроблено у стартовій лабі для monobank:** `mono-go-mcp` ([github.com/dimetron/mono-go-mcp](https://github.com/dimetron/mono-go-mcp)) — агент підключається до нього дефолтно (`week1/internal/mcptool`, `-no-mcp` щоб вимкнути), тож залишок бонусу — підключитися до **іншого** сервера («Сільпо») тим самим кодом.
 - **MCP-сервер.** Загорніть *ваш* інструмент курсу валют з основного завдання в MCP-сервер через той самий SDK (`mcp.NewServer` + `mcp.AddTool` + `mcp.NewStreamableHTTPHandler`) і підключіть до нього свій клієнт із попереднього пункту. Тепер той самий `get_exchange_rate` — це вже не локальна функція, а межа процесу з власним `inputSchema`. Покажіть у README: чи змінилося щось у валідації входу — і чи мало б.
 - **Дані теж без MCP:** [Monobank open API](https://api.monobank.ua/docs/index.html) — публічний `/bank/currency` без токена (оновлюється не частіше ніж раз на 5 хв), а `client-info`/`statement` — вже з `X-Token` і лімітом раз на 60 с: саме на цій межі «публічне/приватне» найнаочніше рішення про те, що віддавати моделі, а що — ні (least agency з лекції).
 
@@ -104,7 +103,7 @@ go test -run TestEarlyWin -v .
 
 | Симптом | Що перевірити |
 |---|---|
-| `go test ./...` червоний одразу після клонування | Ви не в папці лаби: `cd courses/AI_Agents_Engineering/lectures/week1/Day2_Structured_Output_Function_Calling/labs` і повторіть. Для тестів **не потрібні** API-ключ і мережа. |
+| `go test ./...` червоний одразу після клонування | Ви не в папці лаби: `cd week1/Day2_Structured_Output_Function_Calling/labs` і повторіть. Для тестів **не потрібні** API-ключ і мережа. |
 | Агент відповідає текстом, але не викликає інструмент | Перечитайте `Description` інструмента: модель вирішує «викликати чи ні» саме за описом (див. Лекцію, «Контракт функції»). Опис має казати, *коли* викликати і коли перепитати. |
 | «Помилка: невідомий код валюти» | Це не поломка, а робочий fail path: інструмент навмисно повертає зрозумілу помилку замість вигаданого курсу. Задокументуйте цей діалог — він потрібен у README. |
 | Немає ключа або мережі для живого API (НБУ чи monobank) | Запускайте з фікстурою: `go run . -offline console` — цього достатньо для всього core path. |

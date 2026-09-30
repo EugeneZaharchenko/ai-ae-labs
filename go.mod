@@ -3,8 +3,9 @@ module github.com/dimetron/ai-eng-course/labs
 go 1.27.1
 
 require (
-	github.com/dimetron/pi-go v0.1.7
+	github.com/dimetron/pi-go v0.2.3
 	github.com/google/jsonschema-go v0.4.3
+	github.com/gorilla/mux v1.8.1
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	google.golang.org/adk/v2 v2.4.0
 	google.golang.org/genai v1.71.0
@@ -33,7 +34,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.21 // indirect
 	github.com/googleapis/gax-go/v2 v2.24.0 // indirect
-	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
@@ -41,7 +41,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/ollama/ollama v0.33.3 // indirect
-	github.com/openai/openai-go/v3 v3.56.0 // indirect
+	github.com/openai/openai-go/v3 v3.66.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
@@ -83,3 +83,21 @@ require (
 	rsc.io/omap v1.2.0 // indirect
 	rsc.io/ordered v1.1.1 // indirect
 )
+
+// pi-go v0.2.3 requires openai-go/v3 v3.66.0, but ADK v2.4.0's openaimodel
+// package does not compile against it: v3.57.0 removed the Name field from
+// responses.ResponseFunctionCallArgumentsDoneEvent, which
+// adk/v2@v2.4.0/model/openaimodel/stream.go:162 reads. MVS therefore picks
+// v3.66.0 and Day1's solution — the only package here that imports
+// openaimodel — fails to build with:
+//
+//	done.Name undefined (type responses.ResponseFunctionCallArgumentsDoneEvent
+//	has no field or method Name)
+//
+// v3.56.0 is the highest release that keeps Name, and it still carries every
+// openai-go symbol pi-go v0.2.3 uses (shared.ReasoningParam and the full
+// ReasoningEffort range, which is what v0.2.3 added). So this pin is the only
+// combination that builds both ADK and pi-go.
+//
+// Drop it once ADK ships a release that tracks openai-go >= v3.57.0.
+replace github.com/openai/openai-go/v3 => github.com/openai/openai-go/v3 v3.56.0

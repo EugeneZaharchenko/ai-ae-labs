@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мапа курсу</title>
+<style>
+/* ============================================================================
+   Мапа курсу — одна карта всього курсу (Week 0 + 12 днів), з обома рамками
+   (п'ять шарів + 13 пілярів, OS-стадія) і чотирма наскрізними лініями.
+   Companion до agentic-engineering-landscape.html і agent-os.html.
+   Self-contained, offline-first per courses/STYLE.md. Prometheus brandbook
+   palette, one PLUS pair (Індиго), light mode only, one plashka radius.
+   Print stylesheet = PDF companion (A4 landscape, settled state).
+   ========================================================================== */
+:root{
+  --cream:#faf0eb;
+  --peach:#ffc8a5;
+  --orange:#e67d2d;
+  --brown:#281405;
+  --plus-dark:#1e2841;
+  --plus-light:#bed2dc;
+  --white:#ffffff;
+  --gray:#d7d7dc;
+
+  --bg:var(--cream);
+  --panel:var(--white);
+  --line:var(--gray);
+  --ink:var(--brown);
+  --ink-dim:rgba(40,20,5,.76);
+  --ink-faint:rgba(40,20,5,.5);
+
+  --radius:14px;
+  --pill:999px;
+  --maxw:1360px;
+
+  --font-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--font-body)}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+
+header.hero{padding:56px 0 40px;border-bottom:2.2px solid var(--brown)}
+.kicker{
+  font-size:13px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink);font-weight:700;margin-bottom:14px;
+  border-left:3px solid var(--orange);padding-left:10px;
+}
+h1{
+  font-family:var(--font-display);text-transform:uppercase;font-weight:900;
+  font-size:44px;line-height:1.08;margin:0 0 14px;letter-spacing:-.01em;color:var(--ink);
+}
+h1.long{font-size:34px}
+@media (max-width:700px){h1.long{font-size:clamp(22px,6vw,30px)}}
+.lede{font-size:18px;color:var(--ink-dim);max-width:900px;margin:0 0 10px}
+.lede strong{color:var(--ink);font-weight:600}
+p{margin:0 0 12px;color:var(--ink-dim)}
+strong{color:var(--ink);font-weight:600}
+a{color:var(--plus-dark)}
+code{
+  font-family:var(--font-mono);font-size:.85em;
+  background:var(--white);border:1px solid var(--line);border-radius:6px;
+  padding:1px 6px;color:var(--plus-dark);overflow-wrap:anywhere;
+}
+.faint{color:var(--ink-faint)}
+
+nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 0}
+nav.toc a{
+  display:inline-block;padding:6px 14px;border-radius:var(--pill);
+  border:1.5px solid var(--line);background:var(--panel);
+  color:var(--ink-dim);text-decoration:none;font-size:14px;font-weight:600;
+}
+nav.toc a:hover{border-color:var(--orange);color:var(--ink)}
+
+section{padding:36px 0;border-bottom:1.5px solid var(--line)}
+section:last-of-type{border-bottom:none}
+h2{
+  font-family:var(--font-display);text-transform:uppercase;font-weight:900;
+  font-size:24px;margin:0 0 6px;letter-spacing:-.005em;color:var(--ink);
+}
+h2 .n{color:var(--orange);margin-right:10px}
+.section-lede{font-size:15.5px;color:var(--ink-dim);max-width:820px;margin:0 0 20px}
+
+/* ---- legend ---- */
+.legend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:16px 0}
+.legend-card{background:var(--panel);border:1.5px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.legend-card h4{margin:0 0 8px;font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink)}
+.legend-card p,.legend-card ul{font-size:13.5px;margin:0}
+.legend-card ul{padding-left:18px}
+.legend-card li{margin-bottom:4px;color:var(--ink-dim)}
+.tl-chip{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px;padding:3px 9px;border-radius:var(--pill);margin:2px 3px 2px 0}
+.tl-К{background:var(--peach);border:1.5px solid var(--orange);color:var(--ink)}
+.tl-R{background:var(--white);border:1.5px solid var(--plus-dark);color:var(--plus-dark)}
+.tl-V{background:var(--white);border:1.5px solid var(--brown);color:var(--brown)}
+.tl-S{background:var(--plus-light);border:1.5px solid var(--plus-dark);color:var(--plus-dark)}
+
+/* ---- filters ---- */
+.filter-group{margin-bottom:14px}
+.filter-group .flabel{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);font-weight:700;margin-bottom:6px}
+.filters{display:flex;flex-wrap:wrap;gap:6px}
+.filters button{
+  font:600 12.5px/1 var(--font-body);padding:6px 12px;border-radius:var(--pill);
+  border:1.5px solid var(--line);background:var(--panel);color:var(--ink-dim);cursor:pointer;
+}
+.filters button:hover{border-color:var(--orange)}
+.filters button.on{border-color:var(--orange);background:var(--peach);color:var(--ink)}
+
+/* ---- map grid ---- */
+.week-block{margin-bottom:30px}
+.week-title{
+  font-family:var(--font-display);text-transform:uppercase;font-weight:800;
+  font-size:16px;color:var(--ink);margin:0 0 12px;padding-bottom:6px;
+  border-bottom:2px solid var(--orange);
+}
+.day-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px}
+.day-card{
+  background:var(--panel);border:1.5px solid var(--line);border-radius:var(--radius);
+  padding:18px 20px;transition:opacity .2s ease;
+}
+.day-card.dim{opacity:.22}
+.day-card.macro{border-color:var(--orange);border-width:2.2px}
+.day-num{
+  display:inline-block;font-weight:900;font-size:13px;color:var(--white);
+  background:var(--brown);border-radius:var(--pill);padding:3px 11px;margin-right:8px;
+}
+.day-card.macro .day-num{background:var(--orange)}
+.day-title-en{font-weight:800;font-size:15.5px;color:var(--ink);display:block;margin:8px 0 2px}
+.day-title-ua{font-size:13px;color:var(--ink-dim);display:block;margin-bottom:10px}
+.day-card h5{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);font-weight:700;margin:12px 0 4px}
+.topics{margin:0;padding-left:18px;font-size:13.5px}
+.topics li{margin-bottom:3px;color:var(--ink-dim)}
+.badges{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0}
+.badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:22px;height:20px;padding:0 6px;border-radius:6px;
+  font-size:11px;font-weight:700;border:1.5px solid var(--line);color:var(--ink-faint);
+}
+.badge.full{border-color:var(--orange);background:var(--peach);color:var(--ink)}
+.badge.part{border-color:var(--plus-dark);color:var(--plus-dark);background:var(--white)}
+.artifact{font-size:14px;font-weight:700;color:var(--ink);margin:2px 0}
+.artifact .macro-tag{color:var(--orange);margin-right:4px}
+.os-stage{font-size:13px;color:var(--ink-dim)}
+.lb-quote{
+  border-left:3px solid var(--orange);padding:6px 12px;margin:6px 0;
+  background:var(--peach);border-radius:0 8px 8px 0;font-size:13px;color:var(--ink);
+}
+.lb-quote.missing{background:var(--white);border-left-color:var(--line);color:var(--ink-faint);font-style:italic}
+.bonus-chip{
+  display:inline-block;padding:4px 10px;border-radius:var(--pill);
+  background:var(--peach);border:1.5px solid var(--orange);color:var(--ink);
+  font-size:12.5px;font-weight:700;
+}
+
+.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1.5px solid var(--line);background:var(--panel);margin:14px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:520px}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--ink);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;border-bottom:2px solid var(--orange);background:var(--cream)}
+tbody tr:last-child td{border-bottom:none}
+
+ul.scoped{margin:0;padding-left:20px}
+ul.scoped li{margin-bottom:8px;font-size:14.5px;color:var(--ink-dim)}
+ul.scoped li strong{color:var(--ink)}
+
+footer{padding:32px 0 60px;font-size:13.5px;color:var(--ink-faint)}
+footer a{color:var(--ink-dim)}
+
+@media (max-width:768px){
+  h1{font-size:30px}
+  .day-grid{grid-template-columns:1fr}
+  .wrap{padding:0 16px}
+}
+
+@media print{
+  @page{size:A4 landscape;margin:10mm}
+  html,body{background:var(--cream)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  nav.toc,.no-print,.filters{display:none!important}
+  section{break-inside:avoid-page;border-bottom:none}
+  .day-card,.legend-card,.table-wrap{break-inside:avoid-page}
+  .day-grid{grid-template-columns:repeat(2,1fr)}
+  a{color:var(--ink)!important;text-decoration:none}
+  /* §2d "print the settled state": a filtered screen must not print a
+     partial map. Belt-and-braces with the beforeprint JS reset below —
+     this CSS override covers any path that skips the JS event (e.g.
+     browser print triggered outside beforeprint semantics). */
+  .day-card.dim{opacity:1!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero">
+  <div class="kicker">Тиждень 0 · Курс 1: AI Agents Engineering · станом на 09/2026</div>
+  <h1 class="long">Week 0 · Мапа курсу (AI Agents Engineering)</h1>
+  <p class="lede">Довідкова карта поруч із <code>Lecture.md</code>, не заміна й не переказ.
+  6 тижнів / 12 днів (<code>TOC.md</code>) лишаються тими самими вебінарами — жоден день не
+  перейменовано, жоден новий модуль не додано. Третя карта поруч із двома попередніми: <a
+  href="agentic-engineering-landscape.html">agentic-engineering-landscape.html</a> показує дні як
+  дві осі поруч з індустрією; <a href="agent-os.html">agent-os.html</a> складає їх в одну
+  операційну модель. Ця сторінка зводить усе — назву, теми, граний артефакт, обидві рамки й
+  наскрізні лінії — в одну карту всього курсу.</p>
+  <nav class="toc no-print">
+    <a href="#legend">Легенда</a>
+    <a href="#map">Карта</a>
+    <a href="#insights">Що видно одразу</a>
+  </nav>
+</header>
+
+<section id="legend">
+  <h2><span class="n">01</span>Легенда</h2>
+  <p class="section-lede">Кожне поле нижче виведено з конкретного файлу — нічого не вигадано;
+  де джерело мовчить, позначено чесно.</p>
+  <div class="legend-grid">
+    <div class="legend-card">
+      <h4>П'ять шарів</h4>
+      <p><code>P</code> Prompt · <code>C</code> Context · <code>H</code> Harness · <code>L</code>
+      Loop · <code>G</code> Graph. <span class="badge full">●</span> граний код+тести,
+      <span class="badge part">○</span> лекція/згадка, — день не додає нового шару.</p>
+    </div>
+    <div class="legend-card">
+      <h4>13 пілярів</h4>
+      <p>Номер = <code>agentic-engineering-landscape.html</code> §2 (1 Prompt … 13 Identity),
+      та сама матриця, той самий код-верифікований аудит.</p>
+    </div>
+    <div class="legend-card">
+      <h4>OS-стадія</h4>
+      <p>Той самий етап, що й <code>agent-os.html</code> §6 — Runtime-фундамент (Д1–Д4),
+      Ingest/parse/ontology (Д5), Retrieval у контекст (Д6), Виконання+fault tolerance (Д7–Д8),
+      Стан/пам'ять+OKF (Д9), Approval (Д10), Review-процес (Д11), Self-improvement L1→L3 (Д12).</p>
+    </div>
+    <div class="legend-card">
+      <h4>Чотири наскрізні лінії</h4>
+      <p>
+        <span class="tl-chip tl-К">К Субстрат знання</span>
+        <span class="tl-chip tl-R">R Керування рантаймом</span>
+        <span class="tl-chip tl-V">V Верифікація</span>
+        <span class="tl-chip tl-S">S Системна інтеграція</span>
+      </p>
+      <p style="font-size:12.5px;margin-top:6px">К: W0→Д5→Д9→Д12 · R: Д2→Д3→Д7/8→Д11/12 ·
+      V: Д1→Д6→Д8→Д11/12 · S: Д1→Д4→Д10→Д12</p>
+    </div>
+  </div>
+  <p style="font-size:13.5px" class="faint"><em>Три макро-артефакти (Д4, Д6, Д12) позначені
+  помаранчевою рамкою й 🏛 — кожен зшиває кілька попередніх тижнів в один розгорнутий
+  портфоліо-об'єкт.</em></p>
+</section>
+
+<section id="map">
+  <h2><span class="n">02</span>Карта: Week 0 + 12 днів</h2>
+  <p class="section-lede">Фільтруйте за тижнем, пілярем чи наскрізною лінією — картки, що не
+  відповідають вибору, тьмяніють.</p>
+
+  <div class="no-print">
+    <div class="filter-group">
+      <div class="flabel">Тиждень</div>
+      <div class="filters" id="week-filters"></div>
+    </div>
+    <div class="filter-group">
+      <div class="flabel">Піляр</div>
+      <div class="filters" id="pillar-filters"></div>
+    </div>
+    <div class="filter-group">
+      <div class="flabel">Наскрізна лінія</div>
+      <div class="filters" id="tl-filters"></div>
+    </div>
+  </div>
+
+  <div id="map-root"></div>
+</section>
+
+<section id="insights">
+  <h2><span class="n">03</span>Що видно з мапи одразу</h2>
+  <ul class="scoped">
+    <li><strong>Наскрізна лінія «S» (системна інтеграція) торкається лише чотирьох днів</strong>
+    (Д1, Д4, Д10, Д12) — саме ці дні прямо називають kagent/agentgateway/Temporal чи будують
+    сервісну/approval-межу. Найтонша лінія з чотирьох — навмисно: курс <em>натякає</em> на
+    платформу, а не будує її (Track 3).</li>
+    <li><strong>Тільки Д12 перетинає всі чотири наскрізні лінії одночасно</strong> — не
+    риторичний прийом: це буквально єдиний день, де знання (К), керування рантаймом (R),
+    верифікація (V) і системна інтеграція (S) сходяться в один портфоліо-артефакт.</li>
+    <li><strong>Три дні (Д1, Д5, Д9) не мають сформульованого load-bearing рядка</strong> в
+    <code>CONSOLIDATED_PLAN</code> §3 — прогалина джерела, не цього документа; список там
+    свідомо покриває 9 із 12 днів, і мапа відображає це чесно, а не вигадує рядок для симетрії.</li>
+    <li><strong>П'ять шарів і 13 пілярів — різні осі</strong>: день без нового шару (Д4, Д5, Д9
+    мають «—» чи лише лекційний дотик у «5 шарів») усе одно може бути core-днем — Д4 і Д5 обидва
+    грані <span class="badge full">●</span> на своєму пілярі (12 і 6), просто цей пілар не входить
+    до п'яти базових шарів.</li>
+  </ul>
+</section>
+
+<footer>
+  <p>Продовження цієї мапи — <a href="agentic-engineering-landscape.html">agentic-engineering-landscape.html</a>
+  (дві осі поруч з індустрією) та <a href="agent-os.html">agent-os.html</a> (та сама розбивка
+  курсу, складена в одну операційну модель). Ця сторінка — третя проєкція: весь курс одним
+  поглядом, день за днем, з обома рамками поруч.</p>
+  <p>Станом на 09/2026. Джерела: <code>TOC.md</code>, <code>TOPICS.md</code>,
+  <code>lectures/week*/Day*/Lecture.md</code> (H2 «Блок N»), <code>lectures/week*/Day*/Homework.md</code>
+  (H1 + 🔥 Бонус-трек), <code>weekly-reviews/2026_09_06/CONSOLIDATED_PLAN_2026-09-06.md</code> §3,
+  <code>research/audit_course_coverage.md</code>.</p>
+</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var WEEKS = [
+    {id:"w0", title:"Тиждень 0 · Відкритий вебінар (не graded)", days:["d0"]},
+    {id:"w1", title:"Тиждень 1 · Фундамент — API, типізація та ландшафт фреймворків", days:["d1","d2"]},
+    {id:"w2", title:"Тиждень 2 · Google ADK 2.0 — workflow-граф та деплой", days:["d3","d4"]},
+    {id:"w3", title:"Тиждень 3 · Agentic GraphRAG, онтології та корпоративні дані", days:["d5","d6"]},
+    {id:"w4", title:"Тиждень 4 · Когнітивні автономні цикли та обробка відмов", days:["d7","d8"]},
+    {id:"w5", title:"Тиждень 5 · Пам'ять, стан та колаборативні workflow в ADK 2.0", days:["d9","d10"]},
+    {id:"w6", title:"Тиждень 6 · Динамічні workflow, self-evolving агенти та безпечний self-improvement", days:["d11","d12"]}
+  ];
+
+  var DAYS = {
+    d0: {
+      num:"Д0", week:"w0", macro:false,
+      titleEn:"«Why Agent Engineering: The Capability Ladder»",
+      titleUa:"Ваш агент уже працює. Ви знаєте, що всередині?",
+      topics:["Чому саме зараз (Акт I)","Спільна мова: один виклик → типи workflow","Хронологія, драбина, дві осі","LLM Wiki showcase (демо)","Траєкторія курсу, треки, портфоліо"],
+      layers:[["P","part"],["H","part"]],
+      pillars:[["1","part"],["3","part"],["6","part"],["12","part"]],
+      osStage:"Огляд усієї моделі (демо живого пайплайна)",
+      artifact:"Немає — відкритий вебінар, без ДЗ і сертифіката",
+      throughlines:["К"],
+      lb:null,
+      bonus:null
+    },
+    d1: {
+      num:"Д1", week:"w1", macro:false,
+      titleEn:"«LLMs as a Runtime: Models, Agents, and Frameworks in 2026»",
+      titleUa:"Вступ до LLM API та AI-фреймворків + мій перший агент на ADK",
+      topics:["Хвиля «я вибрав ChatGPT, і ось що пішло не так»","Токени, контекст і прихована вартість","Чому вибір фреймворка — архітектурне рішення","Hands-on: перший ADK-агент + Cross-Model Benchmark"],
+      layers:[["P","part"],["C","part"]],
+      pillars:[["1","part"],["2","part"],["11","part"],["12","part"]],
+      osStage:"Runtime-фундамент — контракт виконання",
+      artifact:"«Мій перший агент за 30 хвилин»",
+      throughlines:["V","S"],
+      lb:null,
+      bonus:"3 конфігурації однієї моделі — крива latency×якість×вартість"
+    },
+    d2: {
+      num:"Д2", week:"w1", macro:false,
+      titleEn:"«Stop Parsing Hope: Typed Outputs, Function Calls, and Tool Contracts»",
+      titleUa:"Стійкість даних: Structured Output через типізовані схеми та Function Calling",
+      topics:["Чому LLM ламають традиційний софт","Structured Output: від тексту до типізованих об'єктів","Function Calling: від тексту до дії","Hands-on: Strict Schema Enforcer"],
+      layers:[["H","full"],["P","part"]],
+      pillars:[["1","part"],["3","part"]],
+      osStage:"Runtime-фундамент — типізований контракт інструменту",
+      artifact:"Перший власний інструмент: типи проти хаосу",
+      throughlines:["R"],
+      lb:"«форма ≠ намір» — схема доводить структуру, а не авторизацію",
+      bonus:"Schema-міграція без ламання (опційне поле в RateOutput)"
+    },
+    d3: {
+      num:"Д3", week:"w2", macro:false,
+      titleEn:"«Agent Anatomy in Go ADK: Tools, Nodes, and Workflow Graphs as Data»",
+      titleUa:"Перший агент на ADK 2.0: агенти, інструменти та функції як вузли workflow-графа",
+      topics:["Чому агент-«скрипт» ламається в аудиті","Анатомія ADK 2.0 workflow-графа","Hands-on: перший workflow-граф","Тестування графа без LLM і без API-ключа"],
+      layers:[["G","full"]],
+      pillars:[["3","part"],["5","full"]],
+      osStage:"Runtime-фундамент — граф як структура виконання",
+      artifact:"Агент стає графом: вузли, ребра, тести",
+      throughlines:["R"],
+      lb:"карта протоколів: MCP = агент↔інструмент, A2A = агент↔агент, MCP Apps = агент↔людина",
+      bonus:"Друга гілка маршрутизації (3-way routing + тести)"
+    },
+    d4: {
+      num:"Д4", week:"w2", macro:true,
+      titleEn:"«Ship the Agent: One Binary, One API, One Production Boundary»",
+      titleUa:"ШІ як сервіс: деплой ADK-агента єдиним бінарником",
+      topics:["Перший видимий виграш (00–15′)","HTTP-контракт агента","Життєвий цикл — передбачувана зупинка","Артефакт, який можна передати іншому"],
+      layers:[],
+      pillars:[["12","full"]],
+      osStage:"Runtime-фундамент + перший процесний сегмент (сервісна межа)",
+      artifact:"Агент виходить у мережу: HTTP-сервіс і бінарник FROM scratch",
+      throughlines:["S"],
+      lb:"StateDelta — це операційний стан, не пам'ять (Тиждень 5) і не знання (Тиждень 3)",
+      bonus:"Chaos-check готовності (SIGSTOP посеред SSE-стріму)"
+    },
+    d5: {
+      num:"Д5", week:"w3", macro:false,
+      titleEn:"«RAG Before Embeddings: Lossless Parsing for Documents That Fight Back»",
+      titleUa:"Від PDF до графа знань: lossless parsing, ontology-driven chunking та entity resolution",
+      topics:["Чому наївний RAG сліпий до структури","Lossless parsing та ontology-driven chunking","Hands-on: Ontology-Aware Knowledge Builder","Індексація та dual-store"],
+      layers:[],
+      pillars:[["6","full"]],
+      osStage:"Ingest / parse / ontology — перша половина субстрату",
+      artifact:"Агент вчиться читати: ingestion-конвеєр для бази знань",
+      throughlines:["К"],
+      lb:null,
+      bonus:"Freshness-фільтр чанків + O-RAG prefilter-схема (LLM-екстракція)"
+    },
+    d6: {
+      num:"Д6", week:"w3", macro:true,
+      titleEn:"«Retrieval Maturity Ladder: Hybrid Search, Reranking, and Semantic Cache»",
+      titleUa:"Agentic GraphRAG: hybrid retrieval, multi-hop planning, re-ranking та semantic cache",
+      topics:["Retrieval Maturity Ladder","Агент-планувальник та маршрутизація","Hands-on: Agentic GraphRAG Engine","Semantic cache: вимірювана економія","Retrieval eval: vector-RAG vs Agentic GraphRAG"],
+      layers:[["G","full"]],
+      pillars:[["5","full"],["7","full"],["10","full"]],
+      osStage:"Retrieval у контекст — друга половина субстрату",
+      artifact:"Agentic GraphRAG: hybrid retrieval, multi-hop planning, re-ranking, semantic cache та eval harness",
+      throughlines:["V"],
+      lb:"векторна подібність сама по собі не відповідає на структурне питання відповідності",
+      bonus:"Adaptive planner з budget/latency SLO"
+    },
+    d7: {
+      num:"Д7", week:"w4", macro:false,
+      titleEn:"«Inside the ReAct Loop: When Reasoning Becomes a Control System»",
+      titleUa:"Патерн ReAct зсередини: мануальний цикл та його еквівалент у workflow-рушії ADK 2.0",
+      topics:["Анатомія ReAct: що всередині циклу","Мануальний ReAct-цикл на чистому Go","ReAct як цикл у workflow-графі ADK 2.0","Коли писати руками, коли довіряти runtime"],
+      layers:[["L","full"]],
+      pillars:[["4","full"]],
+      osStage:"Виконання всередині пайплайна",
+      artifact:"ReAct зсередини: цикл руками vs цикл у графі",
+      throughlines:["R"],
+      lb:"чотири умови зупинки (фінальна відповідь · ліміт ітерацій · дедлайн контексту · явна відмова)",
+      bonus:"maxIterations у трьох місцях при streaming + 50-iteration runaway тест"
+    },
+    d8: {
+      num:"Д8", week:"w4", macro:false,
+      titleEn:"«When Tools Fail: Recovery, Guardrails, and the Lethal Trifecta»",
+      titleUa:"Надійність агентів: самовідновлення, guardrails та Lethal Trifecta",
+      topics:["Два рівні реакції на відмову","Ідіоматична обробка помилок Go","Hands-on: Tool Error Handling","Mass-fault test: вимірюємо стійкість"],
+      layers:[["H","full"]],
+      pillars:[["3","full"],["12","part"]],
+      osStage:"Виконання + fault tolerance",
+      artifact:"Агент, який не панікує: помилка як спостереження",
+      throughlines:["R","V"],
+      lb:"транзієнтні помилки → retry рантайму; семантичні → спостереження для моделі; інструмент, що повернув 40k токенів шуму, — теж відмова харнесу (бюджетування виводу)",
+      bonus:"RateLimitError з Retry-After + crash-safe (kill -9 посеред tool call)"
+    },
+    d9: {
+      num:"Д9", week:"w5", macro:false,
+      titleEn:"«The Second Brain Is a Repo: Event-Sourced State, Context, and LLM Wiki Memory»",
+      titleUa:"event-sourced стан, context engineering та LLM Wiki/OKF",
+      topics:["Чому stateless-агенти не масштабуються","LLM Wiki як прозора repo memory (OpenWiki/OKF)","Hands-on: event-sourced стан у ADK 2.0","Коли потрібен зовнішній memory-сервіс"],
+      layers:[["C","part"]],
+      pillars:[["2","part"],["8","full"]],
+      osStage:"Стан / пам'ять + OKF як портативний формат",
+      artifact:"Кінець амнезії: сесії, event-sourced стан і пам'ять між розмовами",
+      throughlines:["К"],
+      lb:null,
+      bonus:"Go OpenWiki Mini — детерміністичний repo-documentation workflow"
+    },
+    d10: {
+      num:"Д10", week:"w5", macro:false,
+      titleEn:"«Agents as Teams: Coordinator Patterns, Human Approval, and Write-Safe Workflows»",
+      titleUa:"coordinator-agent патерн, Plan-Execute та нативний Human-in-the-Loop",
+      topics:["Коли ОДИН агент не вистачає","Collaboration agents: три режими LlmAgent","Hands-on: Coordinator + спеціалісти + Plan-Execute","Нативний Human-in-the-Loop 2.0"],
+      layers:[["G","full"]],
+      pillars:[["5","full"],["9","full"],["11","part"],["13","part"]],
+      osStage:"Approval як роль і процес",
+      artifact:"Агент наймає команду: координатор, спеціалісти та людина в циклі",
+      throughlines:["S"],
+      lb:"людина авторизує diff, структуровані аргументи й отримувачів — ніколи прозу агента",
+      bonus:"A2A-автентифікація підагента (SPIFFE/AAuth/OPA-заглушка)"
+    },
+    d11: {
+      num:"Д11", week:"w6", macro:false,
+      titleEn:"«Beyond One Agent: Dynamic Subagents, Multi-Critic Loops, and Programmatic Dispatch»",
+      titleUa:"кодінг-агент із multi-critic циклом",
+      topics:["Коли статичного графа замало","Динамічний workflow ADK 2.0 vs LangGraph","Hands-on: кодінг-агент на динамічному графі","Зміцнення динамічного графа"],
+      layers:[["L","full"]],
+      pillars:[["4","full"],["10","full"]],
+      osStage:"Review-процес — maker/checker у масштабі команди",
+      artifact:"Цикл до зеленого: динамічний граф із командою критиків",
+      throughlines:["R","V"],
+      lb:"детерміністичні перевірки — перед суддями-моделями",
+      bonus:"critic_static_analysis (gofmt+vet+staticcheck) четвертим вузлом"
+    },
+    d12: {
+      num:"Д12", week:"w6", macro:true,
+      titleEn:"«Autoresearch in Practice: Agents That Improve Under a Budget, Not by Magic»",
+      titleUa:"паттерн autoresearch та фінальний демо-день",
+      topics:["Формалізація безпечного самополіпшення","Мапінг Multi-Critic Coding Agent на п'ять принципів","Hands-on: self-improving кодінг-агент","Демо-день / фінальний Personal Research Agent"],
+      layers:[["L","full"],["C","part"]],
+      pillars:[["2","part"],["4","full"],["10","part"],["13","part"]],
+      osStage:"Self-improvement, розкатане L1→L3 — замикає цикл",
+      artifact:"Фінал: Personal Research Agent, який покращує сам себе",
+      throughlines:["К","R","V","S"],
+      lb:"чотири гальма (змінна поверхня · allow-list · фіксований бюджет · верифікаційний ґейт)",
+      bonus:"Multi-objective metric — secondary readability-gate"
+    }
+  };
+
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function dayCardHtml(id){
+    var d = DAYS[id];
+    var pillarNums = d.pillars.map(function(p){ return p[0]; });
+    var layersHtml = d.layers.length
+      ? d.layers.map(function(l){ return '<span class="badge ' + l[1] + '">' + esc(l[0]) + '</span>'; }).join("")
+      : '<span class="faint" style="font-size:12.5px">— (інший вимір)</span>';
+    var pillarsHtml = d.pillars.map(function(p){ return '<span class="badge ' + p[1] + '">' + esc(p[0]) + '</span>'; }).join("");
+    var tlHtml = d.throughlines.map(function(t){ return '<span class="tl-chip tl-' + t + '">' + t + '</span>'; }).join("");
+    var lbHtml = d.lb
+      ? '<div class="lb-quote">' + esc(d.lb) + '</div>'
+      : '<div class="lb-quote missing">не сформульовано в CONSOLIDATED_PLAN §3</div>';
+    var bonusHtml = d.bonus
+      ? '<span class="bonus-chip">🔥 ' + esc(d.bonus) + '</span>'
+      : '<span class="faint" style="font-size:12.5px">—</span>';
+    var artifactHtml = (d.macro ? '<span class="macro-tag">🏛</span>' : '') + esc(d.artifact);
+
+    return '' +
+      '<div class="day-card' + (d.macro ? ' macro' : '') + '" data-week="' + d.week + '" data-pillars="' + pillarNums.join(",") + '" data-tl="' + d.throughlines.join(",") + '">' +
+        '<span class="day-num">' + d.num + '</span>' +
+        '<span class="day-title-en">' + esc(d.titleEn) + '</span>' +
+        '<span class="day-title-ua">' + esc(d.titleUa) + '</span>' +
+        '<h5>Теми</h5>' +
+        '<ul class="topics">' + d.topics.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join("") + '</ul>' +
+        '<h5>5 шарів</h5><div class="badges">' + layersHtml + '</div>' +
+        '<h5>13 пілярів</h5><div class="badges">' + pillarsHtml + '</div>' +
+        '<h5>OS-стадія</h5><p class="os-stage">' + esc(d.osStage) + '</p>' +
+        '<h5>Граний артефакт</h5><p class="artifact">' + artifactHtml + '</p>' +
+        '<h5>Load-bearing рядок</h5>' + lbHtml +
+        '<h5>Наскрізні лінії</h5><div class="badges">' + tlHtml + '</div>' +
+        '<h5>🔥 Бонус</h5><p>' + bonusHtml + '</p>' +
+      '</div>';
+  }
+
+  var root = document.getElementById("map-root");
+  var html = WEEKS.map(function(w){
+    return '<div class="week-block" data-week-block="' + w.id + '">' +
+      '<div class="week-title">' + esc(w.title) + '</div>' +
+      '<div class="day-grid">' + w.days.map(dayCardHtml).join("") + '</div>' +
+    '</div>';
+  }).join("");
+  root.innerHTML = html;
+
+  // ---- filters ----
+  var active = {week:null, pillar:null, tl:null};
+
+  function buildFilterGroup(containerId, allLabel, values, groupKey){
+    var wrap = document.getElementById(containerId);
+    var allBtn = document.createElement("button");
+    allBtn.textContent = allLabel;
+    allBtn.className = "on";
+    allBtn.dataset.value = "";
+    wrap.appendChild(allBtn);
+    values.forEach(function(v){
+      var b = document.createElement("button");
+      b.textContent = v.label;
+      b.dataset.value = v.value;
+      wrap.appendChild(b);
+    });
+    wrap.addEventListener("click", function(e){
+      var btn = e.target.closest("button");
+      if(!btn) return;
+      Array.prototype.forEach.call(wrap.querySelectorAll("button"), function(b){ b.classList.remove("on"); });
+      btn.classList.add("on");
+      active[groupKey] = btn.dataset.value || null;
+      applyFilters();
+    });
+  }
+
+  buildFilterGroup("week-filters", "Усі тижні", WEEKS.map(function(w){ return {label:w.id.replace("w","W"), value:w.id}; }), "week");
+  var pillarValues = [];
+  for(var i=1;i<=13;i++){ pillarValues.push({label:String(i), value:String(i)}); }
+  buildFilterGroup("pillar-filters", "Усі пілари", pillarValues, "pillar");
+  buildFilterGroup("tl-filters", "Усі лінії", [
+    {label:"К Знання", value:"К"}, {label:"R Рантайм", value:"R"},
+    {label:"V Верифікація", value:"V"}, {label:"S Інтеграція", value:"S"}
+  ], "tl");
+
+  function applyFilters(){
+    var cards = document.querySelectorAll(".day-card");
+    cards.forEach(function(card){
+      var ok = true;
+      if(active.week && card.dataset.week !== active.week) ok = false;
+      if(active.pillar && card.dataset.pillars.split(",").indexOf(active.pillar) === -1) ok = false;
+      if(active.tl && card.dataset.tl.split(",").indexOf(active.tl) === -1) ok = false;
+      card.classList.toggle("dim", !ok);
+    });
+  }
+
+  // §2d "print the settled state": printing must never ship a filtered
+  // (partial) map. The @media print override on .day-card.dim covers the
+  // visual case; this also clears the on-screen filter state itself, so a
+  // mentor who prints and then keeps working sees "усі" active again, not
+  // a stale filter that silently stopped filtering.
+  function resetFilters(){
+    active = {week:null, pillar:null, tl:null};
+    ["week-filters","pillar-filters","tl-filters"].forEach(function(id){
+      var wrap = document.getElementById(id);
+      Array.prototype.forEach.call(wrap.querySelectorAll("button"), function(b, i){
+        b.classList.toggle("on", i === 0);
+      });
+    });
+    applyFilters();
+  }
+  window.addEventListener("beforeprint", resetFilters);
+})();
+</script>
+</body>
+</html>

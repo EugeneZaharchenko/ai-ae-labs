@@ -92,6 +92,20 @@ func Find(dir string) (string, error) {
 // present in the process environment. Existing environment variables always
 // win, so an explicit `export OPENAI_API_KEY=...` overrides the file.
 //
+// A key given an empty value is left UNSET rather than exported as empty. The
+// template documents blank as "leave this to the provider's own default"
+// (apps/.env-example: "Leave blank to use each provider's official API
+// endpoint"), and several SDKs distinguish *absent* from *empty* by presence
+// alone — openai-go reads OPENAI_BASE_URL with os.LookupEnv and applies
+// option.WithBaseURL even when the value is "", which replaces its default with
+// an empty base URL and fails the first request with:
+//
+//	openai: call failed: Post "/responses": unsupported protocol scheme ""
+//
+// Skipping empty values keeps an unset key unset, so the SDK default survives.
+// Callers branching on credentials use Key, which already treats empty as
+// absent, so this changes nothing for them.
+//
 // A missing file is not an error: Load returns ErrNotFound, which callers are
 // expected to tolerate and fall back to key-free behaviour.
 func Load(dir string) error {
@@ -110,6 +124,9 @@ func Load(dir string) error {
 		return err
 	}
 	for key, value := range pairs {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
 		if _, ok := os.LookupEnv(key); !ok {
 			if err := os.Setenv(key, value); err != nil {
 				return fmt.Errorf("adkenv: setenv %s: %w", key, err)

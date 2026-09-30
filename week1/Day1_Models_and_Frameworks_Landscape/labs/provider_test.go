@@ -146,6 +146,12 @@ func TestProviderForModel(t *testing.T) {
 // guards against is a correct-looking model name routed to the wrong backend,
 // which answers — or fails — for reasons that have nothing to do with the model
 // the learner thinks they are testing.
+//
+// Three cases assert an error rather than a choice. They are the same bug at
+// three depths: a provider nobody selected. Substituting gemini for it (what
+// chooseModel used to do) turns "you have not configured anything" into a
+// plausible-looking pair of names in the log, and the mistake only surfaces at
+// the first request — as another provider's error.
 func TestChooseModelPrecedence(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -153,12 +159,13 @@ func TestChooseModelPrecedence(t *testing.T) {
 		wantProvider string
 		wantModel    string
 		wantErr      bool
+		wantErrText  string
 	}{
 		{
-			name:         "nothing set falls back to gemini and its default",
-			env:          nil,
-			wantProvider: "gemini",
-			wantModel:    "gemini-3.8-flash",
+			name:        "nothing set is an error, not a guess at gemini",
+			env:         nil,
+			wantErr:     true,
+			wantErrText: "жодного провайдера не налаштовано",
 		},
 		{
 			name:         "explicit provider wins",
@@ -170,7 +177,9 @@ func TestChooseModelPrecedence(t *testing.T) {
 			name:         "explicit agentgateway route wins",
 			env:          map[string]string{"DEFAULT_MODEL_PROVIDER": "agentgateway/gemini"},
 			wantProvider: "agentgateway/gemini",
-			wantModel:    "gemini-3.8-flash",
+			// Ім'я мусить вийти кваліфікованим: голе воно резолвиться в
+			// прямий Gemini-клієнт до Google, тихо обминаючи шлюз.
+			wantModel: "agentgateway/gemini/gemini-3.8-flash",
 		},
 		{
 			name:         "MODEL alone infers the provider from its prefix",
@@ -200,7 +209,7 @@ func TestChooseModelPrecedence(t *testing.T) {
 			name:         "an agentgateway base URL turns the gateway on by itself",
 			env:          map[string]string{"AGENTGATEWAY_BASE_URL": "http://localhost:4000"},
 			wantProvider: "agentgateway/ollama",
-			wantModel:    "qwen3.5:4b-mlx",
+			wantModel:    "agentgateway/ollama/qwen3.5:4b-mlx",
 		},
 		{
 			name:         "a Gemini key turns on the gemini provider",
@@ -225,7 +234,14 @@ func TestChooseModelPrecedence(t *testing.T) {
 			env:  map[string]string{"DEFAULT_MODEL_PROVIDER": "anthropic"},
 			// anthropic має зміни, але ADK Go v2.4.0 не має бекенда Anthropic,
 			// тож краще сказати це на старті, ніж падати пізніше.
-			wantErr: true,
+			wantErr:     true,
+			wantErrText: "невідомий провайдер",
+		},
+		{
+			name:        "MODEL that nothing can route is an error, not a gemini guess",
+			env:         map[string]string{"MODEL": "not-a-real-model-xyz"},
+			wantErr:     true,
+			wantErrText: "не вдалося визначити провайдера",
 		},
 	}
 
@@ -240,6 +256,14 @@ func TestChooseModelPrecedence(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("chooseModel() = %+v, want an error", got)
+				}
+				if !strings.Contains(err.Error(), tt.wantErrText) {
+					t.Errorf("chooseModel() error = %q, want it to contain %q", err, tt.wantErrText)
+				}
+				// The error is the whole remedy: it has to name the providers
+				// that would have worked, or it just moves the search.
+				if !strings.Contains(err.Error(), "agentgateway/ollama") {
+					t.Errorf("chooseModel() error = %q, want it to list the known providers", err)
 				}
 				return
 			}
@@ -256,10 +280,64 @@ func TestChooseModelPrecedence(t *testing.T) {
 	}
 }
 
+// TestQualifyGatewayModel pins the routing rule the grounding debug case
+// exposed: pimodels chooses "gateway or vendor" by the NAME PREFIX alone, so a
+// bare model name under an agentgateway provider must come out qualified —
+// otherwise the request silently bypasses the gateway and goes to the vendor.
+func TestQualifyGatewayModel(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		model    string
+		want     string
+	}{
+		{
+			name:     "bare model gets the full gateway route",
+			provider: "agentgateway/gemini",
+			model:    "gemini-3.8-flash",
+			want:     "agentgateway/gemini/gemini-3.8-flash",
+		},
+		{
+			name:     "vendor-prefixed model only gets the gateway segment",
+			provider: "agentgateway/gemini",
+			model:    "gemini/gemini-3.8-flash",
+			want:     "agentgateway/gemini/gemini-3.8-flash",
+		},
+		{
+			name:     "already-qualified name is untouched",
+			provider: "agentgateway/gemini",
+			model:    "agentgateway/gemini/gemini-3.8-flash",
+			want:     "agentgateway/gemini/gemini-3.8-flash",
+		},
+		{
+			name:     "bare ollama tag gets the gateway route too",
+			provider: "agentgateway/ollama",
+			model:    "qwen3.5:4b-mlx",
+			want:     "agentgateway/ollama/qwen3.5:4b-mlx",
+		},
+		{
+			name:     "non-gateway provider is untouched",
+			provider: "gemini",
+			model:    "gemini-3.8-flash",
+			want:     "gemini-3.8-flash",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := qualifyGatewayModel(tt.provider, tt.model); got != tt.want {
+				t.Errorf("qualifyGatewayModel(%q, %q) = %q, want %q",
+					tt.provider, tt.model, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestAgentGatewayRoutesResolveThroughPimodels pins that every table row is a
 // name pimodels itself recognises, and pins HOW it resolves it.
 //
-// The contract, verified against pi-go v0.1.4: an `agentgateway/...` name
+// The contract, verified against pi-go v0.2.3: an `agentgateway/...` name
 // resolves to provider "agentgateway" with the rest of the name — including any
 // vendor segment — left intact as the model. The gateway does the routing; the
 // client must forward the layered name rather than strip it. Getting this wrong
@@ -445,6 +523,47 @@ func TestLoadModel(t *testing.T) {
 		}
 		if choice.Reason == "" {
 			t.Error("choice.Reason is empty; it is what tells a learner which backend answered")
+		}
+	})
+
+	// The regression this pins: with the retry unconditional, naming a provider
+	// that has no key produced a working model built as `ollama/<vendor-model>`
+	// and a 404 from the local Ollama daemon on the first request. The learner
+	// sees a model-not-found for a model they never asked for, and the real
+	// cause — no key — is never mentioned.
+	t.Run("a named provider with no key reports the key, not an ollama 404", func(t *testing.T) {
+		clearCredentials(t)
+		t.Setenv("DEFAULT_MODEL_PROVIDER", "gemini")
+
+		m, _, err := LoadModel(context.Background())
+		if err == nil {
+			t.Fatal("LoadModel() error = nil, want the missing-key error to survive")
+		}
+		if m != nil {
+			t.Error("LoadModel() returned a model alongside the error")
+		}
+		if !strings.Contains(err.Error(), "GEMINI_API_KEY") {
+			t.Errorf("error = %q, want it to name GEMINI_API_KEY", err)
+		}
+		if strings.Contains(err.Error(), "ollama") {
+			t.Errorf("error = %q, want no mention of ollama: the retry must not apply to a routable name", err)
+		}
+	})
+
+	// The case the retry was written for, pinned so narrowing it cannot quietly
+	// delete the feature: a bare local tag pimodels cannot route still becomes
+	// ollama/<tag>.
+	t.Run("a bare local tag is still retried with the ollama prefix", func(t *testing.T) {
+		clearCredentials(t)
+		t.Setenv("DEFAULT_MODEL_PROVIDER", "ollama")
+		t.Setenv("OLLAMA_MODEL", "qwen3.5:4b-mlx")
+
+		m, _, err := LoadModel(context.Background())
+		if err != nil {
+			t.Fatalf("LoadModel() error: %v", err)
+		}
+		if m == nil {
+			t.Fatal("LoadModel() returned a nil model")
 		}
 	})
 }

@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADK Go 2.x — Навчальні слайди</title>
+<style>
+/* ============================================================================
+   ADK Go 2.x — single-file learning deck.
+   Merged from the 14 per-module pages: one SPA, one file, no CDN, no webfonts,
+   no JS libraries — it has to open from a USB stick with no network.
+
+   Visual system: the Pi-Go design system (wiki-tools/internal/docsingest/
+   shell/deck.css). Closed palette — deep-space navy grounds, neon cyan as the
+   primary accent, magenta/purple/green secondaries. Moved off the Prometheus
+   brandbook on 2026-08-30 with the rest of the shelf; courses/STYLE.md still
+   governs the actual course decks under courses/.
+   Light mode only, one plashka radius per макет.
+
+   Deck chrome (nav, .rise staged reveal, progress, hash routing) is the same
+   mechanism as courses/AI_Agents_Engineering/week0_open/slides.html.
+
+   Keys: → / Space next · ← prev · O overview · F fullscreen · Home/End
+   PDF:  Cmd-P → Save as PDF (backgrounds on) — every module prints in order.
+   ========================================================================== */
+
+:root{
+  /* ── Pi-Go design system ──────────────────────────────────────────────
+     Source of truth: the "Pi-Go Design System" project on claude.ai/design,
+     mirrored for the app at internal/serve/static/theme.css. These tokens are
+     INLINED rather than linked because a shelf document must open from a USB
+     stick with no network (verify.go rule 3), and because it is published as
+     a Gist or handed round as a file — nothing external may be fetched at
+     render time.
+
+     Same constraint kills the webfonts: the three families are named below so
+     a machine that has them installed uses them, but there is no @font-face
+     (the woff2 live behind the server, and @import is a verify.go error), so
+     most readers see the fallback stacks. That is the accepted trade for
+     portability — the palette, not the type, is what makes the shelf read as
+     one set.
+
+     This shelf used to carry the Prometheus brandbook (cream/peach/orange,
+     light mode). It moved to Pi-Go on 2026-08-30: the shelf is a wiki reading
+     surface viewed inside `wiki serve`, not a learner-facing Prometheus deck,
+     so it follows the wiki's own system. courses/STYLE.md still governs actual
+     course decks under courses/ — do not "align" those to this file. */
+
+  /* surfaces */
+  --bg:#0a0a12; --bg-alt:#0d0d1a; --panel:#0f0f1e; --code-bg:#0a0a14;
+  /* neon palette */
+  --cyan:#00f0ff; --magenta:#ff00aa; --purple:#b347ff;
+  --green:#00ff88; --yellow:#ffe600; --orange:#ff6a00;
+  /* foreground — no pure white anywhere */
+  --ink:#e0e0f0; --ink-dim:#8888aa; --ink-faint:#555577; --code-text:#cdd6f4;
+
+  --line:rgba(0,240,255,.12); --line-strong:rgba(0,240,255,.25);
+  --wash:rgba(0,240,255,.08);   /* the lit surface: tags, notes, chips */
+  --accent:var(--cyan); --accent-2:var(--magenta);
+  --glow:0 0 20px rgba(0,240,255,.3), 0 0 60px rgba(0,240,255,.1);
+
+  /* Sharp, not rounded: 2px for chips and controls, 4px for panels. Pills and
+     heavy rounding are off-brand in this system, which is why --pill is 2px
+     and not 999px — the name is kept so the rules below did not have to move. */
+  --radius:4px;
+  --pill:2px;
+  --nav-w:264px;
+  --font-display:'Orbitron','SF Mono',ui-monospace,monospace;
+  --font-body:'Rajdhani',system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);line-height:1.55;
+     -webkit-font-smoothing:antialiased}
+/* The system's two signature textures: a fixed 60px grid floor behind
+   everything and a 2px scanline wash above it. Both are pointer-events:none
+   and neither animates, so they survive the reduced-motion block untouched. */
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,240,255,.03) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,240,255,.03) 1px,transparent 1px);
+  background-size:60px 60px}
+body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,
+             rgba(0,0,0,.05) 2px,rgba(0,0,0,.05) 4px)}
+::selection{background:var(--magenta);color:#000}
+
+/* ---- navigation ---------------------------------------------------------- */
+
+#toc{
+  position:fixed;left:0;top:0;bottom:0;width:var(--nav-w);z-index:50;
+  background:var(--panel);border-right:1px solid var(--line);
+  overflow-y:auto;padding:1.1rem .8rem 2rem;
+}
+#toc .toc-h{
+  font-family:var(--font-display);
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+  color:var(--cyan);border-left:2px solid var(--cyan);padding-left:9px;margin:.2rem 0 .8rem 4px;
+}
+.nav-item{
+  display:flex;align-items:baseline;gap:.55rem;
+  padding:.42rem .6rem;margin-bottom:2px;border-radius:var(--radius);
+  text-decoration:none;color:var(--ink-dim);font-size:.9rem;
+  border:1px solid transparent;transition:background .15s,border-color .15s,color .15s;
+}
+.nav-item:hover{background:var(--wash);color:var(--ink)}
+.nav-item.on{background:var(--wash);border-color:var(--line-strong);color:var(--cyan);font-weight:600}
+.n-num{font-family:var(--mono);font-size:.76rem;color:var(--ink-faint);flex:none}
+.nav-item.on .n-num{color:var(--cyan)}
+.n-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* emoji carry almost no right sidebearing, so the gap is set here, not typed
+   as a space in the markup where it visually collapses against the glyph. */
+.n-e,.c-e{margin-right:.4em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.c-e{font-weight:400}
+
+/* ---- deck ---------------------------------------------------------------- */
+
+#deck{margin-left:var(--nav-w);padding:3rem 1.5rem 5rem;position:relative;z-index:1}
+.slide{max-width:1000px;margin:0 auto;display:none}
+.slide.active{display:block;animation:slide-in .32s ease both}
+@keyframes slide-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* staged reveal: each block fades up in sequence once its slide is active.
+   --d is assigned in JS so authored markup stays free of stagger bookkeeping. */
+.slide.active > .rise{animation:rise .5s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.crumb{font-family:var(--mono);font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.5rem}
+h1{font-size:2.2rem;color:var(--cyan);margin-bottom:.3rem;font-family:var(--font-display);text-transform:uppercase;font-weight:800;letter-spacing:.5px;text-shadow:0 0 10px rgba(0,240,255,.5),0 0 30px rgba(0,240,255,.2)}
+.cover h1{font-size:2.4rem}
+.h-emoji{text-transform:none;font-weight:400;margin-right:.22em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.subtitle{color:var(--ink-dim);font-size:1.05rem;margin-bottom:1.5rem}
+.module{color:var(--cyan);font-family:var(--mono);font-size:.95rem;margin-bottom:1.2rem;word-break:break-word}
+h2{font-size:1.3rem;color:var(--ink);margin:2rem 0 .7rem;font-family:var(--font-display);text-transform:uppercase;font-weight:800;letter-spacing:1px;padding-bottom:.3em;border-bottom:1px solid transparent;border-image:linear-gradient(90deg,var(--cyan),transparent) 1}
+h3{font-size:1.05rem;color:var(--ink);font-weight:700;margin-bottom:.4rem}
+p{color:var(--ink-dim);margin-bottom:.8rem;max-width:70ch}
+.muted{color:var(--ink-dim)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin:1rem 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:1rem}
+/* the sidebar narrows the content column vs. the old standalone pages, so long
+   mono identifiers (workflow.NewEmittingFunctionNode) must be allowed to wrap
+   rather than run past the card border. */
+.card h3{font-size:1rem;color:var(--cyan);margin-bottom:.4rem;font-family:var(--mono);overflow-wrap:anywhere}
+.card p{font-size:.9rem;color:var(--ink-dim);margin:0}
+a.card{text-decoration:none;color:var(--ink);display:block;transition:border-color .15s,box-shadow .15s,transform .15s}
+/* Hover lifts and glows — depth comes from light outside the element, never
+   from an inner shadow. */
+a.card:hover{border-color:var(--line-strong);transform:translateY(-2px);box-shadow:var(--glow)}
+a.card .path{display:block;font-size:.75rem;color:var(--ink-faint);margin-top:.4rem;font-family:var(--mono)}
+.tag{display:inline-block;background:var(--wash);color:var(--cyan);border:1px solid var(--line-strong);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin:.15rem .15rem 0 0;font-family:var(--mono)}
+.badge{display:inline-block;background:var(--wash);color:var(--cyan);border:1px solid var(--line-strong);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin-left:.4rem;vertical-align:middle;text-transform:none;font-weight:400}
+svg{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;height:auto;display:block;margin:1rem 0}
+
+/* ---- diagram vocabulary -------------------------------------------------- */
+/* One vocabulary across all modules: the learner should recognise the same
+   shapes module to module. Every edge endpoint is computed from node geometry
+   by the generator, never typed by hand.
+   Node kinds are now told apart by their neon STROKE on a shared dark fill,
+   where the Prometheus version told them apart by stroke on white — same
+   mechanism, inverted ground. */
+.dg-frame{fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:6 5}
+.dg-ti{fill:var(--ink-faint);font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.dg-lb{fill:var(--ink);font-weight:700}
+.dg-sb{fill:var(--ink-dim);font-size:11.5px}
+.dg-el{fill:var(--ink-faint);font-size:11px}
+.dg-head{fill:var(--ink-faint)}
+.dg-link{stroke:var(--ink-faint);stroke-width:1.8;fill:none}
+.dg-link-warm{stroke:var(--magenta)}
+.dg-dash{stroke-dasharray:5 5}
+
+/* node kinds — closed palette, no invented colors */
+.dg-b-model{fill:var(--bg-alt);stroke:var(--purple);stroke-width:1.8}
+.dg-b-out  {fill:var(--bg-alt);stroke:var(--magenta);stroke-width:1.8}
+.dg-b-tool {fill:var(--bg-alt);stroke:var(--green);stroke-width:1.8}
+.dg-b-pill {fill:var(--bg-alt);stroke:var(--cyan);stroke-width:1.8}
+.dg-b-ghost{fill:var(--bg-alt);stroke:var(--line);stroke-width:1.5}
+.dg-b-group{fill:none;stroke:var(--line);stroke-width:1.5}
+.dg-dot{fill:var(--cyan)}
+
+/* ---- diagram animation --------------------------------------------------- */
+/* All of it is gated on .slide.active so only the visible module animates —
+   fourteen diagrams ticking at once in a hidden section is wasted paint. */
+
+/* a dash that crawls along a path = "data is moving here" */
+.flow{stroke-dasharray:7 9;stroke-linecap:round}
+.slide.active .flow{animation:crawl 1.1s linear infinite}
+@keyframes crawl{to{stroke-dashoffset:-32}}
+
+/* a packet riding the happy path, for the one-shot request/response */
+.packet{opacity:0}
+.slide.active .packet{animation:ride var(--dur,2.6s) cubic-bezier(.5,0,.5,1) infinite}
+@keyframes ride{
+  0%{offset-distance:0%;opacity:0}
+  8%{opacity:1}
+  92%{opacity:1}
+  100%{offset-distance:100%;opacity:0}
+}
+
+/* a dot orbiting a closed cycle — the plan/act loop */
+.slide.active .orbit{animation:orbit 3.6s linear infinite}
+@keyframes orbit{to{offset-distance:100%}}
+
+/* node that pulses as the loop passes through it */
+.slide.active .beat{animation:beat 3.3s ease-in-out infinite;animation-delay:var(--bd,0s)}
+@keyframes beat{
+  0%,70%,100%{filter:none}
+  78%{filter:drop-shadow(0 0 7px rgba(0,240,255,.85))}
+  90%{filter:none}
+}
+ul{margin:0 0 .8rem 1.3rem}
+li{margin-bottom:.35rem;color:var(--ink-dim)}
+li::marker{color:var(--cyan)}
+code{background:var(--wash);border:0;border-radius:2px;padding:.1rem .35rem;font-family:var(--mono);font-size:.85em;color:var(--cyan)}
+/* A code block is the one place a DARK shadow is on-brand: it is a depressed
+   element, so it recedes instead of glowing. */
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:.8rem 0;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+pre code{background:none;border:none;padding:0;color:var(--code-text);display:block}
+.note{border-left:2px solid var(--accent-2);background:rgba(255,0,170,.06);padding:.8rem 1rem;border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0;font-size:.92rem;color:var(--ink)}
+
+/* ---- chrome -------------------------------------------------------------- */
+
+#progress{position:fixed;left:0;top:0;height:2px;background:var(--cyan);z-index:60;transition:width .3s ease;box-shadow:0 0 10px rgba(0,240,255,.6)}
+#help{position:fixed;right:14px;top:12px;z-index:60;font-size:12px;color:var(--ink-faint)}
+
+@media (prefers-reduced-motion:reduce){
+  .slide.active,.slide.active > .rise,
+  .slide.active .flow,.slide.active .packet,.slide.active .orbit,.slide.active .beat{animation:none!important}
+  .packet{opacity:1}
+}
+
+/* ---- mobile: sidebar becomes a scrollable strip -------------------------- */
+
+@media (max-width:900px){
+  :root{--nav-w:0px}
+  #toc{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);
+       display:flex;gap:.35rem;overflow-x:auto;padding:.6rem .8rem;white-space:nowrap;
+       position:relative;z-index:1}
+  #toc .toc-h{display:none}
+  .nav-item{flex:none;margin:0}
+  .n-t{max-width:42vw}
+  #deck{margin-left:0;padding:1.6rem 1rem 4rem}
+  #help{display:none}
+  h1{font-size:1.7rem}
+}
+
+/* ---- print → PDF: every module, in order --------------------------------- */
+/* The deck is dark on screen and PAPER in print. This block is not cosmetic:
+   the rules below set print-color-adjust:exact, so without it a #0a0a12 page
+   background is faithfully reproduced and every sheet comes out solid black.
+   So print re-grounds the whole document — light paper, dark ink — and keeps
+   only the accent hues, which read fine on white. The textures go entirely:
+   a scanline overlay is a screen effect and prints as grey banding. */
+@media print{
+  @page{margin:14mm}
+  :root{
+    --bg:#ffffff; --bg-alt:#ffffff; --panel:#ffffff; --code-bg:#f4f4f8;
+    --ink:#0a0a12; --ink-dim:#33333f; --ink-faint:#666677; --code-text:#0a0a12;
+    --line:#c8c8d4; --line-strong:#9a9ab0; --wash:#eef9fb;
+    --glow:none;
+  }
+  body{background:#ffffff;color:#0a0a12}
+  body::before,body::after{display:none!important}
+  h1{color:#0a0a12;text-shadow:none}
+  h2{color:#0a0a12;border-image:none;border-bottom:1px solid #c8c8d4}
+  /* Neon cyan is invisible on white, so the accent darkens to a teal that
+     still reads as "the accent colour" but survives a laser printer. */
+  .module,.card h3,code,.tag,.badge{color:#005f6b}
+  pre{box-shadow:none}
+  #progress{box-shadow:none}
+  #toc,#progress,#help{display:none!important}
+  #deck{margin:0;padding:0}
+  .slide{display:block!important;page-break-after:always;break-after:page;max-width:none}
+  .slide *{animation:none!important;opacity:1!important;transform:none!important}
+  .packet{opacity:1}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+
+<nav id="toc">
+  <div class="toc-h">Модулі</div>
+  <a class="nav-item" data-go="0" href="#1"><span class="n-num">00</span><span class="n-t">Огляд</span></a>
+  <a class="nav-item" data-go="1" href="#2"><span class="n-num">01</span><span class="n-t"><span class="n-e">🤖</span>агенти</span></a>
+  <a class="nav-item" data-go="2" href="#3"><span class="n-num">02</span><span class="n-t"><span class="n-e">🔀</span>workflow</span></a>
+  <a class="nav-item" data-go="3" href="#4"><span class="n-num">03</span><span class="n-t"><span class="n-e">🔧</span>інструменти</span></a>
+  <a class="nav-item" data-go="4" href="#5"><span class="n-num">04</span><span class="n-t"><span class="n-e">💬</span>сесії</span></a>
+  <a class="nav-item" data-go="5" href="#6"><span class="n-num">05</span><span class="n-t"><span class="n-e">📡</span>події</span></a>
+  <a class="nav-item" data-go="6" href="#7"><span class="n-num">06</span><span class="n-t"><span class="n-e">🧠</span>моделі</span></a>
+  <a class="nav-item" data-go="7" href="#8"><span class="n-num">07</span><span class="n-t"><span class="n-e">▶️</span>виконавці</span></a>
+  <a class="nav-item" data-go="8" href="#9"><span class="n-num">08</span><span class="n-t"><span class="n-e">🔌</span>плагіни / callbacks</span></a>
+  <a class="nav-item" data-go="9" href="#10"><span class="n-num">09</span><span class="n-t"><span class="n-e">💾</span>пам'ять</span></a>
+  <a class="nav-item" data-go="10" href="#11"><span class="n-num">10</span><span class="n-t"><span class="n-e">📦</span>артефакти</span></a>
+  <a class="nav-item" data-go="11" href="#12"><span class="n-num">11</span><span class="n-t"><span class="n-e">🎓</span>навички</span></a>
+  <a class="nav-item" data-go="12" href="#13"><span class="n-num">12</span><span class="n-t"><span class="n-e">🗺️</span>планувальники</span></a>
+  <a class="nav-item" data-go="13" href="#14"><span class="n-num">13</span><span class="n-t"><span class="n-e">📊</span>телеметрія</span></a>
+  <a class="nav-item" data-go="14" href="#15"><span class="n-num">14</span><span class="n-t"><span class="n-e">✅</span>оцінювання</span></a>
+</nav>
+
+<div id="progress"></div>
+<div id="help">← → навігація · O огляд · F fullscreen</div>
+<main id="deck"></main>
+
+<template id="src">
+
+<section class="cover">
+  <h1>ADK Go 2.x — Навчальні слайди</h1>
+  <div class="subtitle">Автономні односторінкові HTML-слайди, по одному на модуль · <code>google.golang.org/adk/v2</code> (v2.2.0, станом на 08/2026)</div>
+  <div class="note"><strong>Головне в 2.0:</strong> <strong>Workflow Runtime</strong> — рушій виконання на основі графу. Агенти, інструменти та функції — це <em>вузли</em> у графі робочого процесу. Кожен агент реалізує <code>agent.Agent</code> і працює як вузол.</div>
+  <div class="grid">
+    <a class="card" data-go="1" href="#2"><h3><span class="c-e">🤖</span>01 · агенти</h3><p>llmagent, workflow-агенти, Context, RunConfig, callbacks.</p><span class="path">/agent · /agent/llmagent</span></a>
+    <a class="card" data-go="2" href="#3"><h3><span class="c-e">🔀</span>02 · workflow</h3><p>Рушій графу: NewFunctionNode, Edge, Chain, JoinNode.<span class="tag">НОВЕ</span></p><span class="path">/workflow · /agent/workflowagent</span></a>
+    <a class="card" data-go="3" href="#4"><h3><span class="c-e">🔧</span>03 · інструменти</h3><p>tool.Tool, functiontool.New, agenttool.New, geminitool.</p><span class="path">/tool</span></a>
+    <a class="card" data-go="4" href="#5"><h3><span class="c-e">💬</span>04 · сесії</h3><p>Session, State, session.Service, InMemoryService.</p><span class="path">/session</span></a>
+    <a class="card" data-go="5" href="#6"><h3><span class="c-e">📡</span>05 · події</h3><p>Event, Actions, RequestInput; поля графу додані в 2.0.<span class="tag">розш.</span></p><span class="path">/session (Event)</span></a>
+    <a class="card" data-go="6" href="#7"><h3><span class="c-e">🧠</span>06 · моделі</h3><p>gemini.NewModel, model.Model, genai.ClientConfig.</p><span class="path">/model/gemini</span></a>
+    <a class="card" data-go="7" href="#8"><h3><span class="c-e">▶️</span>07 · виконавці</h3><p>runner.New, runner.Config, Run, RunConfig.</p><span class="path">/runner</span></a>
+    <a class="card" data-go="8" href="#9"><h3><span class="c-e">🔌</span>08 · плагіни / callbacks</h3><p>Before/AfterAgentCallback, model &amp; tool callbacks.</p><span class="path">/agent</span></a>
+    <a class="card" data-go="9" href="#10"><h3><span class="c-e">💾</span>09 · пам'ять</h3><p>memory.Service; довготривале згадування між сесіями.</p><span class="path">/memory</span></a>
+    <a class="card" data-go="10" href="#11"><h3><span class="c-e">📦</span>10 · артефакти</h3><p>artifact.Service; версійоване зберігання файлів/даних.</p><span class="path">/artifact</span></a>
+    <a class="card" data-go="11" href="#12"><h3><span class="c-e">🎓</span>11 · навички</h3><p>skill.Skill, skill.Registry, SkillToolset.</p><span class="path">/skill</span></a>
+    <a class="card" data-go="12" href="#13"><h3><span class="c-e">🗺️</span>12 · планувальники</h3><p>Інтерфейс Planner, конфігурація planner в llmagent.</p><span class="path">/agent/llmagent</span></a>
+    <a class="card" data-go="13" href="#14"><h3><span class="c-e">📊</span>13 · телеметрія</h3><p>пакет telemetry, RunConfig, OTel-експортери.</p><span class="path">/telemetry</span></a>
+    <a class="card" data-go="14" href="#15"><h3><span class="c-e">✅</span>14 · оцінювання</h3><p>пакет eval, критерії, власні метрики, симуляція.</p><span class="path">/eval</span></a>
+  </div>
+  <h2>Не охоплено слайдами (допоміжні модулі та екосистема)</h2>
+  <p class="muted">auth, виконавці коду, environment, flows/apps, optimization, a2a, integrations/* (Google Cloud), а також 100+ MCP-інструментів та інтеграцій спостережуваності.</p>
+</section>
+
+<!-- 01-agents.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 1 з 14</div>
+  <h1><span class="h-emoji">🤖</span> агенти</h1>
+  <div class="module">google.golang.org/adk/v2/agent · /agent/llmagent · /agent/sequentialagent · /agent/parallelagent · /agent/loopagent · /agent/workflowagent</div>
+  <p>Фундаментальні робочі одиниці ADK. Агент або міркує за допомогою LLM (<code>llmagent.New</code>), або детерміновано оркеструє підагентів/задачі (<code>sequentialagent</code>, <code>parallelagent</code>, <code>loopagent</code>). В ADK Go 2.0 кожен агент реалізує інтерфейс <code>agent.Agent</code> і виконується як вузол у рушії графу Workflow.</p>
+
+  <h2>Ієрархія та модель виконання</h2>
+  <svg viewBox="0 0 760 340" role="img" aria-label="ієрархія агентів">
+    <defs>
+      <marker id="ah01" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="25" y="142" width="180" height="58" rx="10" class="dg-b-out"/>
+    <text x="115" y="166.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">workflow.Node</text>
+    <text x="115" y="184.1" class="dg-sb" text-anchor="middle">примітив вузла графу</text>
+    <rect x="255" y="142" width="190" height="58" rx="10" class="dg-b-model"/>
+    <text x="350" y="166.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">agent.Agent</text>
+    <text x="350" y="184.1" class="dg-sb" text-anchor="middle">інтерфейс, працює як вузол</text>
+    <rect x="500" y="18" width="240" height="52" rx="10" class="dg-b-model"/>
+    <text x="620" y="39" class="dg-lb" style="font-size:13.5px" text-anchor="middle">llmagent.New</text>
+    <text x="620" y="57" class="dg-sb" text-anchor="middle">міркування LLM + інструменти</text>
+    <rect x="500" y="82" width="240" height="52" rx="10" class="dg-b-model"/>
+    <text x="620" y="103" class="dg-lb" style="font-size:13.5px" text-anchor="middle">workflowagent.New</text>
+    <text x="620" y="121" class="dg-sb" text-anchor="middle">обгортає граф як агента</text>
+    <rect x="500" y="146" width="240" height="52" rx="10" class="dg-b-tool"/>
+    <text x="620" y="167.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">sequentialagent.New</text>
+    <text x="620" y="185.1" class="dg-sb" text-anchor="middle">підагенти по черзі</text>
+    <rect x="500" y="210" width="240" height="52" rx="10" class="dg-b-tool"/>
+    <text x="620" y="231.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">parallelagent.New</text>
+    <text x="620" y="249.1" class="dg-sb" text-anchor="middle">підагенти паралельно</text>
+    <rect x="500" y="274" width="240" height="52" rx="10" class="dg-b-tool"/>
+    <text x="620" y="295.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">loopagent.New</text>
+    <text x="620" y="313.1" class="dg-sb" text-anchor="middle">повторює до виходу</text>
+    <rect x="10" y="8" width="740" height="324" rx="12" class="dg-frame"/>
+    <text x="26" y="30" class="dg-ti">Граф Workflow (2.0)</text>
+    <path d="M 205 171 L 248 171" class="dg-link dg-link-warm flow" marker-end="url(#ah01)"/>
+    <path d="M 445 171 L 469 171 L 469 44 L 493 44" class="dg-link" marker-end="url(#ah01)"/>
+    <path d="M 445 171 L 469 171 L 469 108 L 493 108" class="dg-link" marker-end="url(#ah01)"/>
+    <path d="M 445 171 L 469 171 L 469 172 L 493 172" class="dg-link" marker-end="url(#ah01)"/>
+    <path d="M 445 171 L 469 171 L 469 236 L 493 236" class="dg-link" marker-end="url(#ah01)"/>
+    <path d="M 445 171 L 469 171 L 469 300 L 493 300" class="dg-link" marker-end="url(#ah01)"/>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>agent.Agent</h3><p>Інтерфейс, який реалізує кожен агент: Name(), Description(), Run(ctx, ...) і контракт вузла.</p></div>
+    <div class="card"><h3>agent.Context</h3><p>Робочий дескриптор поточного виклику: сесія, стан, події, артефакти, пам'ять, облікові дані.</p></div>
+    <div class="card"><h3>agent.Config</h3><p>Спільна базова конфігурація: Name, Description, SubAgents, callbacks.</p></div>
+    <div class="card"><h3>agent.RunConfig</h3><p>Налаштування запуску: StreamingMode, ліміт LLM-викликів, телеметрія, мітки.</p></div>
+    <div class="card"><h3>llmagent.Config</h3><p>Model, Instruction, Tools, Input/OutputKey, planner, callbacks.</p></div>
+    <div class="card"><h3>agent.NewSingleLoader</h3><p>Обгортає одного агента для точки входу launcher/CLI.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li><strong>llmagent.New</strong> — розмовний агент з інструментами, інструкцією та структурованим вводом/виводом (типовий варіант).</li>
+    <li><strong>sequentialagent.New</strong> — фіксований конвеєр (напр. витяг → збагачення → підсумок), де кожен етап передає результат наступному.</li>
+    <li><strong>parallelagent.New</strong> — розгалуження незалежних підзадач (напр. аналіз кількох звітів одночасно) та об'єднання результатів.</li>
+    <li><strong>loopagent.New</strong> — повторення кроку, доки не виконано умову.</li>
+    <li><strong>workflowagent.New</strong> — обгортання графового робочого процесу як стандартного <code>agent.Agent</code>.</li>
+  </ul>
+
+  <div class="note"><strong>Примітка міграції 2.0:</strong> власну логіку виконання слід переносити з перевизначень <code>Run</code> у хуки <code>BeforeAgentCallback</code> / <code>AfterAgentCallback</code>. Рушій графу ігнорує застарілі перевизначення виконання.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import (
+    "google.golang.org/adk/v2/agent"
+    "google.golang.org/adk/v2/agent/llmagent"
+    "google.golang.org/adk/v2/model/gemini"
+    "google.golang.org/adk/v2/tool"
+    "google.golang.org/adk/v2/tool/geminitool"
+    "google.golang.org/genai"
+)
+
+model, _ := gemini.NewModel(ctx, "gemini-flash-latest", &amp;genai.ClientConfig{
+    APIKey: os.Getenv("GOOGLE_API_KEY"),
+})
+
+timeAgent, _ := llmagent.New(llmagent.Config{
+    Name:        "hello_time_agent",
+    Model:       model,
+    Description: "Tells the current time in a specified city.",
+    Instruction: "You are a helpful assistant that tells the current time in a city.",
+    Tools:       []tool.Tool{geminitool.GoogleSearch{}},
+})
+
+config := &amp;launcher.Config{AgentLoader: agent.NewSingleLoader(timeAgent)}
+full.NewLauncher().Execute(ctx, config, os.Args[1:])</code></pre>
+  <p class="muted">Див. також: <code>workflow</code> (рушій графу 2.0), <code>tool</code>, callbacks/plugins.</p>
+</section>
+
+<!-- 02-workflow.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 2 з 14</div>
+  <h1><span class="h-emoji">🔀</span> workflow <span class="badge">НОВЕ в 2.0</span></h1>
+  <div class="module">google.golang.org/adk/v2/workflow · /agent/workflowagent</div>
+  <p>Серце ADK Go 2.0 — <strong>рушій виконання на основі графу</strong>, який замінює ієрархічний виконавець агентів 1.x. Агенти, інструменти та функції виконуються як <strong>вузли</strong> у спрямованому графі, з'єднані <strong>ребрами</strong>. Це дає детермінований, передбачуваний контроль над тим, як маршрутизуються та виконуються задачі.</p>
+
+  <h2>Модель графу</h2>
+  <svg viewBox="0 0 760 300" role="img" aria-label="граф workflow">
+    <defs>
+      <marker id="ah02" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="18" y="126" width="56" height="48" rx="24" class="dg-b-pill"/>
+    <text x="46" y="152.1" class="dg-lb" style="font-size:12px" text-anchor="middle">вхід</text>
+    <rect x="140" y="120" width="140" height="60" rx="10" class="dg-b-out beat" style="--bd:0.1s"/>
+    <text x="210" y="145.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Вузол A</text>
+    <text x="210" y="163.1" class="dg-sb" text-anchor="middle">NewFunctionNode</text>
+    <rect x="350" y="28" width="145" height="60" rx="10" class="dg-b-model beat" style="--bd:0.9s"/>
+    <text x="422.5" y="53" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Вузол B</text>
+    <text x="422.5" y="71" class="dg-sb" text-anchor="middle">NewAgentNode</text>
+    <rect x="350" y="212" width="145" height="60" rx="10" class="dg-b-model"/>
+    <text x="422.5" y="237.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Вузол C</text>
+    <text x="422.5" y="255.1" class="dg-sb" text-anchor="middle">NewAgentNode</text>
+    <rect x="555" y="120" width="145" height="60" rx="10" class="dg-b-tool beat" style="--bd:1.7s"/>
+    <text x="627.5" y="145.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Вузол D</text>
+    <text x="627.5" y="163.1" class="dg-sb" text-anchor="middle">NewJoinNode</text>
+    <rect x="714" y="126" width="46" height="48" rx="24" class="dg-b-pill"/>
+    <text x="737" y="152.1" class="dg-lb" style="font-size:12px" text-anchor="middle">вихід</text>
+    <path d="M 74 150 L 133 150" class="dg-link flow" marker-end="url(#ah02)"/>
+    <path d="M 279.3 120 Q 304.8 91.5 343 92.4" class="dg-link dg-link-warm flow" marker-end="url(#ah02)"/>
+    <text x="300.8" y="86.3" class="dg-el" text-anchor="middle">маршрут</text>
+    <path d="M 279.3 180 Q 304.8 208.5 343 207.6" class="dg-link dg-link-warm flow" marker-end="url(#ah02)"/>
+    <path d="M 489.3 88 Q 522.8 92 548 114.3" class="dg-link" marker-end="url(#ah02)"/>
+    <path d="M 489.3 212 Q 522.8 208 548 185.7" class="dg-link" marker-end="url(#ah02)"/>
+    <path d="M 700 150 L 707 150" class="dg-link flow" marker-end="url(#ah02)"/>
+    <circle r="5.5" class="dg-dot packet" style="offset-path:path('M 46 150 L 210 150 L 422 58 L 627 150 L 737 150');--dur:3.2s"/>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>workflow.NewFunctionNode</h3><p>Обгортає звичайну Go-функцію як вузол; її повернене значення стає <code>event.Output</code> і передається наступному вузлу.</p></div>
+    <div class="card"><h3>workflow.NewAgentNode</h3><p>Обгортає <code>agent.Agent</code> як вузол у графі.</p></div>
+    <div class="card"><h3>workflow.NewEmittingFunctionNode</h3><p>Функційний вузол, який може випромінювати події (напр. задавати <code>ev.Routes</code> для маршрутизації).</p></div>
+    <div class="card"><h3>workflow.NewJoinNode</h3><p>Об'єднує гілки після паралельного розгалуження, чекаючи всі входи.</p></div>
+    <div class="card"><h3>workflow.Edge</h3><p>Спрямоване ребро з необов'язковим <code>Route</code>-матчером для умовної маршрутизації.</p></div>
+    <div class="card"><h3>workflow.Chain / Concat</h3><p>Допоміжні функції для з'єднання вузлів у послідовний <code>[]workflow.Edge</code>.</p></div>
+    <div class="card"><h3>workflow.StringRoute / IntRoute / BoolRoute</h3><p>Матчери маршрутів, які перевіряються проти <code>event.Routes</code>.</p></div>
+    <div class="card"><h3>workflowagent.New</h3><p>Обгортає весь граф як стандартний <code>agent.Agent</code>.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li><strong>Детерміновані конвеєри</strong> — фіксована послідовність етапів обробки з чітким початком/кінцем.</li>
+    <li><strong>Умовна маршрутизація</strong> — розгалуження за виводом вузла через ребра <code>workflow.StringRoute</code> для логіки рішень.</li>
+    <li><strong>Паралельне розгалуження / об'єднання</strong> — одночасний запуск кількох підзадач і збір результатів.</li>
+    <li><strong>Динамічні / ітеративні робочі процеси</strong> — керування потоком у коді (цикли, складне розгалуження).</li>
+    <li><strong>Надійність</strong> — автоматичні повторні спроби та паузи HITL на вузлі.</li>
+  </ul>
+
+  <div class="note"><strong>Чому це важливо:</strong> рушій графу дає фреймворку суворий контроль над випромінюванням подій, станом, маршрутизацією та стрімінгом. Дані передаються між вузлами через <code>event.Output</code> — без записів у стан сесії. Випромінюйте події зі свого вузла, а не додавайте їх до сесії.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import (
+    "google.golang.org/adk/v2/agent"
+    "google.golang.org/adk/v2/agent/workflowagent"
+    "google.golang.org/adk/v2/workflow"
+)
+
+cityGen := workflow.NewFunctionNode("city_generator_agent",
+    func(_ agent.Context, _ any) (string, error) { return "Tokyo", nil },
+    workflow.NodeConfig{})
+
+lookup := workflow.NewFunctionNode("lookup_time_function",
+    func(_ agent.Context, city string) (cityTime, error) {
+        return cityTime{City: city, TimeInfo: "10:10 AM"}, nil
+    }, workflow.NodeConfig{})
+
+return workflowagent.New(workflowagent.Config{
+    Name:  "root_agent",
+    Edges: workflow.Chain(workflow.Start, cityGen, lookup),
+})</code></pre>
+  <p class="muted">Див. також: <code>agents</code> (агенти як вузли), документація graphs, посібники з динамічних і паралельних робочих процесів.</p>
+</section>
+
+<!-- 03-tools.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 3 з 14</div>
+  <h1><span class="h-emoji">🔧</span> інструменти</h1>
+  <div class="module">google.golang.org/adk/v2/tool · /tool/functiontool · /tool/agenttool · /tool/geminitool</div>
+  <p>Інструменти дають агентам можливості поза розмовою — виклик API, пошук, виконання коду, виклик інших агентів або взаємодію із зовнішніми сервісами. У Go інструмент — це функція з типізованою вхідною структурою; фреймворк виводить JSON-схему з тегів <code>json</code> і <code>jsonschema</code>. Інструменти прикріплюються до агента через <code>llmagent.Config.Tools</code>.</p>
+
+  <h2>Архітектура інструментів</h2>
+  <svg viewBox="0 0 760 268" role="img" aria-label="архітектура інструментів">
+    <defs>
+      <marker id="ah03" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="40" y="58" width="185" height="46" rx="12" class="dg-b-ghost"/>
+    <text x="132.5" y="75.6" class="dg-lb" style="font-size:12px" text-anchor="middle">Name() / Description()</text>
+    <text x="132.5" y="93.6" class="dg-sb" text-anchor="middle">схема з тегів структури</text>
+    <rect x="40" y="116" width="185" height="46" rx="12" class="dg-b-ghost"/>
+    <text x="132.5" y="133.6" class="dg-lb" style="font-size:12px" text-anchor="middle">Run(ctx, args)</text>
+    <text x="132.5" y="151.6" class="dg-sb" text-anchor="middle">типізований ввід/вивід</text>
+    <rect x="40" y="174" width="185" height="38" rx="12" class="dg-b-ghost"/>
+    <text x="132.5" y="194.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">[]tool.Tool для агента</text>
+    <rect x="305" y="52" width="180" height="42" rx="10" class="dg-b-out"/>
+    <text x="395" y="75.1" class="dg-lb" style="font-size:12px" text-anchor="middle">functiontool.New</text>
+    <rect x="305" y="112" width="180" height="42" rx="10" class="dg-b-out"/>
+    <text x="395" y="135.1" class="dg-lb" style="font-size:12px" text-anchor="middle">agenttool.New</text>
+    <rect x="305" y="172" width="180" height="42" rx="10" class="dg-b-out"/>
+    <text x="395" y="194.8" class="dg-lb" style="font-size:11px" text-anchor="middle">geminitool.GoogleSearch</text>
+    <rect x="545" y="62" width="195" height="96" rx="10" class="dg-b-model"/>
+    <text x="642.5" y="90" class="dg-lb" style="font-size:13.5px" text-anchor="middle">llmagent.New</text>
+    <text x="642.5" y="108" class="dg-sb" text-anchor="middle">LLM обирає інструмент + аргументи</text>
+    <text x="642.5" y="123" class="dg-sb" text-anchor="middle">викликає Run(), результат</text>
+    <text x="642.5" y="138.1" class="dg-sb" text-anchor="middle">повертається як подія</text>
+    <rect x="545" y="200" width="195" height="50" rx="12" class="dg-b-ghost"/>
+    <text x="642.5" y="226.8" class="dg-lb" style="font-size:11px" text-anchor="middle">Зовнішні API / MCP / агенти</text>
+    <rect x="20" y="20" width="225" height="208" rx="12" class="dg-frame"/>
+    <text x="36" y="42" class="dg-ti">tool.Tool</text>
+    <path d="M 245 124 L 271.5 124 L 271.5 73 L 298 73" class="dg-link dg-link-warm" marker-end="url(#ah03)"/>
+    <path d="M 245 124 L 271.5 124 L 271.5 133 L 298 133" class="dg-link dg-link-warm flow" marker-end="url(#ah03)"/>
+    <text x="258.2" y="116" class="dg-el" text-anchor="middle">реалізують</text>
+    <path d="M 245 124 L 271.5 124 L 271.5 193 L 298 193" class="dg-link dg-link-warm" marker-end="url(#ah03)"/>
+    <path d="M 485 73 L 511.5 73 L 511.5 110 L 538 110" class="dg-link" marker-end="url(#ah03)"/>
+    <path d="M 485 133 L 511.5 133 L 511.5 110 L 538 110" class="dg-link" marker-end="url(#ah03)"/>
+    <path d="M 485 193 L 511.5 193 L 511.5 110 L 538 110" class="dg-link" marker-end="url(#ah03)"/>
+    <path d="M 642.5 158 L 642.5 193" class="dg-link flow" marker-end="url(#ah03)"/>
+    <text x="650.5" y="179.5" class="dg-el" text-anchor="start">викликає</text>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>tool.Tool</h3><p>Інтерфейс: Name(), Description(), Run(ctx, args). Схема виводиться з тегів структури.</p></div>
+    <div class="card"><h3>functiontool.New</h3><p>Обгортає Go-функцію як інструмент; типізовані вхідні/вихідні структури визначають схему.</p></div>
+    <div class="card"><h3>agenttool.New</h3><p>Виставляє іншого агента як інструмент, щоб один агент делегував підагенту.</p></div>
+    <div class="card"><h3>geminitool.GoogleSearch</h3><p>Вбудований інструмент пошуку Google для обґрунтування.</p></div>
+    <div class="card"><h3>Теги структури</h3><p><code>json</code> (обов'язковий/необов'язковий через omitempty) + <code>jsonschema</code> (опис).</p></div>
+    <div class="card"><h3>agent.Context</h3><p>Впроваджується у функції інструментів для стану сесії, артефактів, облікових даних.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li><strong>functiontool.New</strong> — дати агенту власну функцію (пошук, калькулятор, внутрішній пошук).</li>
+    <li><strong>agenttool.New</strong> — ієрархічне делегування: координатор викликає спеціалізованих підагентів.</li>
+    <li><strong>geminitool.GoogleSearch</strong> — обґрунтовувати відповіді живим веб-пошуком.</li>
+    <li><strong>MCP / OpenAPI</strong> — використовувати екосистему MCP або будь-який REST API.</li>
+  </ul>
+
+  <div class="note"><strong>Правила схеми Go:</strong> поле <em>обов'язкове</em>, якщо його тег <code>json</code> не має <code>omitempty</code>/<code>omitzero</code>; <em>необов'язкове</em> — якщо має. Використовуйте теги <code>jsonschema</code> для опису кожного аргументу для LLM.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>type getStockPriceArgs struct {
+    Symbol string `json:"symbol" jsonschema:"The stock ticker symbol, e.g., GOOG"`
+}
+type getStockPriceResults struct {
+    Symbol string  `json:"symbol"`
+    Price  float64 `json:"price,omitempty"`
+    Error  string  `json:"error,omitempty"`
+}
+func getStockPrice(ctx agent.Context, input getStockPriceArgs) (getStockPriceResults, error) {
+    return getStockPriceResults{Symbol: input.Symbol, Price: 300.6}, nil
+}
+
+stockPriceTool, _ := functiontool.New(functiontool.Config{
+    Name: "get_stock_price", Description: "Retrieves the current stock price.",
+}, getStockPrice)
+
+agent, _ := llmagent.New(llmagent.Config{
+    Name: "stock_agent", Model: model, Tools: []tool.Tool{stockPriceTool},
+})</code></pre>
+  <p class="muted">Див. також: <code>agents</code>, <code>plugins</code>, документація integrations/MCP/OpenAPI.</p>
+</section>
+
+<!-- 04-sessions.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 4 з 14</div>
+  <h1><span class="h-emoji">💬</span> сесії</h1>
+  <div class="module">google.golang.org/adk/v2/session</div>
+  <p><strong>Сесія</strong> відстежує одну розмову: її історію подій, стан користувача та метадані. <strong>Сервіси сесій</strong> зберігають ці сесії та події, щоб розмови переживали запити. <strong>Стан</strong> — це робоча пам'ять агента для розмови (відмінна від довготривалої пам'яті).</p>
+
+  <h2>Модель сесії</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="модель сесії">
+    <defs>
+      <marker id="ah04" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="45" y="62" width="300" height="46" rx="12" class="dg-b-ghost"/>
+    <text x="195" y="79.6" class="dg-lb" style="font-size:12px" text-anchor="middle">ID / AppName / UserID</text>
+    <text x="195" y="97.6" class="dg-sb" text-anchor="middle">LastUpdateTime</text>
+    <rect x="45" y="118" width="300" height="46" rx="12" class="dg-b-ghost"/>
+    <text x="195" y="135.6" class="dg-lb" style="font-size:12px" text-anchor="middle">Events[] — історія розмови</text>
+    <text x="195" y="153.6" class="dg-sb" text-anchor="middle">*session.Event</text>
+    <rect x="45" y="174" width="300" height="38" rx="12" class="dg-b-ghost"/>
+    <text x="195" y="195.1" class="dg-lb" style="font-size:12px" text-anchor="middle">State — робоча пам'ять</text>
+    <rect x="440" y="36" width="295" height="92" rx="10" class="dg-b-out"/>
+    <text x="587.5" y="69.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">session.Service</text>
+    <text x="587.5" y="87.5" class="dg-sb" text-anchor="middle">Create / Get / List / Delete</text>
+    <text x="587.5" y="102.5" class="dg-sb" text-anchor="middle">AppendEvent / GetUserState</text>
+    <rect x="440" y="160" width="295" height="62" rx="12" class="dg-b-ghost"/>
+    <text x="587.5" y="185.6" class="dg-lb" style="font-size:12px" text-anchor="middle">session.InMemoryService()</text>
+    <text x="587.5" y="203.6" class="dg-sb" text-anchor="middle">реалізації session.Service</text>
+    <rect x="25" y="26" width="340" height="200" rx="12" class="dg-frame"/>
+    <text x="41" y="48" class="dg-ti">Session</text>
+    <path d="M 365 106.9 L 433 99.3" class="dg-link dg-link-warm flow" marker-end="url(#ah04)"/>
+    <text x="399" y="95.1" class="dg-el" text-anchor="middle">керується</text>
+    <path d="M 587.5 128 L 587.5 153" class="dg-link dg-dash" marker-end="url(#ah04)"/>
+    <text x="595.5" y="144.5" class="dg-el" text-anchor="start">реалізується</text>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>session.Session</h3><p>ID, AppName, UserID, LastUpdateTime, Events[], State.</p></div>
+    <div class="card"><h3>session.Service</h3><p>Абстрактний контракт зберігання (Create/Get/List/Delete/AppendEvent).</p></div>
+    <div class="card"><h3>session.InMemoryService</h3><p>Сховище в пам'яті — чудово для тестів/прототипів.</p></div>
+    <div class="card"><h3>session.CreateRequest</h3><p>AppName + UserID для створення нової сесії.</p></div>
+    <div class="card"><h3>session.NewEvent</h3><p>Створює подію; у 2.0 вимагає <code>context.Context</code> першим аргументом.</p></div>
+    <div class="card"><h3>State</h3><p>Робоча пам'ять з префіксованими ключами: user/state/app/temp.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li>Підтримка багатоходового контексту — чат-агент, який пам'ятає попередні ходи між запитами.</li>
+    <li>Збереження стану, щоб агент міг пізніше відновити задачу (напр. багатокроковий робочий процес).</li>
+    <li>Розмови в межах користувача через <code>UserID</code> для ізоляції сесій.</li>
+    <li>InMemoryService для швидкої локальної розробки/тестів; власний <code>session.Service</code> для продакшну.</li>
+  </ul>
+
+  <div class="note"><strong>Примітка 2.0:</strong> структура Event отримала поля <code>IsolationScope</code>, <code>Routes</code>, <code>RequestedInput</code>, <code>Output</code>, <code>NodeInfo</code>. Якщо ви зберігаєте сесії в жорсткій схемі БД (явні колонки), оновіть її для нових полів.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import "google.golang.org/adk/v2/session"
+
+svc := session.InMemoryService()
+sess, err := svc.Create(ctx, &amp;session.CreateRequest{
+    AppName: "myapp",
+    UserID:  "u1",
+})
+sessionID := sess.Session.ID()
+// передайте svc у runner.Config.SessionService</code></pre>
+  <p class="muted">Див. також: <code>events</code>, пам'ять (довготривала), <code>runner</code>.</p>
+</section>
+
+<!-- 05-events.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 5 з 14</div>
+  <h1><span class="h-emoji">📡</span> події <span class="badge">розширено в 2.0</span></h1>
+  <div class="module">google.golang.org/adk/v2/session (Event)</div>
+  <p><strong>Event</strong> — базова одиниця спілкування в сесії: повідомлення користувача, відповідь агента, виклик/результат інструмента. Події формують історію розмови, керують виконавцем і несуть метадані маршрутизації/стану. У 2.0 структура Event отримала поля графу (<code>Routes</code>, <code>Output</code>, <code>NodeInfo</code>, <code>RequestedInput</code>, <code>IsolationScope</code>).</p>
+
+  <h2>Анатомія події та потік</h2>
+  <svg viewBox="0 0 760 276" role="img" aria-label="потік подій">
+    <defs>
+      <marker id="ah05" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="40" y="56" width="300" height="30" rx="12" class="dg-b-ghost"/>
+    <text x="190" y="73" class="dg-lb" style="font-size:11.5px" text-anchor="middle">ID, Author, Timestamp, InvocationID</text>
+    <rect x="40" y="92" width="300" height="30" rx="12" class="dg-b-ghost"/>
+    <text x="190" y="109" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Content (genai parts)</text>
+    <rect x="40" y="128" width="300" height="30" rx="12" class="dg-b-ghost"/>
+    <text x="190" y="144.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Actions (transfer, route, ...)</text>
+    <rect x="40" y="164" width="300" height="30" rx="10" class="dg-b-tool"/>
+    <text x="190" y="180.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">NodeInfo, Output, IsolationScope (2.0)</text>
+    <rect x="40" y="200" width="300" height="30" rx="10" class="dg-b-tool"/>
+    <text x="190" y="216.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Routes, RequestedInput (2.0)</text>
+    <rect x="430" y="30" width="305" height="170" rx="10" class="dg-b-out"/>
+    <text x="582.5" y="80" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Event.Actions</text>
+    <text x="582.5" y="98" class="dg-sb" text-anchor="middle">TransferToAgent / Escalate</text>
+    <text x="582.5" y="113" class="dg-sb" text-anchor="middle">StateDelta / AgentState</text>
+    <text x="582.5" y="128.1" class="dg-sb" text-anchor="middle">Route / SetModelResponse</text>
+    <text x="582.5" y="143.1" class="dg-sb" text-anchor="middle">RequestedToolConfirmations</text>
+    <text x="582.5" y="158.1" class="dg-sb" text-anchor="middle">Rewind / Compaction</text>
+    <rect x="430" y="222" width="305" height="42" rx="12" class="dg-b-ghost"/>
+    <text x="582.5" y="244.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Виконавець споживає події → керує виконанням</text>
+    <rect x="20" y="20" width="340" height="232" rx="12" class="dg-frame"/>
+    <text x="36" y="42" class="dg-ti">session.Event</text>
+    <path d="M 360 126.9 L 423 123.5" class="dg-link dg-link-warm flow" marker-end="url(#ah05)"/>
+    <text x="391.5" y="117.2" class="dg-el" text-anchor="middle">несе</text>
+    <path d="M 582.5 200 L 582.5 215" class="dg-link flow" marker-end="url(#ah05)"/>
+    <text x="590.5" y="211.5" class="dg-el" text-anchor="start">застосовує</text>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>session.Event</h3><p>Основна подія: вміст, автор, дії, плюс поля графу 2.0.</p></div>
+    <div class="card"><h3>session.NewEvent</h3><p>Конструктор; у 2.0 вимагає <code>context.Context</code> першим аргументом.</p></div>
+    <div class="card"><h3>Event.Actions</h3><p>Сигнали керування: transfer, route, escalate, state delta, rewind, request input.</p></div>
+    <div class="card"><h3>RequestInput</h3><p>Представляє призупинений вузол, що запитує ввід людини (HITL) зі схемою відповіді.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li>Стрімінгові UI підписуються на події, щоб рендерити відповіді/прогрес інструментів наживо.</li>
+    <li>Агенти встановлюють <code>Actions.TransferToAgent</code>, щоб передати роботу іншому агенту.</li>
+    <li>У 2.0 <code>Routes</code> + <code>NodeInfo</code> керують диспетчеризацією ребер графу та відстеженням вузлів.</li>
+    <li><code>RequestedInput</code> призупиняє вузол робочого процесу для вводу людини в циклі.</li>
+  </ul>
+
+  <div class="note"><strong>Руйнівна зміна 2.0:</strong> <code>session.NewEvent</code> тепер приймає <code>context.Context</code> першим: <code>ev := session.NewEvent(ctx, ctx.InvocationID())</code>. Стара форма без параметрів і <code>NewEventWithContext</code> видалені.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import "google.golang.org/adk/v2/session"
+
+ev := session.NewEvent(ctx, ctx.InvocationID())
+ev.Routes = []string{"BUG"}   // керує диспетчеризацією ребер
+ev.Output = msg               // передає дані наступному вузлу
+// у вузлі, що випромінює: emit(ev), щоб рушій керував збереженням</code></pre>
+  <p class="muted">Див. також: <code>sessions</code>, <code>workflow</code>, <code>runner</code>.</p>
+</section>
+
+<!-- 06-models.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 6 з 14</div>
+  <h1><span class="h-emoji">🧠</span> моделі</h1>
+  <div class="module">google.golang.org/adk/v2/model/gemini · google.golang.org/genai</div>
+  <p>Моделі — це LLM, що забезпечують міркування <code>llmagent</code>. У Go модель створюється через пакет провайдера (напр. <code>gemini.NewModel</code>) і передається в <code>llmagent.Config.Model</code>. ADK не прив'язаний до конкретної LLM — хоч і оптимізований під Gemini, він підтримує багато провайдерів через інтеграції (Anthropic, OpenAI, Ollama, vLLM, LiteLLM тощо).</p>
+
+  <h2>Абстракція моделі</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="абстракція моделі">
+    <defs>
+      <marker id="ah06" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="20" y="84" width="200" height="82" rx="10" class="dg-b-model"/>
+    <text x="120" y="112.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">llmagent.New</text>
+    <text x="120" y="130.6" class="dg-sb" text-anchor="middle">Model: model.Model</text>
+    <text x="120" y="145.6" class="dg-sb" text-anchor="middle">з пакета провайдера</text>
+    <rect x="290" y="22" width="225" height="74" rx="10" class="dg-b-out"/>
+    <text x="402.5" y="46.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">gemini.NewModel</text>
+    <text x="402.5" y="64.5" class="dg-sb" text-anchor="middle">назва моделі + genai.ClientConfig</text>
+    <text x="402.5" y="79.5" class="dg-sb" text-anchor="middle">повертає model.Model</text>
+    <rect x="290" y="150" width="225" height="74" rx="10" class="dg-b-out"/>
+    <text x="402.5" y="174.6" class="dg-lb" style="font-size:13.5px" text-anchor="middle">model.Model</text>
+    <text x="402.5" y="192.6" class="dg-sb" text-anchor="middle">GenerateContent(ctx, ...)</text>
+    <text x="402.5" y="207.6" class="dg-sb" text-anchor="middle">незалежний від провайдера</text>
+    <rect x="565" y="150" width="180" height="74" rx="12" class="dg-b-ghost"/>
+    <text x="655" y="173.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Gemini | Anthropic | OpenAI</text>
+    <text x="655" y="191.9" class="dg-sb" text-anchor="middle">Ollama | vLLM | LiteLLM</text>
+    <text x="655" y="206.9" class="dg-sb" text-anchor="middle">через інтеграції</text>
+    <path d="M 220 101.6 Q 249.7 86.5 283 86.9" class="dg-link flow" marker-end="url(#ah06)"/>
+    <path d="M 402.5 96 L 402.5 143" class="dg-link dg-link-warm flow" marker-end="url(#ah06)"/>
+    <text x="410.5" y="123.5" class="dg-el" text-anchor="start">повертає</text>
+    <path d="M 515 187 L 558 187" class="dg-link dg-link-warm flow" marker-end="url(#ah06)"/>
+    <path d="M 220 146.9 Q 249.4 163.6 283 160.8" class="dg-link dg-dash" marker-end="url(#ah06)"/>
+    <text x="246.6" y="180.3" class="dg-el" text-anchor="middle">викликає</text>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>gemini.NewModel</h3><p>Створює модель Gemini з назви + <code>genai.ClientConfig</code> (API-ключ / проєкт).</p></div>
+    <div class="card"><h3>model.Model</h3><p>Інтерфейс, незалежний від провайдера, передається в <code>llmagent.Config.Model</code>.</p></div>
+    <div class="card"><h3>genai.ClientConfig</h3><p>Конфігурація автентифікації: APIKey, project, region тощо.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li>Спрямувати агента на будь-яку підтримувану модель за назвою, напр. <code>gemini.NewModel(ctx, "gemini-flash-latest", ...)</code>.</li>
+    <li>Змінити провайдера, сконструювавши іншу модель і передавши її в ту саму конфігурацію агента.</li>
+    <li>Поєднати з <strong>маршрутизацією моделей</strong> для компромісу вартість/якість на кожен запит.</li>
+  </ul>
+
+  <div class="note">Поза Gemini: екосистема додає пакети моделей конкретних провайдерів (Anthropic, OpenAI, Ollama, vLLM, LiteLLM, Agent Platform, Apigee AI Gateway) — здебільшого в документації інтеграцій.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import (
+    "google.golang.org/adk/v2/model/gemini"
+    "google.golang.org/genai"
+)
+
+model, err := gemini.NewModel(ctx, "gemini-flash-latest", &amp;genai.ClientConfig{
+    APIKey: os.Getenv("GOOGLE_API_KEY"),
+})
+agent, _ := llmagent.New(llmagent.Config{Name: "root", Model: model})</code></pre>
+  <p class="muted">Див. також: <code>agents</code>, документація маршрутизації моделей.</p>
+</section>
+
+<!-- 07-runners.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 7 з 14</div>
+  <h1><span class="h-emoji">▶️</span> виконавці</h1>
+  <div class="module">google.golang.org/adk/v2/runner</div>
+  <p><strong>Runner</strong> — рушій, що виконує агента (або робочий процес), оркеструючи взаємодію між LLM, інструментами, сервісами сесій, пам'яттю, артефактами, обліковими даними та плагінами. Він споживає події, керує контекстом виклику та повертає результати запуску.</p>
+
+  <h2>Підключення виконавця</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="підключення виконавця">
+    <defs>
+      <marker id="ah07" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="18" y="10" width="195" height="48" rx="10" class="dg-b-out"/>
+    <text x="115.5" y="28.4" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Agent (agent.Agent)</text>
+    <text x="115.5" y="46.5" class="dg-sb" text-anchor="middle">що виконувати</text>
+    <rect x="18" y="68" width="195" height="48" rx="10" class="dg-b-out"/>
+    <text x="115.5" y="86.5" class="dg-lb" style="font-size:11.5px" text-anchor="middle">SessionService</text>
+    <text x="115.5" y="104.5" class="dg-sb" text-anchor="middle">збереження</text>
+    <rect x="18" y="126" width="195" height="48" rx="10" class="dg-b-out"/>
+    <text x="115.5" y="144.4" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Artifact / Memory / Credential</text>
+    <text x="115.5" y="162.4" class="dg-sb" text-anchor="middle">сервіси</text>
+    <rect x="18" y="184" width="195" height="48" rx="10" class="dg-b-out"/>
+    <text x="115.5" y="202.4" class="dg-lb" style="font-size:11.5px" text-anchor="middle">PluginManager</text>
+    <text x="115.5" y="220.4" class="dg-sb" text-anchor="middle">хуки</text>
+    <rect x="285" y="62" width="200" height="122" rx="10" class="dg-b-model"/>
+    <text x="385" y="96" class="dg-lb" style="font-size:15px" text-anchor="middle">runner.New</text>
+    <text x="385" y="114" class="dg-sb" text-anchor="middle">Run(ctx, userID,</text>
+    <text x="385" y="129" class="dg-sb" text-anchor="middle">sessionID, msg)</text>
+    <text x="385" y="144" class="dg-sb" text-anchor="middle">ітерує події</text>
+    <text x="385" y="159" class="dg-sb" text-anchor="middle">agent.RunConfig</text>
+    <rect x="560" y="62" width="185" height="122" rx="10" class="dg-b-tool"/>
+    <text x="652.5" y="103" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Events</text>
+    <text x="652.5" y="121" class="dg-sb" text-anchor="middle">стрімінг до викликача</text>
+    <text x="652.5" y="136.1" class="dg-sb" text-anchor="middle">фінальна відповідь / стан</text>
+    <text x="652.5" y="151.1" class="dg-sb" text-anchor="middle">рендериться в UI</text>
+    <path d="M 213 34 L 245.5 34 L 245.5 123 L 278 123" class="dg-link dg-link-warm" marker-end="url(#ah07)"/>
+    <path d="M 213 92 L 245.5 92 L 245.5 123 L 278 123" class="dg-link dg-link-warm" marker-end="url(#ah07)"/>
+    <path d="M 213 150 L 245.5 150 L 245.5 123 L 278 123" class="dg-link dg-link-warm" marker-end="url(#ah07)"/>
+    <path d="M 213 208 L 245.5 208 L 245.5 123 L 278 123" class="dg-link dg-link-warm" marker-end="url(#ah07)"/>
+    <path d="M 485 123 L 553 123" class="dg-link flow" marker-end="url(#ah07)"/>
+    <text x="519" y="115" class="dg-el" text-anchor="middle">стрімить</text>
+    <circle r="5.5" class="dg-dot packet" style="offset-path:path('M 492 123 L 648 123');--dur:2.2s"/>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>runner.New</h3><p>Створює Runner з <code>runner.Config</code> (AppName, Agent, SessionService, ...).</p></div>
+    <div class="card"><h3>runner.Config</h3><p>Підключає агента, сервіс сесій та інші сервіси.</p></div>
+    <div class="card"><h3>Run</h3><p>Виконує хід; повертає ітератор <code>*session.Event</code> (і помилки).</p></div>
+    <div class="card"><h3>agent.RunConfig</h3><p>Налаштування запуску: StreamingMode, ліміт LLM-викликів, телеметрія, мітки.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li>Виконати <code>llmagent</code> або повний граф <code>workflowagent</code>.</li>
+    <li>Стрімити події в UI або CLI, ітеруючи <code>r.Run(...)</code>.</li>
+    <li>Зберігати між ходами за допомогою реального сервісу сесій, підключеного до виконавця.</li>
+    <li>Встановити <code>StreamingMode</code> для потокового виводу на рівні токенів.</li>
+  </ul>
+
+  <div class="note">Runner — це те, як рушій графу 2.0 керує всім: він оцінює вузли робочого процесу, збирає випромінені події, застосовує маршрутизацію та координує сервіси. Будуйте застосунок навколо <code>runner.New</code> + сервісів.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import "google.golang.org/adk/v2/runner"
+
+r, _ := runner.New(runner.Config{
+    AppName:        "demo",
+    Agent:          myAgent,
+    SessionService: session.InMemoryService(),
+})
+
+userMsg := genai.NewContentFromText("hi", genai.RoleUser)
+for event, err := range r.Run(ctx, userID, sessionID, userMsg, agent.RunConfig{
+    StreamingMode: agent.StreamingModeNone,
+}) {
+    if err != nil { fmt.Println("AGENT_ERROR:", err); continue }
+    for _, p := range event.Content.Parts { fmt.Print(p.Text) }
+}</code></pre>
+  <p class="muted">Див. також: <code>workflow</code>, <code>sessions</code>, <code>events</code>, плагіни.</p>
+</section>
+
+<!-- 08-plugins.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 8 з 14</div>
+  <h1><span class="h-emoji">🔌</span> плагіни / callbacks</h1>
+  <div class="module">google.golang.org/adk/v2/agent (callbacks) · /plugin</div>
+  <p>Плагіни та callbacks дають змогу <strong>спостерігати, налаштовувати та контролювати</strong> поведінку агента, впроваджуючи код у визначених точках життєвого циклу виконання — без перевизначення внутрішніх механізмів агента. Це санкціонований механізм 2.0 для власної логіки (guardrails, логування, автентифікація, ретраї).</p>
+
+  <h2>Життєвий цикл callback</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="життєвий цикл callbacks">
+    <defs>
+      <marker id="ah08" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="25" y="96" width="150" height="56" rx="10" class="dg-b-model"/>
+    <text x="100" y="119" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Run</text>
+    <text x="100" y="137.1" class="dg-sb" text-anchor="middle">виклик</text>
+    <rect x="210" y="96" width="150" height="56" rx="10" class="dg-b-out beat" style="--bd:0.6s"/>
+    <text x="285" y="119" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Agent</text>
+    <text x="285" y="137.1" class="dg-sb" text-anchor="middle">вузол</text>
+    <rect x="395" y="96" width="150" height="56" rx="10" class="dg-b-model beat" style="--bd:1.1s"/>
+    <text x="470" y="119" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Model</text>
+    <text x="470" y="137.1" class="dg-sb" text-anchor="middle">виклик LLM</text>
+    <rect x="580" y="96" width="150" height="56" rx="10" class="dg-b-model beat" style="--bd:1.7s"/>
+    <text x="655" y="119" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Tool</text>
+    <text x="655" y="137.1" class="dg-sb" text-anchor="middle">виконання</text>
+    <path d="M 175 124 L 203 124" class="dg-link flow" marker-end="url(#ah08)"/>
+    <path d="M 360 124 L 388 124" class="dg-link flow" marker-end="url(#ah08)"/>
+    <path d="M 545 124 L 573 124" class="dg-link flow" marker-end="url(#ah08)"/>
+    <circle r="5.5" class="dg-dot packet" style="offset-path:path('M 28 124 L 726 124');--dur:2.4s"/>
+    <text x="100" y="72" class="dg-el" text-anchor="middle">before/after_run</text>
+    <text x="285" y="72" class="dg-el" text-anchor="middle">before/after_agent</text>
+    <text x="470" y="72" class="dg-el" text-anchor="middle">before/after_model</text>
+    <text x="655" y="72" class="dg-el" text-anchor="middle">before/after_tool</text>
+    <text x="380" y="196" class="dg-sb" text-anchor="middle">on_run_error · on_user_message</text>
+    <text x="380" y="216" class="dg-sb" text-anchor="middle">on_model_error · on_event</text>
+    <text x="380" y="236" class="dg-sb" text-anchor="middle">on_tool_error · on_agent_error</text>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>Before/AfterAgentCallback</h3><p>Хуки навколо виконання агента — спосіб 2.0 впровадити власну логіку.</p></div>
+    <div class="card"><h3>Model &amp; Tool callbacks</h3><p>before/after викликів моделі та інструмента; on-model-error / on-tool-error.</p></div>
+    <div class="card"><h3>Plugin</h3><p>Багаторазовий набір хуків життєвого циклу, прикріплений до виконавця/агента.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li><strong>Guardrails</strong> — заблокувати або змінити виклик інструмента до виконання.</li>
+    <li><strong>Спостережуваність</strong> — логувати події, виклики інструментів і помилки в бекенд моніторингу.</li>
+    <li><strong>Автентифікація / впровадження контексту</strong> — встановити облікові дані або стан на старті запуску.</li>
+    <li><strong>Ретраї та політика</strong> — реагувати на помилки інструментів/моделі власною поведінкою.</li>
+    <li><strong>Багаторазова поведінка між агентами</strong> — упакувати плагін і прикріпити до багатьох агентів.</li>
+  </ul>
+
+  <div class="note"><strong>Рекомендація 2.0:</strong> переносьте власну логіку виконання з перевизначень <code>Run</code> у хуки <code>BeforeAgentCallback</code> / <code>AfterAgentCallback</code> — рушій графу ігнорує застарілі перевизначення. Це підтримувана точка розширення.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import "google.golang.org/adk/v2/agent"
+
+// Реалізуйте agent.BeforeAgentCallback / AfterAgentCallback
+type guard struct{}
+func (guard) BeforeAgentCallback(ctx agent.Context, invocation *agent.Invocation) error {
+    // огляньте / змініть виклик до запуску агента
+    return nil
+}
+
+agent, _ := llmagent.New(llmagent.Config{
+    Name: "root", Model: model,
+    BeforeAgentCallbacks: []agent.BeforeAgentCallback{guard{}},
+})</code></pre>
+  <p class="muted">Див. також: <code>agents</code>, <code>tools</code>, <code>runner</code>, <code>events</code>.</p>
+</section>
+
+<!-- 09-memory.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 9 з 14</div>
+  <h1><span class="h-emoji">💾</span> пам'ять</h1>
+  <div class="module">google.golang.org/adk/v2/memory</div>
+  <p><strong>Пам'ять</strong> дає агентам довготривале згадування про користувача <em>між кількома сесіями</em> — на відміну від короткочасної пам'яті стану сесії. Сервіс пам'яті зберігає та отримує спогади, щоб агент міг пам'ятати вподобання користувача або попередні факти з часом.</p>
+
+  <h2>Пам'ять проти стану сесії</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="пам'ять проти стану">
+    <defs>
+      <marker id="ah09" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="25" y="22" width="335" height="140" rx="10" class="dg-b-out"/>
+    <text x="192.5" y="65" class="dg-lb" style="font-size:15px" text-anchor="middle">Стан сесії</text>
+    <text x="192.5" y="83" class="dg-sb" text-anchor="middle">межі: одна розмова</text>
+    <text x="192.5" y="98" class="dg-sb" text-anchor="middle">робоча пам'ять, скидається за сесію</text>
+    <text x="192.5" y="113" class="dg-sb" text-anchor="middle">керується session.Service</text>
+    <text x="192.5" y="128" class="dg-sb" text-anchor="middle">session.State</text>
+    <rect x="400" y="22" width="335" height="140" rx="10" class="dg-b-model"/>
+    <text x="567.5" y="65" class="dg-lb" style="font-size:15px" text-anchor="middle">Пам'ять</text>
+    <text x="567.5" y="83" class="dg-sb" text-anchor="middle">межі: між сесіями / користувачем</text>
+    <text x="567.5" y="98" class="dg-sb" text-anchor="middle">довготривале згадування (вподобання, факти)</text>
+    <text x="567.5" y="113" class="dg-sb" text-anchor="middle">memory.Service + search/add</text>
+    <text x="567.5" y="128" class="dg-sb" text-anchor="middle">google.golang.org/adk/v2/memory</text>
+    <rect x="205" y="194" width="350" height="44" rx="10" class="dg-b-tool"/>
+    <text x="380" y="218.2" class="dg-lb" style="font-size:12.5px" text-anchor="middle">Агент читає/пише обидва через Context</text>
+    <path d="M 346.7 194 Q 335.6 169.8 308.9 169" class="dg-link dg-link-warm flow" marker-end="url(#ah09)"/>
+    <path d="M 413.3 194 Q 424.4 169.8 451.1 169" class="dg-link dg-link-warm flow" marker-end="url(#ah09)"/>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>memory.Service</h3><p>Інтерфейс для зберігання та пошуку довготривалих спогадів.</p></div>
+    <div class="card"><h3>Інтеграція Context</h3><p>Контекст агента відкриває методи add/search пам'яті.</p></div>
+    <div class="card"><h3>Інструменти пам'яті</h3><p>Інструменти load_memory / preload_memory дають агенту запитувати пам'ять напряму.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li>Персональний помічник, що пам'ятає ім'я користувача, вподобання та минулі теми.</li>
+    <li>Зберегти сесію в пам'ять наприкінці, щоб майбутні сесії могли її згадати.</li>
+    <li>Пам'ять на базі векторів/БД (Redis, Milvus, Perseus Vault, Database Memory Service) для семантичного згадування.</li>
+  </ul>
+
+  <div class="note">Пам'ять доповнює (не замінює) стан сесії. Використовуйте стан сесії як робочий блокнот поточної задачі; пам'ять — для стійких фактів про користувача між сесіями.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import "google.golang.org/adk/v2/memory"
+
+// Реалізуйте memory.Service (Search, Add, ...) на базі вашого сховища.
+type myMemory struct{ /* ... */ }
+
+// прикріпіть до runner.Config.MemoryService
+r, _ := runner.New(runner.Config{
+    AppName: "demo", Agent: myAgent,
+    SessionService: session.InMemoryService(),
+    MemoryService:  &amp;myMemory{},
+})</code></pre>
+  <p class="muted">Див. також: <code>sessions</code>, <code>artifacts</code>, <code>tools</code> (load_memory).</p>
+</section>
+
+<!-- 10-artifacts.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 10 з 14</div>
+  <h1><span class="h-emoji">📦</span> артефакти</h1>
+  <div class="module">google.golang.org/adk/v2/artifact</div>
+  <p><strong>Артефакти</strong> дають агентам змогу зберігати, завантажувати та керувати файлами або бінарними даними (зображення, PDF, згенеровані звіти), пов'язаними із сесією чи користувачем, — з версіюванням. Сервіс артефактів надає бекенд зберігання, відкритий агентам через методи <code>Context</code>.</p>
+
+  <h2>Потік артефактів</h2>
+  <svg viewBox="0 0 760 220" role="img" aria-label="потік артефактів">
+    <defs>
+      <marker id="ah10" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="25" y="68" width="200" height="76" rx="10" class="dg-b-model"/>
+    <text x="125" y="101" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Agent / Context</text>
+    <text x="125" y="119" class="dg-sb" text-anchor="middle">save/load/list артефакт</text>
+    <rect x="285" y="58" width="210" height="96" rx="10" class="dg-b-out"/>
+    <text x="390" y="93.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">artifact.Service</text>
+    <text x="390" y="111.5" class="dg-sb" text-anchor="middle">save / load / list</text>
+    <text x="390" y="126.5" class="dg-sb" text-anchor="middle">delete / version</text>
+    <rect x="555" y="22" width="185" height="74" rx="12" class="dg-b-ghost"/>
+    <text x="647.5" y="53.6" class="dg-lb" style="font-size:12px" text-anchor="middle">бекенди зберігання</text>
+    <text x="647.5" y="71.6" class="dg-sb" text-anchor="middle">local / GCS / custom</text>
+    <rect x="555" y="122" width="185" height="74" rx="10" class="dg-b-tool"/>
+    <text x="647.5" y="153.6" class="dg-lb" style="font-size:12px" text-anchor="middle">Версійований файл</text>
+    <text x="647.5" y="171.6" class="dg-sb" text-anchor="middle">v1, v2, ... на артефакт</text>
+    <path d="M 225 106 L 278 106" class="dg-link dg-link-warm flow" marker-end="url(#ah10)"/>
+    <path d="M 495 106 L 521.5 106 L 521.5 59 L 548 59" class="dg-link flow" marker-end="url(#ah10)"/>
+    <path d="M 495 106 L 521.5 106 L 521.5 159 L 548 159" class="dg-link flow" marker-end="url(#ah10)"/>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>artifact.Service</h3><p>Інтерфейс: Save, Load, Delete, List, допоміжні методи версій.</p></div>
+    <div class="card"><h3>Допоміжні методи Context</h3><p>SaveArtifact / LoadArtifact / ListArtifacts на контексті агента.</p></div>
+    <div class="card"><h3>LoadArtifactsTool</h3><p>Інструмент, що дає LLM завантажувати артефакти в контекст підказки.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li>Згенерувати та зберегти PDF/звіт, потім дати агенту перезавантажити його наступного ходу.</li>
+    <li>Зберігати завантажені зображення, на які агент має посилатися в пізніших ходах.</li>
+    <li>Версіювати документи, щоб зміни відстежувались на артефакт.</li>
+  </ul>
+
+  <div class="note">Артефакти ключуються за користувачем/сесією — обмежуйте їх, щоб різні користувачі не бачили файли одне одного. Бекенди на кшталт GCS масштабуються для продакшну.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import "google.golang.org/adk/v2/artifact"
+
+// Реалізуйте artifact.Service (Save, Load, ...) на базі вашого сховища.
+type localArtifacts struct{ /* ... */ }
+
+r, _ := runner.New(runner.Config{
+    AppName: "demo", Agent: myAgent,
+    SessionService: session.InMemoryService(),
+    ArtifactService: &amp;localArtifacts{},
+})
+// в агенті: ctx.SaveArtifact(key=..., artifact=...)</code></pre>
+  <p class="muted">Див. також: <code>sessions</code>, <code>memory</code>, <code>tools</code> (LoadArtifactsTool).</p>
+</section>
+
+<!-- 11-skills.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 11 з 14</div>
+  <h1><span class="h-emoji">🎓</span> навички</h1>
+  <div class="module">google.golang.org/adk/v2/skill</div>
+  <p><strong>Навички</strong> — це упаковані, багаторазові можливості (інструкції + ресурси + скрипти), які агент може завантажувати за потреби. Навичка об'єднує markdown-інструкцію, необов'язкові файли довідки/активів і допоміжні скрипти — виявляється через реєстр і відкривається агенту як інструменти.</p>
+
+  <h2>Анатомія навички</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="анатомія навички">
+    <defs>
+      <marker id="ah11" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="20" y="38" width="205" height="116" rx="10" class="dg-b-out"/>
+    <text x="122.5" y="76.5" class="dg-lb" style="font-size:15px" text-anchor="middle">Skill</text>
+    <text x="122.5" y="94.5" class="dg-sb" text-anchor="middle">frontmatter (name, description)</text>
+    <text x="122.5" y="109.5" class="dg-sb" text-anchor="middle">інструкції (markdown)</text>
+    <text x="122.5" y="124.5" class="dg-sb" text-anchor="middle">ресурси (assets/refs/scripts)</text>
+    <rect x="270" y="52" width="190" height="88" rx="10" class="dg-b-model"/>
+    <text x="365" y="83.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">skill.Registry</text>
+    <text x="365" y="101.5" class="dg-sb" text-anchor="middle">Get / Search навичок</text>
+    <text x="365" y="116.5" class="dg-sb" text-anchor="middle">пошук описів інструментів</text>
+    <rect x="505" y="52" width="235" height="88" rx="10" class="dg-b-model"/>
+    <text x="622.5" y="83.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">SkillToolset</text>
+    <text x="622.5" y="101.5" class="dg-sb" text-anchor="middle">load / search / list / run-script</text>
+    <text x="622.5" y="116.5" class="dg-sb" text-anchor="middle">інструменти для агента</text>
+    <rect x="270" y="182" width="470" height="48" rx="10" class="dg-b-tool"/>
+    <text x="505" y="200.9" class="dg-lb" style="font-size:13px" text-anchor="middle">llmagent</text>
+    <text x="505" y="218.9" class="dg-sb" text-anchor="middle">завантажує навички як інструменти</text>
+    <path d="M 225 96 L 263 96" class="dg-link dg-link-warm flow" marker-end="url(#ah11)"/>
+    <path d="M 460 96 L 498 96" class="dg-link dg-link-warm flow" marker-end="url(#ah11)"/>
+    <path d="M 575.5 140 Q 548.6 148.7 538.1 175" class="dg-link flow" marker-end="url(#ah11)"/>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>skill.Skill</h3><p>Name, description, instructions, ресурси (references/assets/scripts).</p></div>
+    <div class="card"><h3>skill.Registry</h3><p>Виявляє та отримує навички за назвою/описом.</p></div>
+    <div class="card"><h3>SkillToolset</h3><p>Відкриває навички агенту як інструменти: list/search/load/run-script.</p></div>
+    <div class="card"><h3>Завантажувачі</h3><p>Завантажують навички з локальної теки або GCS.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li>Упакувати доменну процедуру (напр. «підсумувати фінансові документи») як багаторазову навичку.</li>
+    <li>Поширювати навички між агентами чи командами через реєстр або GCS.</li>
+    <li>Дати агенту виявляти та завантажувати потрібну навичку динамічно через інструмент пошуку.</li>
+  </ul>
+
+  <div class="note">Навички відрізняються від інструментів: навичка — це об'єднаний <em>набір інструкцій</em> (із супровідними файлами), що вчить агента, як щось робити, тоді як інструмент — це функція, яку можна викликати напряму. ADK також інтегрує Google Cloud Skill Registry для керованих навичок.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import "google.golang.org/adk/v2/skill"
+
+// Завантажте навичку з теки (SKILL.md + файли)
+s, err := skill.LoadFromDir(ctx, "path/to/my_skill")
+
+// Прикріпіть навички до агента через SkillToolset
+agent, _ := llmagent.New(llmagent.Config{
+    Name: "root", Model: model,
+    Tools: []tool.Tool{skill.NewToolset(s)},
+})</code></pre>
+  <p class="muted">Див. також: <code>tools</code>, <code>agents</code>, integrations/skills-registry.</p>
+</section>
+
+<!-- 12-planners.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 12 з 14</div>
+  <h1><span class="h-emoji">🗺️</span> планувальники</h1>
+  <div class="module">google.golang.org/adk/v2/agent/llmagent (planner)</div>
+  <p><strong>Планувальники</strong> дають агенту змогу розбивати складну мету на менші кроки та виконувати їх — цикл plan-then-act у стилі ReAct. Планувальник перетворює мету користувача на структурований план і обробляє результат у дії, які виконує агент.</p>
+
+  <h2>Потік plan-then-act</h2>
+  <svg viewBox="0 0 760 292" role="img" aria-label="цикл план-потім-дія">
+    <defs>
+      <marker id="ah12" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="20" y="96" width="170" height="68" rx="10" class="dg-b-out"/>
+    <text x="105" y="125" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Мета користувача</text>
+    <text x="105" y="143.1" class="dg-sb" text-anchor="middle">складний запит</text>
+    <rect x="255" y="96" width="190" height="68" rx="10" class="dg-b-model beat" style="--bd:0.2s"/>
+    <text x="350" y="117.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Planner</text>
+    <text x="350" y="135.6" class="dg-sb" text-anchor="middle">будує інструкцію плану</text>
+    <text x="350" y="150.6" class="dg-sb" text-anchor="middle">обробляє відповідь плану</text>
+    <rect x="520" y="20" width="215" height="66" rx="10" class="dg-b-model beat" style="--bd:1.4s"/>
+    <text x="627.5" y="48" class="dg-lb" style="font-size:13.5px" text-anchor="middle">LLM-план</text>
+    <text x="627.5" y="66" class="dg-sb" text-anchor="middle">структуровані кроки</text>
+    <rect x="520" y="172" width="215" height="66" rx="10" class="dg-b-tool beat" style="--bd:2.6s"/>
+    <text x="627.5" y="199.8" class="dg-lb" style="font-size:12.5px" text-anchor="middle">Агент виконує кроки</text>
+    <text x="627.5" y="217.8" class="dg-sb" text-anchor="middle">інструменти + модель</text>
+    <path d="M 190 130 L 248 130" class="dg-link flow" marker-end="url(#ah12)"/>
+    <path d="M 445 103.6 Q 476.3 84.6 513 84.8" class="dg-link dg-link-warm flow" marker-end="url(#ah12)"/>
+    <path d="M 627.5 86 Q 641.5 125.5 627.5 165" class="dg-link dg-link-warm flow" marker-end="url(#ah12)"/>
+    <path d="M 520 175.9 Q 483.4 176.4 452 157.6" class="dg-link dg-link-warm flow" marker-end="url(#ah12)"/>
+    <circle r="5" class="dg-dot orbit" style="offset-path:path('M 350 130 L 627 53 L 627 205 Z');animation-duration:4.2s"/>
+    <text x="455" y="276" class="dg-el" text-anchor="middle">ітерує, доки мету не досягнуто</text>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>Planner</h3><p>Інтерфейс: будує інструкцію планування та обробляє відповідь плану.</p></div>
+    <div class="card"><h3>llmagent.Config.Planner</h3><p>Прикріпіть планувальника до агента, щоб увімкнути plan-then-act.</p></div>
+    <div class="card"><h3>Стиль ReAct</h3><p>Спланувати мету, потім діяти через міркування + інструменти, ітеруючи до завершення.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li>Складні багатокрокові задачі, де одного виклику LLM недостатньо (напр. «дослідити та підсумувати тему»).</li>
+    <li>Задачі, що вимагають проміжного планування перед використанням інструментів (ReAct).</li>
+    <li>Підвищити надійність на довгих цілях, примусово розкладаючи на структуровані кроки.</li>
+  </ul>
+
+  <div class="note">Прикріпіть планувальника до <code>llmagent</code> через поле конфігурації <code>Planner</code>. Планувальник впливає на цикл міркування/планування агента; поєднуйте з callbacks планування для спостережуваності.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import "google.golang.org/adk/v2/agent/llmagent"
+
+agent, _ := llmagent.New(llmagent.Config{
+    Name:    "research",
+    Model:   model,
+    Planner: myPlanner,   // реалізує інтерфейс планувальника
+    Tools:   []tool.Tool{webSearchTool},
+})</code></pre>
+  <p class="muted">Див. також: <code>agents</code> (llmagent planner), <code>workflow</code> (альтернативи графу).</p>
+</section>
+
+<!-- 13-telemetry.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 13 з 14</div>
+  <h1><span class="h-emoji">📊</span> телеметрія</h1>
+  <div class="module">google.golang.org/adk/v2/telemetry</div>
+  <p>Телеметрія збирає трейси, метрики та логи з запусків агента, щоб ви могли спостерігати за поведінкою в продакшні або під час розробки. Побудована на OpenTelemetry, ADK випромінює спани для викликів моделі, викликів інструментів і передачі даних, з налаштовуваним захопленням вмісту для приватності.</p>
+
+  <h2>Потік телеметрії</h2>
+  <svg viewBox="0 0 760 262" role="img" aria-label="потік телеметрії">
+    <defs>
+      <marker id="ah13" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="25" y="74" width="195" height="82" rx="10" class="dg-b-model"/>
+    <text x="122.5" y="102.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Запуск агента</text>
+    <text x="122.5" y="120.5" class="dg-sb" text-anchor="middle">події моделі + інструментів</text>
+    <text x="122.5" y="135.6" class="dg-sb" text-anchor="middle">та даних</text>
+    <rect x="285" y="64" width="200" height="102" rx="10" class="dg-b-out"/>
+    <text x="385" y="102.4" class="dg-lb" style="font-size:13px" text-anchor="middle">пакет telemetry</text>
+    <text x="385" y="120.4" class="dg-sb" text-anchor="middle">трейс викликів LLM</text>
+    <text x="385" y="135.4" class="dg-sb" text-anchor="middle">спани + атрибути</text>
+    <rect x="550" y="74" width="190" height="82" rx="10" class="dg-b-tool"/>
+    <text x="645" y="102.4" class="dg-lb" style="font-size:13px" text-anchor="middle">OTel-експортери</text>
+    <text x="645" y="120.4" class="dg-sb" text-anchor="middle">Datadog · Langfuse</text>
+    <text x="645" y="135.4" class="dg-sb" text-anchor="middle">MLflow · ...</text>
+    <rect x="265" y="196" width="240" height="56" rx="12" class="dg-b-ghost"/>
+    <text x="385" y="210.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">agent.RunConfig</text>
+    <text x="385" y="228.9" class="dg-sb" text-anchor="middle">конфігурація на запуск</text>
+    <text x="385" y="243.9" class="dg-sb" text-anchor="middle">захоплення вмісту (приватність)</text>
+    <path d="M 220 115 L 278 115" class="dg-link dg-link-warm flow" marker-end="url(#ah13)"/>
+    <path d="M 485 115 L 543 115" class="dg-link dg-link-warm flow" marker-end="url(#ah13)"/>
+    <path d="M 385 196 L 385 173" class="dg-link dg-dash" marker-end="url(#ah13)"/>
+    <text x="393" y="188.5" class="dg-el" text-anchor="start">конфігурує</text>
+    <circle r="5.5" class="dg-dot packet" style="offset-path:path('M 30 115 L 736 115');--dur:2.6s"/>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>пакет telemetry</h3><p>Допоміжні методи трейсу для викликів LLM та інструментів; спани й атрибути.</p></div>
+    <div class="card"><h3>agent.RunConfig</h3><p>Конфігурація телеметрії на запуск, включно із захопленням вмісту.</p></div>
+    <div class="card"><h3>OTel-експортери</h3><p>Надсилають спани в Datadog, Langfuse, MLflow та інші.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li>Налагоджувати поведінку агента, оглядаючи трейси викликів моделі/інструментів.</li>
+    <li>Випромінювати метрики та логи в бекенд спостережуваності (Datadog, Langfuse тощо).</li>
+    <li>Обмежувати або редагувати захоплення вмісту для відповідності вимогам.</li>
+  </ul>
+
+  <div class="note">Екосистема надає багато інтеграцій спостережуваності (AgentOps, Langfuse, MLflow, W&amp;B Weave, Phoenix, Cloud Trace та інші). Телеметрія зазвичай налаштовується на запуск через <code>agent.RunConfig</code>.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import "google.golang.org/adk/v2/agent"
+
+// Налаштуйте телеметрію на запуск
+for event, err := range r.Run(ctx, userID, sessionID, userMsg, agent.RunConfig{
+    StreamingMode: agent.StreamingModeNone,
+    // параметри телеметрії тут
+}) {
+    // ...
+}</code></pre>
+  <p class="muted">Див. також: <code>runner</code> (RunConfig), інтеграції спостережуваності.</p>
+</section>
+
+<!-- 14-evaluation.html -->
+<section>
+  <div class="crumb">МОДУЛЬ 14 з 14</div>
+  <h1><span class="h-emoji">✅</span> оцінювання</h1>
+  <div class="module">google.golang.org/adk/v2/eval</div>
+  <p>ADK надає <strong>вбудоване оцінювання агентів</strong>: створюйте багатоходові набори даних оцінювання та запускайте їх проти агента, щоб виміряти якість і спрямовувати покращення. Оцінювач виконує кожен тестовий випадок, записує події та оцінює результати за критеріями.</p>
+
+  <h2>Конвеєр оцінювання</h2>
+  <svg viewBox="0 0 760 220" role="img" aria-label="конвеєр оцінювання">
+    <defs>
+      <marker id="ah14" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="18" y="62" width="172" height="96" rx="10" class="dg-b-out"/>
+    <text x="104" y="104.9" class="dg-lb" style="font-size:13px" text-anchor="middle">Набір даних eval</text>
+    <text x="104" y="122.9" class="dg-sb" text-anchor="middle">багатоходові випадки</text>
+    <rect x="206" y="62" width="172" height="96" rx="10" class="dg-b-model beat" style="--bd:0.6s"/>
+    <text x="292" y="97.4" class="dg-lb" style="font-size:13px" text-anchor="middle">пакет eval</text>
+    <text x="292" y="115.4" class="dg-sb" text-anchor="middle">запускає агента</text>
+    <text x="292" y="130.4" class="dg-sb" text-anchor="middle">записує події</text>
+    <rect x="394" y="62" width="172" height="96" rx="10" class="dg-b-model beat" style="--bd:1.1s"/>
+    <text x="480" y="97.4" class="dg-lb" style="font-size:13px" text-anchor="middle">Scorers / Criteria</text>
+    <text x="480" y="115.4" class="dg-sb" text-anchor="middle">оцінює відповідь</text>
+    <text x="480" y="130.4" class="dg-sb" text-anchor="middle">LLM/на основі правил</text>
+    <rect x="582" y="62" width="172" height="96" rx="10" class="dg-b-tool beat" style="--bd:1.7s"/>
+    <text x="668" y="97.4" class="dg-lb" style="font-size:13px" text-anchor="middle">Результати</text>
+    <text x="668" y="115.4" class="dg-sb" text-anchor="middle">метрики якості</text>
+    <text x="668" y="130.4" class="dg-sb" text-anchor="middle">спрямовують ітерації</text>
+    <path d="M 190 110 L 199 110" class="dg-link flow" marker-end="url(#ah14)"/>
+    <path d="M 378 110 L 387 110" class="dg-link flow" marker-end="url(#ah14)"/>
+    <path d="M 566 110 L 575 110" class="dg-link dg-link-warm flow" marker-end="url(#ah14)"/>
+    <circle r="5.5" class="dg-dot packet" style="offset-path:path('M 24 110 L 748 110');--dur:2.6s"/>
+  </svg>
+
+  <h2>Ключові компоненти</h2>
+  <div class="grid">
+    <div class="card"><h3>пакет eval</h3><p>Запускає набори даних оцінювання проти агента та записує результати.</p></div>
+    <div class="card"><h3>Criteria</h3><p>Структуровані критерії оцінювання для оцінки відповідей.</p></div>
+    <div class="card"><h3>Власні метрики</h3><p>Визначайте власні функції оцінювання для вашого домену.</p></div>
+    <div class="card"><h3>Симуляція користувача/середовища</h3><p>Симулюйте користувачів і середовища для реалістичності багатоходового eval.</p></div>
+  </div>
+
+  <h2>Сценарії використання</h2>
+  <ul>
+    <li>Регресійно тестувати агента після змін на фіксованому наборі даних.</li>
+    <li>Порівнювати моделі/конфігурації на тому самому наборі оцінювання.</li>
+    <li>Відстежувати якість між релізами; налаштовувати підказки за оцінками.</li>
+  </ul>
+
+  <div class="note">Оцінювання пов'язане з <code>telemetry</code> (захоплені трейси) для перегляду. Також див. інструменти оптимізації для налаштування та сховища прикладів, що використовуються в eval.</div>
+
+  <h2>Швидкий приклад</h2>
+  <pre><code>import "google.golang.org/adk/v2/eval"
+
+// Запустіть набір даних оцінювання проти агента
+results, err := eval.Run(ctx, eval.Config{
+    Agent:   myAgent,
+    Dataset: "path/to/eval.jsonl",
+    Workers: 4,
+})
+// results містять оцінки та події на кожен випадок</code></pre>
+  <p class="muted">Див. також: telemetry, optimization, документація evaluate/criteria.</p>
+</section>
+
+</template>
+
+<script>
+(function () {
+  'use strict';
+
+  // Modules are authored inside <template> so the source stays readable; lift
+  // them into the deck and let the .active class drive display + animation.
+  var deck = document.getElementById('deck');
+  var bar  = document.getElementById('progress');
+  var tpl  = document.getElementById('src');
+  var nav  = document.getElementById('toc');
+
+  Array.prototype.forEach.call(tpl.content.querySelectorAll('section'), function (s) {
+    s.classList.add('slide');
+    deck.appendChild(document.importNode(s, true));
+  });
+
+  var slides = Array.prototype.slice.call(deck.querySelectorAll('.slide'));
+  var items  = Array.prototype.slice.call(nav.querySelectorAll('.nav-item'));
+  var i = 0;
+
+  // Stagger is generated, never hand-maintained: authoring a --d on every block
+  // is exactly the bookkeeping that rots when a section is inserted mid-page.
+  slides.forEach(function (s) {
+    var d = 0;
+    Array.prototype.forEach.call(s.children, function (el) {
+      el.classList.add('rise');
+      el.style.setProperty('--d', d.toFixed(2) + 's');
+      d = Math.min(d + 0.05, 0.6);
+    });
+  });
+
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function (s, k) { s.classList.toggle('active', k === i); });
+    items.forEach(function (a, k) { a.classList.toggle('on', k === i); });
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    scrollTo(0, 0);
+    var on = items[i];
+    if (on && on.scrollIntoView) { on.scrollIntoView({block: 'nearest', inline: 'nearest'}); }
+    try { location.hash = String(i + 1); } catch (e) {}
+  }
+
+  // One handler for both the sidebar and the overview cards: anything carrying
+  // data-go is a jump target, so adding a link never means adding a listener.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-go]');
+    if (!a) return;
+    e.preventDefault();
+    show(parseInt(a.dataset.go, 10));
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); show(i + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End') { e.preventDefault(); show(slides.length - 1); }
+    else if (e.key === 'o' || e.key === 'O') { show(0); }
+    else if (e.key === 'f' || e.key === 'F') {
+      if (document.fullscreenElement) { document.exitFullscreen(); }
+      else { document.documentElement.requestFullscreen().catch(function () {}); }
+    }
+  });
+
+  // Deep links: #7 opens module 6, and editing the hash live still works.
+  addEventListener('hashchange', function () {
+    var n = parseInt((location.hash || '#1').slice(1), 10) - 1;
+    if (!isNaN(n) && n !== i) show(n);
+  });
+
+  show(parseInt((location.hash || '#1').slice(1), 10) - 1 || 0);
+})();
+</script>
+</body>
+</html>

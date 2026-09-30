@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADK 1.x vs 2.x — Tree to Graph</title>
+<style>
+/* ============================================================================
+   ADK 1.x → 2.x — single-file deck on what the execution engine swap actually
+   changed: a hierarchical agent tree routed by the language model, replaced by
+   a workflow graph routed by an edge table.
+
+   Same shell as adk-go-workflows.html and git-cheatsheet.html on purpose: one
+   file, no CDN, no webfonts, no JS libraries, opens from a USB stick with no
+   network. The design system (palette, one plashka radius, deck chrome, staged
+   reveal, hash routing, print-to-PDF) is copied verbatim from those decks so
+   the shelf reads as one set. The week-0 diagram vocabulary is dropped — the
+   two pictures here are hand-drawn SVG — and a small comparison vocabulary
+   (.split / .panel.old / .panel.new / .dim / .brk / .trace) is added instead,
+   because every module on this deck is the same shape: one question, two
+   answers, side by side.
+
+   Visual system: the Pi-Go design system (wiki-tools/internal/docsingest/
+   shell/deck.css). Closed palette — deep-space navy grounds, neon cyan as the
+   primary accent, magenta/purple/green secondaries. The old-vs-new pair is
+   ORANGE for 1.x and GREEN for 2.x, both from that closed palette; no hue is
+   invented for this deck.
+
+   Provenance: reworked from a Claude artifact ("Tree to Graph",
+   ce5bb116-e3b9-4d8c-bebb-73e40919ccca, authored 2026-08-30), which in turn
+   reads the ADK source rather than the announcement posts. The prose, the two
+   engine diagrams, the eight comparison rows, the trace excerpts and the
+   breaking-change list are its structure and its wording, re-cut into shelf
+   modules. Nothing under courses/ was read or modified.
+
+   CORRECTIONS made to the source while ingesting — the reason this is not a
+   reformat. The artifact's header pill read «ADK Go v2.0.0 · Go 1.25+», and
+   its Go breaking-change row repeated «Requires Go 1.25+». Both were verified
+   against proxy.golang.org on 2026-08-30 and both are stale:
+     · latest adk/v2 is v2.2.0, tagged 2026-08-10 — not v2.0.0;
+     · adk/v2@v2.2.0 declares `go 1.26.5`; only v2.0.0 declared `go 1.25.0`;
+     · this repo's wiki-tools/go.mod declares `go 1.27`, which is OUR floor and
+       not ADK's — the two numbers are different and both correct.
+   Module 06 now carries all three numbers explicitly. This is the exact
+   confusion CLAUDE.md §0a exists to prevent, so it is called out on the deck
+   rather than silently patched.
+
+   SOURCE-LANGUAGE CAVEAT, also added here: the artifact's file references are
+   overwhelmingly adk-python (`base_agent.py`, `agent_transfer.py`,
+   `workflow/_graph.py`). This course teaches the Go SDK first, so every module
+   marks which side a claim was read from. The architecture is shared; the
+   symbol names are not.
+
+   Every version number is a dated snapshot, «станом на 08/2026». Re-verify
+   before this is recorded or taught.
+   ========================================================================== */
+
+:root{
+  /* ── Pi-Go design system ──────────────────────────────────────────────
+     Source of truth: the "Pi-Go Design System" project on claude.ai/design,
+     mirrored for the app at internal/serve/static/theme.css. These tokens are
+     INLINED rather than linked because a shelf document must open from a USB
+     stick with no network (verify.go rule 3), and because it is published as
+     a Gist or handed round as a file — nothing external may be fetched at
+     render time.
+
+     Same constraint kills the webfonts: the three families are named below so
+     a machine that has them installed uses them, but there is no @font-face
+     (the woff2 live behind the server, and @import is a verify.go error), so
+     most readers see the fallback stacks. That is the accepted trade for
+     portability — the palette, not the type, is what makes the shelf read as
+     one set.
+
+     This shelf used to carry the Prometheus brandbook (cream/peach/orange,
+     light mode). It moved to Pi-Go on 2026-08-30: the shelf is a wiki reading
+     surface viewed inside `wiki serve`, not a learner-facing Prometheus deck,
+     so it follows the wiki's own system. courses/STYLE.md still governs actual
+     course decks under courses/ — do not "align" those to this file. */
+
+  /* surfaces */
+  --bg:#0a0a12; --bg-alt:#0d0d1a; --panel:#0f0f1e; --code-bg:#0a0a14;
+  /* neon palette */
+  --cyan:#00f0ff; --magenta:#ff00aa; --purple:#b347ff;
+  --green:#00ff88; --yellow:#ffe600; --orange:#ff6a00;
+  /* foreground — no pure white anywhere */
+  --ink:#e0e0f0; --ink-dim:#8888aa; --ink-faint:#555577; --code-text:#cdd6f4;
+
+  --line:rgba(0,240,255,.12); --line-strong:rgba(0,240,255,.25);
+  --wash:rgba(0,240,255,.08);   /* the lit surface: tags, notes, chips */
+  --accent:var(--cyan); --accent-2:var(--magenta);
+  --glow:0 0 20px rgba(0,240,255,.3), 0 0 60px rgba(0,240,255,.1);
+
+  /* Sharp, not rounded: 2px for chips and controls, 4px for panels. Pills and
+     heavy rounding are off-brand in this system, which is why --pill is 2px
+     and not 999px — the name is kept so the rules below did not have to move. */
+  --radius:4px;
+  --pill:2px;
+  --nav-w:264px;
+  --font-display:'Orbitron','SF Mono',ui-monospace,monospace;
+  --font-body:'Rajdhani',system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);line-height:1.55;
+     -webkit-font-smoothing:antialiased}
+/* The system's two signature textures: a fixed 60px grid floor behind
+   everything and a 2px scanline wash above it. Both are pointer-events:none
+   and neither animates, so they survive the reduced-motion block untouched. */
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,240,255,.03) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,240,255,.03) 1px,transparent 1px);
+  background-size:60px 60px}
+body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,
+             rgba(0,0,0,.05) 2px,rgba(0,0,0,.05) 4px)}
+::selection{background:var(--magenta);color:#000}
+
+/* ---- navigation ---------------------------------------------------------- */
+
+#toc{
+  position:fixed;left:0;top:0;bottom:0;width:var(--nav-w);z-index:50;
+  background:var(--panel);border-right:1px solid var(--line);
+  overflow-y:auto;padding:1.1rem .8rem 2rem;
+}
+#toc .toc-h{
+  font-family:var(--font-display);
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+  color:var(--cyan);border-left:2px solid var(--cyan);padding-left:9px;margin:.2rem 0 .8rem 4px;
+}
+.nav-item{
+  display:flex;align-items:baseline;gap:.55rem;
+  padding:.42rem .6rem;margin-bottom:2px;border-radius:var(--radius);
+  text-decoration:none;color:var(--ink-dim);font-size:.9rem;
+  border:1px solid transparent;transition:background .15s,border-color .15s,color .15s;
+}
+.nav-item:hover{background:var(--wash);color:var(--ink)}
+.nav-item.on{background:var(--wash);border-color:var(--line-strong);color:var(--cyan);font-weight:600}
+.n-num{font-family:var(--mono);font-size:.76rem;color:var(--ink-faint);flex:none}
+.nav-item.on .n-num{color:var(--cyan)}
+.n-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* emoji carry almost no right sidebearing, so the gap is set here, not typed
+   as a space in the markup where it visually collapses against the glyph. */
+.n-e,.c-e{margin-right:.4em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.c-e{font-weight:400}
+
+/* ---- deck ---------------------------------------------------------------- */
+
+#deck{margin-left:var(--nav-w);padding:3rem 1.5rem 5rem;position:relative;z-index:1}
+.slide{max-width:1000px;margin:0 auto;display:none}
+.slide.active{display:block;animation:slide-in .32s ease both}
+@keyframes slide-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* staged reveal: each block fades up in sequence once its slide is active.
+   --d is assigned in JS so authored markup stays free of stagger bookkeeping. */
+.slide.active > .rise{animation:rise .5s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.crumb{font-family:var(--mono);font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.5rem}
+h1{font-size:2.2rem;color:var(--cyan);margin-bottom:.3rem;font-family:var(--font-display);text-transform:uppercase;font-weight:800;letter-spacing:.5px;text-shadow:0 0 10px rgba(0,240,255,.5),0 0 30px rgba(0,240,255,.2)}
+.cover h1{font-size:2.4rem}
+.h-emoji{text-transform:none;font-weight:400;margin-right:.22em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.subtitle{color:var(--ink-dim);font-size:1.05rem;margin-bottom:1.5rem}
+.module{color:var(--cyan);font-family:var(--mono);font-size:.95rem;margin-bottom:1.2rem;word-break:break-word}
+h2{font-size:1.3rem;color:var(--ink);margin:2rem 0 .7rem;font-family:var(--font-display);text-transform:uppercase;font-weight:800;letter-spacing:1px;padding-bottom:.3em;border-bottom:1px solid transparent;border-image:linear-gradient(90deg,var(--cyan),transparent) 1}
+h3{font-size:1.05rem;color:var(--ink);font-weight:700;margin-bottom:.4rem}
+p{color:var(--ink-dim);margin-bottom:.8rem;max-width:70ch}
+.muted{color:var(--ink-dim)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin:1rem 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:1rem}
+.card h3{font-size:1rem;color:var(--cyan);margin-bottom:.4rem;font-family:var(--mono);overflow-wrap:anywhere}
+.card p{font-size:.9rem;color:var(--ink-dim);margin:0}
+a.card{text-decoration:none;color:var(--ink);display:block;transition:border-color .15s,box-shadow .15s,transform .15s}
+a.card:hover{border-color:var(--line-strong);transform:translateY(-2px);box-shadow:var(--glow)}
+a.card .path{display:block;font-size:.75rem;color:var(--ink-faint);margin-top:.4rem;font-family:var(--mono)}
+.tag{display:inline-block;background:var(--wash);color:var(--cyan);border:1px solid var(--line-strong);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin:.15rem .15rem 0 0;font-family:var(--mono)}
+.badge{display:inline-block;background:var(--wash);color:var(--cyan);border:1px solid var(--line-strong);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin-left:.4rem;vertical-align:middle;text-transform:none;font-weight:400}
+svg{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;height:auto;display:block;margin:1rem 0}
+
+ul{margin:0 0 .8rem 1.3rem}
+li{margin-bottom:.35rem;color:var(--ink-dim)}
+li::marker{color:var(--cyan)}
+code{background:var(--wash);border:0;border-radius:2px;padding:.1rem .35rem;font-family:var(--mono);font-size:.85em;color:var(--cyan)}
+/* A code block is the one place a DARK shadow is on-brand: it is a depressed
+   element, so it recedes instead of glowing. */
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:.8rem 0;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+pre code{background:none;border:none;padding:0;color:var(--code-text);display:block}
+.note{border-left:2px solid var(--accent-2);background:rgba(255,0,170,.06);padding:.8rem 1rem;border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0;font-size:.92rem;color:var(--ink)}
+
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-dim)}
+th{color:var(--cyan);font-family:var(--font-display);font-size:.72rem;letter-spacing:1px;text-transform:uppercase;font-weight:700}
+td:first-child{color:var(--ink)}
+.tw{overflow-x:auto}
+
+/* ---- chrome -------------------------------------------------------------- */
+
+#progress{position:fixed;left:0;top:0;height:2px;background:var(--cyan);z-index:60;transition:width .3s ease;box-shadow:0 0 10px rgba(0,240,255,.6)}
+#help{position:fixed;right:14px;top:12px;z-index:60;font-size:12px;color:var(--ink-faint)}
+
+@media (prefers-reduced-motion:reduce){
+  .slide.active,.slide.active > .rise{animation:none!important}
+  .flowdash{animation:none!important}
+}
+
+/* ---- comparison vocabulary (this deck's own) ----------------------------- */
+/* Every module is one question with two answers, so the whole deck needs
+   exactly one idea: a two-column split where the left column is 1.x and the
+   right is 2.x. The hue pair is ORANGE (1.x) and GREEN (2.x), both straight
+   from the closed palette — nothing is invented here, which is also what lets
+   the SVGs below use the same names. */
+.old-c{--c:var(--orange);--c-soft:rgba(255,106,0,.08);--c-line:rgba(255,106,0,.35)}
+.new-c{--c:var(--green);--c-soft:rgba(0,255,136,.08);--c-line:rgba(0,255,136,.35)}
+
+.split{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1rem 0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.panel.old{border-color:rgba(255,106,0,.35)}
+.panel.new{border-color:rgba(0,255,136,.35)}
+.phead{padding:.7rem .9rem;border-bottom:1px solid var(--line)}
+.panel.old .phead{background:rgba(255,106,0,.06)}
+.panel.new .phead{background:rgba(0,255,136,.06)}
+.ptag{font-family:var(--font-display);font-size:.62rem;letter-spacing:1px;text-transform:uppercase;font-weight:700;margin-bottom:.25rem}
+.panel.old .ptag{color:var(--orange)}
+.panel.new .ptag{color:var(--green)}
+.phead h4{font-size:.98rem;color:var(--ink);font-weight:700}
+.pbody{padding:.9rem}
+.pbody p{margin:0;font-size:.9rem}
+.panel pre{margin:0;border:0;border-radius:0;box-shadow:none;background:var(--code-bg);font-size:.78rem;line-height:1.55}
+
+/* one comparison row */
+.dim{margin:1.6rem 0}
+.dimq{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;margin-bottom:.2rem}
+.dimq .ix{font-family:var(--mono);font-size:.75rem;color:var(--ink-faint)}
+.dimq h3{margin:0;font-size:1.02rem}
+.verdict{font-family:var(--mono);font-size:.72rem;color:var(--cyan);background:var(--wash);
+         border:1px solid var(--line-strong);border-radius:var(--pill);padding:.05rem .5rem}
+
+/* the breaking-change list */
+.brk{display:grid;grid-template-columns:auto 1fr;gap:.8rem;align-items:start;
+     padding:.7rem .9rem;border:1px solid var(--line);border-radius:var(--radius);
+     background:var(--panel);margin-bottom:.6rem}
+.brk .lang{font-family:var(--font-display);font-size:.6rem;letter-spacing:1px;text-transform:uppercase;
+           font-weight:700;color:var(--purple);border:1px solid rgba(179,71,255,.35);
+           border-radius:var(--pill);padding:.12rem .45rem;white-space:nowrap}
+.brk h5{font-size:.92rem;color:var(--ink);font-weight:700;margin-bottom:.2rem}
+.brk p{font-size:.86rem;margin:0}
+
+/* an event-stream excerpt */
+.trace .row{display:grid;grid-template-columns:auto 1fr;gap:.6rem;padding:.28rem 0;
+            border-bottom:1px solid var(--line);font-family:var(--mono);font-size:.76rem}
+.trace .row:last-child{border-bottom:0}
+.trace .i{color:var(--ink-faint)}
+.trace .ev{color:var(--ink-dim);overflow-wrap:anywhere}
+.trace em{font-style:normal;color:var(--cyan)}
+.trace q{color:var(--green)}
+
+/* the node lifecycle strip */
+.states{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem}
+.st{font-family:var(--mono);font-size:.74rem;color:var(--green);background:rgba(0,255,136,.08);
+    border:1px solid rgba(0,255,136,.35);border-radius:var(--pill);padding:.15rem .5rem}
+.arrowc{color:var(--ink-faint);font-family:var(--mono)}
+
+/* syntax tints inside the code panels — all from the closed palette */
+pre .c{color:var(--ink-faint)}
+pre .k{color:var(--purple)}
+pre .s{color:var(--green)}
+pre .n{color:var(--cyan)}
+
+/* the crawling dash on the two engine diagrams */
+.flowdash{stroke-dasharray:6 8;animation:crawl 1.1s linear infinite}
+@keyframes crawl{to{stroke-dashoffset:-28}}
+
+@media (max-width:900px){
+  :root{--nav-w:0px}
+  #toc{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);
+       display:flex;gap:.35rem;overflow-x:auto;padding:.6rem .8rem;white-space:nowrap;
+       position:relative;z-index:1}
+  #toc .toc-h{display:none}
+  .nav-item{flex:none;margin:0}
+  .n-t{max-width:42vw}
+  #deck{margin-left:0;padding:1.6rem 1rem 4rem}
+  #help{display:none}
+  h1{font-size:1.7rem}
+  .split{grid-template-columns:1fr}
+}
+
+/* ---- print → PDF: every module, in order --------------------------------- */
+/* The deck is dark on screen and PAPER in print. This block is not cosmetic:
+   the rules below set print-color-adjust:exact, so without it a #0a0a12 page
+   background is faithfully reproduced and every sheet comes out solid black.
+   So print re-grounds the whole document — light paper, dark ink — and keeps
+   only the accent hues, which read fine on white. The textures go entirely:
+   a scanline overlay is a screen effect and prints as grey banding. */
+@media print{
+  @page{margin:14mm}
+  :root{
+    --bg:#ffffff; --bg-alt:#ffffff; --panel:#ffffff; --code-bg:#f4f4f8;
+    --ink:#0a0a12; --ink-dim:#33333f; --ink-faint:#666677; --code-text:#0a0a12;
+    --line:#c8c8d4; --line-strong:#9a9ab0; --wash:#eef9fb;
+    --glow:none;
+  }
+  body{background:#ffffff;color:#0a0a12}
+  body::before,body::after{display:none!important}
+  h1{color:#0a0a12;text-shadow:none}
+  h2{color:#0a0a12;border-image:none;border-bottom:1px solid #c8c8d4}
+  /* Neon cyan is invisible on white, so the accent darkens to a teal that
+     still reads as "the accent colour" but survives a laser printer. */
+  .module,.card h3,code,.tag,.badge,th,.verdict{color:#005f6b}
+  pre{box-shadow:none}
+  #progress{box-shadow:none}
+  #toc,#progress,#help{display:none!important}
+  #deck{margin:0;padding:0}
+  .slide{display:block!important;page-break-after:always;break-after:page;max-width:none}
+  .slide *{animation:none!important;opacity:1!important;transform:none!important}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<nav id="toc">
+<div class="toc-h">Modules</div>
+<a class="nav-item" data-go="0" href="#1"><span class="n-num">00</span><span class="n-t">Overview</span></a>
+<a class="nav-item" data-go="1" href="#2"><span class="n-num">01</span><span class="n-t"><span class="n-e">🔀</span>engines</span></a>
+<a class="nav-item" data-go="2" href="#3"><span class="n-num">02</span><span class="n-t"><span class="n-e">📊</span>changed</span></a>
+<a class="nav-item" data-go="3" href="#4"><span class="n-num">03</span><span class="n-t"><span class="n-e">📝</span>code</span></a>
+<a class="nav-item" data-go="4" href="#5"><span class="n-num">04</span><span class="n-t"><span class="n-e">🧾</span>trace</span></a>
+<a class="nav-item" data-go="5" href="#6"><span class="n-num">05</span><span class="n-t"><span class="n-e">♻️</span>lifecycle</span></a>
+<a class="nav-item" data-go="6" href="#7"><span class="n-num">06</span><span class="n-t"><span class="n-e">💥</span>breaks</span></a>
+<a class="nav-item" data-go="7" href="#8"><span class="n-num">07</span><span class="n-t"><span class="n-e">🧬</span>stayed</span></a>
+<a class="nav-item" data-go="8" href="#9"><span class="n-num">08</span><span class="n-t"><span class="n-e">🔬</span>sources</span></a>
+</nav>
+<div id="progress"></div>
+<div id="help">← → navigate · O overview · F fullscreen</div>
+<main id="deck"></main>
+
+<template id="src">
+
+<!-- 00 cover -->
+<section class="cover">
+<h1>ADK 1.x → 2.x: tree to graph</h1>
+<div class="subtitle">“ADK moved from a hierarchical agent executor to a graph engine” is a real architectural change, not marketing. What each one actually is — and what the swap costs you on upgrade.</div>
+
+<div class="grid">
+  <div class="card old-c">
+    <h3>1.x — the model routes</h3>
+    <p>The shape of your system lived in a <b>tree of agents</b>, and the route through it was chosen by the language model. ADK injected the names and descriptions of reachable agents into the prompt as text; the model replied with <code>transfer_to_agent()</code>. <b>Control flow was model output.</b></p>
+  </div>
+  <div class="card new-c">
+    <h3>2.x — the graph routes</h3>
+    <p>The shape lives in a <b>graph of typed nodes and edges</b>, and the route is chosen by matching an emitted route value against those edges. <b>Control flow is data.</b> Agents did not go away: <code>BaseAgent</code> now subclasses <code>BaseNode</code>, so an agent is one kind of node, and a whole graph is another.</p>
+  </div>
+</div>
+
+<h2>Snapshot, and what was corrected</h2>
+<p>Every version number on this deck is a dated snapshot, <b>станом на 08/2026</b>, verified against <code>proxy.golang.org</code> on 2026-08-30. The source document this was built from carried a stale pin, and it is corrected here rather than quietly patched, because it is the exact confusion this repo has hit before:</p>
+
+<div class="tw">
+<table>
+<tr><th>Number</th><th>Value</th><th>What it means</th></tr>
+<tr><td><code>google.golang.org/adk/v2</code></td><td><code>v2.2.0</code></td><td>Latest release, tagged 2026-08-10. The source document said <code>v2.0.0</code>.</td></tr>
+<tr><td><code>adk/v2@v2.2.0</code> go directive</td><td><code>go 1.26.5</code></td><td><b>ADK's own floor.</b> The source document said “Go 1.25+”, which was true of v2.0.0 (<code>go 1.25.0</code>) and is two minors stale.</td></tr>
+<tr><td><code>wiki-tools/go.mod</code></td><td><code>go 1.27</code></td><td><b>This repo's floor</b> — a different number from ADK's, and both are correct. A learner who “aligns” them breaks their build.</td></tr>
+</table>
+</div>
+
+<div class="note">
+<b>Which SDK is this read from?</b> The analysis behind this deck is overwhelmingly <b>adk-python</b> source (<code>base_agent.py</code>, <code>agent_transfer.py</code>, <code>workflow/_graph.py</code>). This course teaches the <b>Go</b> SDK first. The architecture is shared and the comparison holds on both sides, but the symbol names are not interchangeable — each module below marks which side its evidence comes from.
+</div>
+
+<p class="muted">Re-verify the pins before anything here is recorded or taught. The two other ADK decks on this shelf describe an SDK that moved two minor versions in one month.</p>
+</section>
+
+<!-- 01 engines -->
+<section>
+<div class="crumb">MODULE 1 of 8</div>
+<h1><span class="h-emoji">🔀</span> engines</h1>
+<div class="module">the same request, two engines · transfer_to_agent vs Event.Routes</div>
+
+<p>A billing question arrives. On the left every hop costs a model call that could go elsewhere; on the right one classification is made, and the rest is edges.</p>
+
+<div class="split">
+  <div class="panel old">
+    <div class="phead"><div class="ptag">ADK 1.x · hierarchical executor</div><h4>The router is prompt text</h4></div>
+    <div class="pbody">
+      <p style="margin-bottom:.6rem">Each ● is a model call that re-decides where to go.</p>
+      <svg viewBox="0 0 300 210" role="img" aria-label="An agent tree where each hop is decided by a model call">
+        <defs>
+          <marker id="ao" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 z" fill="var(--orange)"/>
+          </marker>
+        </defs>
+        <g font-family="ui-monospace, monospace" font-size="9">
+          <text x="150" y="16" text-anchor="middle" fill="var(--ink-faint)">user: “refund my order”</text>
+          <path d="M150,22 L150,36" stroke="var(--orange)" stroke-width="1.4" marker-end="url(#ao)"/>
+
+          <rect x="102" y="38" width="96" height="30" rx="2" fill="rgba(255,106,0,.10)" stroke="var(--orange)" stroke-width="1.4"/>
+          <text x="150" y="57" text-anchor="middle" fill="var(--ink)" font-weight="600">triage</text>
+
+          <circle cx="150" cy="78" r="5.5" fill="var(--orange)"/>
+          <text x="163" y="81" fill="var(--orange)" font-size="8">LLM picks a name</text>
+
+          <path class="flowdash" d="M150,84 L88,108" stroke="var(--orange)" stroke-width="1.8" fill="none" marker-end="url(#ao)"/>
+          <path d="M150,84 L212,108" stroke="var(--orange)" stroke-width="1.2" fill="none" marker-end="url(#ao)" opacity=".45"/>
+
+          <rect x="34" y="112" width="106" height="28" rx="2" fill="var(--bg-alt)" stroke="var(--orange)" stroke-width="1.4"/>
+          <text x="87" y="130" text-anchor="middle" fill="var(--ink)" font-weight="600">billing</text>
+
+          <rect x="164" y="112" width="106" height="28" rx="2" fill="var(--bg-alt)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="217" y="130" text-anchor="middle" fill="var(--ink-dim)">support</text>
+
+          <circle cx="87" cy="150" r="5.5" fill="var(--orange)"/>
+
+          <path d="M78,155 C34,168 34,60 100,54" stroke="var(--orange)" stroke-width="1.1" fill="none"
+                stroke-dasharray="3 3" opacity=".6" marker-end="url(#ao)"/>
+          <text x="16" y="112" fill="var(--ink-faint)" font-size="7.5">↰ parent</text>
+
+          <path d="M96,155 C140,178 176,178 210,148" stroke="var(--orange)" stroke-width="1.1" fill="none"
+                stroke-dasharray="3 3" opacity=".6" marker-end="url(#ao)"/>
+          <text x="150" y="190" text-anchor="middle" fill="var(--ink-faint)" font-size="7.5">↔ peer</text>
+
+          <text x="150" y="205" text-anchor="middle" fill="var(--orange)" font-size="8">reachable set = sub-agents + parent + peers</text>
+        </g>
+      </svg>
+      <p><b>Cost:</b> 2 model calls before any work is done.</p>
+    </div>
+  </div>
+
+  <div class="panel new">
+    <div class="phead"><div class="ptag">ADK 2.x · graph engine</div><h4>The router is an edge table</h4></div>
+    <div class="pbody">
+      <p style="margin-bottom:.6rem">One classification emits a route value; edges do the rest.</p>
+      <svg viewBox="0 0 300 210" role="img" aria-label="A workflow graph where typed edges decide the path">
+        <defs>
+          <marker id="an" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 z" fill="var(--green)"/>
+          </marker>
+        </defs>
+        <g font-family="ui-monospace, monospace" font-size="9">
+          <text x="150" y="16" text-anchor="middle" fill="var(--ink-faint)">__START__</text>
+          <path d="M150,22 L150,36" stroke="var(--green)" stroke-width="1.4" marker-end="url(#an)"/>
+
+          <rect x="96" y="38" width="108" height="30" rx="2" fill="rgba(0,255,136,.10)" stroke="var(--green)" stroke-width="1.4"/>
+          <text x="150" y="57" text-anchor="middle" fill="var(--ink)" font-weight="600">classify</text>
+
+          <text x="150" y="82" text-anchor="middle" fill="var(--green)" font-size="8">emits Event.Routes = "BILLING"</text>
+
+          <path class="flowdash" d="M132,86 L82,110" stroke="var(--green)" stroke-width="1.8" fill="none" marker-end="url(#an)"/>
+          <path d="M150,86 L150,110" stroke="var(--ink-faint)" stroke-width="1.2" fill="none" marker-end="url(#an)" opacity=".5"/>
+          <path d="M168,86 L222,110" stroke="var(--ink-faint)" stroke-width="1.2" fill="none" marker-end="url(#an)" opacity=".5"/>
+
+          <text x="88" y="100" fill="var(--green)" font-size="7">"BILLING"</text>
+          <text x="163" y="100" fill="var(--ink-faint)" font-size="7">"SUPPORT"</text>
+          <text x="212" y="100" fill="var(--ink-faint)" font-size="7">__DEFAULT__</text>
+
+          <rect x="30" y="112" width="76" height="28" rx="2" fill="var(--bg-alt)" stroke="var(--green)" stroke-width="1.4"/>
+          <text x="68" y="130" text-anchor="middle" fill="var(--ink)" font-weight="600">refund</text>
+
+          <rect x="114" y="112" width="72" height="28" rx="2" fill="var(--bg-alt)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="150" y="130" text-anchor="middle" fill="var(--ink-dim)">support</text>
+
+          <rect x="194" y="112" width="76" height="28" rx="2" fill="var(--bg-alt)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="232" y="130" text-anchor="middle" fill="var(--ink-dim)">fallback</text>
+
+          <path class="flowdash" d="M68,144 L124,164" stroke="var(--green)" stroke-width="1.8" fill="none" marker-end="url(#an)"/>
+          <path d="M150,144 L150,164" stroke="var(--ink-faint)" stroke-width="1.2" fill="none" marker-end="url(#an)" opacity=".5"/>
+          <path d="M232,144 L176,164" stroke="var(--ink-faint)" stroke-width="1.2" fill="none" marker-end="url(#an)" opacity=".5"/>
+
+          <rect x="118" y="166" width="64" height="24" rx="2" fill="rgba(0,255,136,.10)" stroke="var(--green)" stroke-width="1.4"/>
+          <text x="150" y="182" text-anchor="middle" fill="var(--ink)" font-weight="600">__END__</text>
+
+          <text x="150" y="205" text-anchor="middle" fill="var(--green)" font-size="8">reachable set = exactly the declared edges</text>
+        </g>
+      </svg>
+      <p><b>Cost:</b> 0 model calls if <code>classify</code> is a plain function.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- 02 changed -->
+<section>
+<div class="crumb">MODULE 2 of 8</div>
+<h1><span class="h-emoji">📊</span> changed</h1>
+<div class="module">eight questions, asked of both engines</div>
+
+<p>Each row asks one question of both engines. The claims are drawn from the ADK source, not from the announcement post — file references are named where the behaviour is non-obvious. Unless a row says otherwise, the file names are <b>adk-python</b>.</p>
+
+<div class="dim">
+  <div class="dimq"><span class="ix">01</span><h3>Who computes the next step?</h3><span class="verdict">prompt text → edge table</span></div>
+  <div class="split">
+    <div class="panel old"><div class="phead"><div class="ptag">1.x · hierarchical</div><h4>The language model</h4></div>
+      <div class="pbody"><p>ADK appends the reachable agents' names and descriptions to the LLM request as instruction text — literally <i>“You have a list of other agents to transfer to…”</i> — then the model emits <code>transfer_to_agent(agent_name=…)</code>, which sets <code>tool_context.actions.transfer_to_agent</code>. Routing accuracy is a model behaviour.</p></div></div>
+    <div class="panel new"><div class="phead"><div class="ptag">2.x · graph</div><h4>The graph</h4></div>
+      <div class="pbody"><p>A node emits a route value on <code>Event.Routes</code>. <code>Graph.get_next_pending_nodes()</code> matches it against the declared edges: untagged edges always fire, a matching route wins, otherwise <code>DEFAULT_ROUTE</code>. No match and no default, and the branch quietly ends.</p></div></div>
+  </div>
+</div>
+
+<div class="dim">
+  <div class="dimq"><span class="ix">02</span><h3>Where does the topology live?</h3><span class="verdict">inferred → declared</span></div>
+  <div class="split">
+    <div class="panel old"><div class="phead"><div class="ptag">1.x · hierarchical</div><h4>Implicit in the tree, at runtime</h4></div>
+      <div class="pbody"><p><code>_get_transfer_targets()</code> computes the reachable set each request: sub-agents, plus the parent unless <code>disallow_transfer_to_parent</code>, plus every peer unless <code>disallow_transfer_to_peers</code>. You never wrote the graph down — you pruned a default one with negative flags.</p></div></div>
+    <div class="panel new"><div class="phead"><div class="ptag">2.x · graph</div><h4>An explicit edge list</h4></div>
+      <div class="pbody"><p><code>Edge{from_node, to_node, route}</code> is data you construct, and <code>validate_graph()</code> checks it before anything runs. The reachable set is exactly what you declared — reviewable in a diff.</p></div></div>
+  </div>
+</div>
+
+<div class="dim">
+  <div class="dimq"><span class="ix">03</span><h3>How does data move between steps?</h3><span class="verdict">stringly-typed → typed</span></div>
+  <div class="split">
+    <div class="panel old"><div class="phead"><div class="ptag">1.x · hierarchical</div><h4>Shared session state, by string key</h4></div>
+      <div class="pbody"><p><code>output_key</code> writes an agent's text response into <code>state['key']</code>; the next agent reads it by interpolating <code>{key}</code> into its instruction. Late-bound and silent on a typo — you find out from a bad answer, not an error.</p></div></div>
+    <div class="panel new"><div class="phead"><div class="ptag">2.x · graph</div><h4>Typed output on the event</h4></div>
+      <div class="pbody"><p>A node returns a value; the framework sets <code>Event.Output</code> and the successor receives it as typed input. <code>input_schema</code> / <code>output_schema</code> validate at the boundary, and Go's <code>NewAgentNodeTyped[In,Out]</code> gives it to you at compile time.</p></div></div>
+  </div>
+</div>
+
+<div class="dim">
+  <div class="dimq"><span class="ix">04</span><h3>What is the unit of execution?</h3><span class="verdict">agent → node</span></div>
+  <div class="split">
+    <div class="panel old"><div class="phead"><div class="ptag">1.x · hierarchical</div><h4>An agent</h4></div>
+      <div class="pbody"><p><code>BaseAgent._run_async_impl(ctx)</code> is the override point. A custom agent means subclassing and hand-writing the control flow yourself, including any retry, branching or bookkeeping.</p></div></div>
+    <div class="panel new"><div class="phead"><div class="ptag">2.x · graph</div><h4>A node — and an agent is one</h4></div>
+      <div class="pbody"><p><code>class BaseAgent(BaseNode, abc.ABC)</code>. Tools and plain functions are nodes too. So is a whole workflow: <code>class Workflow(BaseNode)</code>, whose docstring says <code>_run_impl()</code> <i>is</i> the graph orchestration loop. That single line is why graphs nest for free.</p></div></div>
+  </div>
+</div>
+
+<div class="dim">
+  <div class="dimq"><span class="ix">05</span><h3>What happens when a step fails?</h3><span class="verdict">yours → the engine's</span></div>
+  <div class="split">
+    <div class="panel old"><div class="phead"><div class="ptag">1.x · hierarchical</div><h4>Your problem</h4></div>
+      <div class="pbody"><p>Retry, backoff and timeout are application-level concerns. A failure inside <code>_run_async_impl</code> propagates however you wrote it.</p></div></div>
+    <div class="panel new"><div class="phead"><div class="ptag">2.x · graph</div><h4>Per-node policy</h4></div>
+      <div class="pbody"><p><code>RetryConfig</code> and <code>timeout_seconds</code> are fields on <code>BaseNode</code>; <code>NodeState.attempt_count</code> tracks the try. Graph-wide <code>WithMaxConcurrency(n)</code> caps parallel blast radius, and <code>NodeTimeoutError</code> is a distinct type.</p></div></div>
+  </div>
+</div>
+
+<div class="dim">
+  <div class="dimq"><span class="ix">06</span><h3>Can a paused run survive a restart?</h3><span class="verdict">opt-in &amp; coarse → structural</span></div>
+  <div class="split">
+    <div class="panel old"><div class="phead"><div class="ptag">1.x · hierarchical</div><h4>Opt-in, agent-granular</h4></div>
+      <div class="pbody"><p><code>ResumabilityConfig(is_resumable=True)</code> checkpointed agent completion through events. Sequential tracked <code>current_sub_agent</code>, Loop tracked <code>times_looped</code>, Parallel tracked which children finished. Tools could re-execute — a documented hazard for purchases.</p></div></div>
+    <div class="panel new"><div class="phead"><div class="ptag">2.x · graph</div><h4>Built into node state</h4></div>
+      <div class="pbody"><p>Status, <code>interrupts</code> and <code>resume_inputs</code> are serializable fields on <code>NodeState</code>, so <code>WAITING</code> outlives the process. In dynamic workflows, completed child activations are cached and skipped on resume. <code>rerun_on_resume</code> picks re-entry versus handoff.</p></div></div>
+  </div>
+</div>
+
+<div class="dim">
+  <div class="dimq"><span class="ix">07</span><h3>Is a run reproducible?</h3><span class="verdict">no → by design</span></div>
+  <div class="split">
+    <div class="panel old"><div class="phead"><div class="ptag">1.x · hierarchical</div><h4>Not really</h4></div>
+      <div class="pbody"><p>Event ids and timestamps were generated internally by <code>session.NewEvent(invocationID)</code>, and code could append straight onto <code>context.session.events</code>. Replaying a run to debug it was not a supported idea.</p></div></div>
+    <div class="panel new"><div class="phead"><div class="ptag">2.x · graph</div><h4>Replay is a design goal</h4></div>
+      <div class="pbody"><p><code>session.NewEvent(ctx, invocationID)</code> now takes a context, and ids and timestamps come from the <code>platform</code> package — so <code>platform.WithTimeProvider</code> and <code>WithUUIDProvider</code> let a workflow engine produce deterministic, replay-safe events. <b>(Go)</b></p></div></div>
+  </div>
+</div>
+
+<div class="dim">
+  <div class="dimq"><span class="ix">08</span><h3>Can you tell why it went there?</h3><span class="verdict">author only → node + route</span></div>
+  <div class="split">
+    <div class="panel old"><div class="phead"><div class="ptag">1.x · hierarchical</div><h4>You see who spoke</h4></div>
+      <div class="pbody"><p>Events carry content and actions. You can see that a transfer happened and to whom, but the decision came from weighing description strings inside a prompt the framework assembled.</p></div></div>
+    <div class="panel new"><div class="phead"><div class="ptag">2.x · graph</div><h4>You see the node and the route</h4></div>
+      <div class="pbody"><p>Python's <code>Event</code> gains <code>node_info</code> and <code>output</code>; Go's gains <code>IsolationScope</code>, <code>Routes</code>, <code>RequestedInput</code>, <code>Output</code> and <code>NodeInfo</code>. The trace records both the path and the value that chose it.</p></div></div>
+  </div>
+</div>
+</section>
+
+<!-- 03 code -->
+<section>
+<div class="crumb">MODULE 3 of 8</div>
+<h1><span class="h-emoji">📝</span> code</h1>
+<div class="module">the same triage, written both ways · sub_agents vs AddRoutes</div>
+
+<p>Notice where the topology is written down. On the left it is nowhere — it is inferred from nesting and constrained with negative flags. On the right it is a literal map. The left is Python because that is where the tree idiom is clearest; the right is Go because that is the SDK this course teaches.</p>
+
+<div class="split">
+  <div class="panel old">
+    <div class="phead"><div class="ptag">ADK 1.x · hierarchical (Python)</div><h4>Topology is implied by nesting</h4></div>
+    <pre><code><span class="c"># Nothing here states "triage may go to billing".</span>
+<span class="c"># ADK derives that at runtime from the tree.</span>
+
+billing = <span class="k">LlmAgent</span>(
+    name=<span class="s">"billing"</span>,
+    description=<span class="s">"Handles billing and refunds"</span>,   <span class="c"># ← the router reads THIS</span>
+)
+support = <span class="k">LlmAgent</span>(
+    name=<span class="s">"support"</span>,
+    description=<span class="s">"Handles technical problems"</span>,
+)
+
+triage = <span class="k">LlmAgent</span>(
+    name=<span class="s">"triage"</span>,
+    instruction=<span class="s">"Route the user to a specialist."</span>,
+    sub_agents=[billing, support],
+    <span class="c"># constrain reachability with NEGATIVE flags:</span>
+    <span class="c"># disallow_transfer_to_parent=True</span>
+    <span class="c"># disallow_transfer_to_peers=True</span>
+)
+
+<span class="c"># At request time ADK appends to the prompt:</span>
+<span class="c">#   "You have a list of other agents to transfer to: ...</span>
+<span class="c">#    NOTE: the only available agents are `billing`, `support`."</span>
+<span class="c"># The model replies with transfer_to_agent(agent_name="billing"),</span>
+<span class="c"># which sets tool_context.actions.transfer_to_agent.</span></code></pre>
+  </div>
+
+  <div class="panel new">
+    <div class="phead"><div class="ptag">ADK 2.x · graph (Go)</div><h4>Topology is the edge table</h4></div>
+    <pre><code><span class="c">// The reachable set IS this map. Nothing else.</span>
+
+classify := workflow.<span class="n">NewEmittingFunctionNode</span>[Ticket, string](
+    <span class="s">"classify"</span>,
+    <span class="k">func</span>(ctx agent.Context, t Ticket,
+        emit <span class="k">func</span>(*session.Event) <span class="k">error</span>) (<span class="k">string</span>, <span class="k">error</span>) {
+        <span class="k">return</span> category(t), <span class="k">nil</span>   <span class="c">// pure code — no model call</span>
+    },
+    workflow.NodeConfig{},
+)
+
+<span class="c">// Edges are a VALUE you build, then hand to the agent.</span>
+edges := workflow.<span class="n">Concat</span>(
+    workflow.<span class="n">Chain</span>(workflow.Start, classifyNode, routeNode),
+    []workflow.Edge{
+        {From: routeNode, To: refundNode,   Route: workflow.<span class="n">StringRoute</span>(<span class="s">"BILLING"</span>)},
+        {From: routeNode, To: supportNode,  Route: workflow.<span class="n">StringRoute</span>(<span class="s">"SUPPORT"</span>)},
+        <span class="c">// Default is a route VALUE, not a call. There is no workflow.END —</span>
+        <span class="c">// a branch simply has no outgoing edge.</span>
+        {From: routeNode, To: fallbackNode, Route: workflow.Default},
+    },
+)
+
+<span class="c">// A graph is an agent — same executor, so it nests:</span>
+root, _ := workflowagent.<span class="n">New</span>(workflowagent.Config{
+    Name: <span class="s">"triage"</span>, Edges: edges,
+    SubAgents: []agent.Agent{classifier},
+})
+
+<span class="c">// Unmatched route with no Default? The branch simply ends —</span>
+<span class="c">// validation/scheduling logs it and stops. Always</span>
+<span class="c">// declare a Default.</span></code></pre>
+  </div>
+</div>
+
+<div class="note">
+The <code>Default</code> is not optional in practice. An unmatched route with no default does not raise — the branch <b>quietly ends</b>, which looks identical to a workflow that finished successfully. This is the single easiest way to ship a graph that silently drops requests.
+</div>
+</section>
+
+<!-- 04 trace -->
+<section>
+<div class="crumb">MODULE 4 of 8</div>
+<h1><span class="h-emoji">🧾</span> trace</h1>
+<div class="module">session.Event · node_info · Routes · Output</div>
+
+<p>The most practical difference on day one: in 2.x every event carries the node that produced it and the route it took, so a trace tells you <i>why</i> the path went where it went.</p>
+
+<div class="split">
+  <div class="panel old">
+    <div class="phead"><div class="ptag">ADK 1.x</div><h4>Events carry content and actions</h4></div>
+    <div class="pbody">
+      <div class="trace">
+        <div class="row"><span class="i">1</span><span class="ev">author=<em>triage</em> · function_call <q>transfer_to_agent</q></span></div>
+        <div class="row"><span class="i">2</span><span class="ev">actions.<em>transfer_to_agent</em> = "billing"</span></div>
+        <div class="row"><span class="i">3</span><span class="ev">author=<em>billing</em> · function_call <q>lookup_order</q></span></div>
+        <div class="row"><span class="i">4</span><span class="ev">author=<em>billing</em> · function_response</span></div>
+        <div class="row"><span class="i">5</span><span class="ev">author=<em>billing</em> · text · state_delta={…}</span></div>
+      </div>
+      <p style="margin-top:1rem">Why did it pick billing? Because of a description string, weighed against every other description, inside a prompt you did not write. The trace records the decision but not the reasoning behind it.</p>
+    </div>
+  </div>
+
+  <div class="panel new">
+    <div class="phead"><div class="ptag">ADK 2.x</div><h4>Events also carry node and route</h4></div>
+    <div class="pbody">
+      <div class="trace">
+        <div class="row"><span class="i">1</span><span class="ev"><em>NodeInfo</em>=classify · <em>Output</em>=Ticket{…}</span></div>
+        <div class="row"><span class="i">2</span><span class="ev"><em>Routes</em>=["BILLING"] · IsolationScope=root</span></div>
+        <div class="row"><span class="i">3</span><span class="ev"><em>NodeInfo</em>=refund · status RUNNING</span></div>
+        <div class="row"><span class="i">4</span><span class="ev"><em>NodeInfo</em>=refund · attempt_count=1</span></div>
+        <div class="row"><span class="i">5</span><span class="ev"><em>NodeInfo</em>=refund · <em>Output</em>=Result{…} · COMPLETED</span></div>
+      </div>
+      <p style="margin-top:1rem">Go adds five fields to <code>Event</code> — <code>IsolationScope</code>, <code>Routes</code>, <code>RequestedInput</code>, <code>Output</code>, <code>NodeInfo</code>. Python adds <code>node_info</code> and <code>output</code>. That is why custom session services need a schema update.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- 05 lifecycle -->
+<section>
+<div class="crumb">MODULE 5 of 8</div>
+<h1><span class="h-emoji">♻️</span> lifecycle</h1>
+<div class="module">NodeState · status · attempt_count · interrupts · resume_inputs</div>
+
+<p>This is the quiet change that buys retries, timeouts, resumption and cancellation — all features 1.x expected you to build yourself. Every node carries a <code>NodeState</code> with a status, an attempt count, pending interrupt ids, and the resume payloads keyed by those ids.</p>
+
+<div class="panel new">
+  <div class="pbody">
+    <div class="states">
+      <span class="st">INACTIVE</span><span class="arrowc">→</span>
+      <span class="st">PENDING</span><span class="arrowc">→</span>
+      <span class="st">RUNNING</span><span class="arrowc">→</span>
+      <span class="st">COMPLETED</span>
+      <span class="arrowc" style="margin:0 .35rem">·</span>
+      <span class="st">WAITING</span>
+      <span class="st">FAILED</span>
+      <span class="st">CANCELLED</span>
+    </div>
+    <p style="margin-top:1.1rem"><code>WAITING</code> is the human-in-the-loop state — the node is parked on a pending interrupt id, and its reply will arrive in <code>resume_inputs</code>. Because status lives in serializable state rather than in a call stack, a paused workflow survives a process restart. In 1.x, resumability was opt-in (<code>ResumabilityConfig(is_resumable=True)</code>) and coarse: a <code>SequentialAgent</code> remembered <code>current_sub_agent</code>, a <code>LoopAgent</code> remembered <code>times_looped</code>, and tools could re-execute.</p>
+  </div>
+</div>
+
+<div class="note">
+This is the same guarantee a durable-execution engine gives you, at a smaller scope. If you already know Temporal: a node here is an Activity, <code>NodeState</code> is the event history, and <code>WAITING</code> is a workflow parked on a signal. The difference is blast radius — ADK's version lives inside one process's session, not in a separate cluster.
+</div>
+</section>
+
+<!-- 06 breaks -->
+<section>
+<div class="crumb">MODULE 6 of 8</div>
+<h1><span class="h-emoji">💥</span> breaks</h1>
+<div class="module">what actually breaks on upgrade</div>
+
+<p>Most of these follow from one fact: the graph engine, not your class, is now in charge of scheduling and event emission. Anything that reached around it stops working.</p>
+
+<div class="brk"><div class="lang">Python</div><div>
+  <h5><code>BaseAgent</code> now extends <code>BaseNode</code></h5>
+  <p>Custom overrides of <code>_run_async_impl()</code> or <code>generate_content()</code> are bypassed entirely by the graph engine. Inject custom logic through <code>BeforeAgentCallback</code> / <code>AfterAgentCallback</code> instead.</p></div></div>
+
+<div class="brk"><div class="lang">Python</div><div>
+  <h5><code>context.session.events.append()</code> breaks determinism</h5>
+  <p>Events must be yielded from nodes so the engine can schedule and replay them. Direct appends bypass that bookkeeping.</p></div></div>
+
+<div class="brk"><div class="lang">Python</div><div>
+  <h5>Broad <code>except Exception</code> disables automatic retries</h5>
+  <p>Swallowing a node failure hides it from the engine, which then has nothing to retry. Never catch <code>BaseException</code> — it traps <code>NodeInterruptedError</code> and hangs the pause.</p></div></div>
+
+<div class="brk"><div class="lang">Python</div><div>
+  <h5><code>Event</code> gains <code>node_info</code> and <code>output</code></h5>
+  <p>Rigid database schemas need a migration. JSON-blob session storage typically needs no change.</p></div></div>
+
+<div class="brk"><div class="lang">Go</div><div>
+  <h5>Module path is now <code>google.golang.org/adk/v2</code></h5>
+  <p>A mechanical import rewrite, but it touches every file. <b>On the Go floor, mind three different numbers</b> — the source this deck was built from collapsed them into a single stale “Go 1.25+”: <code>adk/v2@v2.0.0</code> declared <code>go 1.25.0</code>; <code>adk/v2@v2.2.0</code> (latest, станом на 08/2026) declares <code>go 1.26.5</code>; and this repo's own <code>wiki-tools/go.mod</code> declares <code>go 1.27</code>. Ours is not ADK's, and aligning them breaks a build.</p></div></div>
+
+<div class="brk"><div class="lang">Go</div><div>
+  <h5><code>session.NewEvent</code> requires a <code>context.Context</code></h5>
+  <p>Signature is <code>NewEvent(ctx, invocationID)</code>. The parameterless form and the <code>NewEventWithContext</code> helper are both gone — thread the ctx already in scope rather than minting <code>context.Background()</code> mid-chain.</p></div></div>
+
+<div class="brk"><div class="lang">Go</div><div>
+  <h5><code>ToolContext</code> and <code>CallbackContext</code> merged into <code>agent.Context</code></h5>
+  <p>Existing mocks stop compiling. Embed <code>agent.StrictContextMock</code> and override only what a test uses — un-overridden methods panic loudly instead of returning a silent zero value.</p></div></div>
+
+<div class="brk"><div class="lang">Go</div><div>
+  <h5><code>Event</code> gains five fields</h5>
+  <p><code>IsolationScope</code>, <code>Routes</code>, <code>RequestedInput</code>, <code>Output</code>, <code>NodeInfo</code>. Custom session services need schema updates.</p></div></div>
+
+<div class="brk"><div class="lang">Go</div><div>
+  <h5>Custom <code>InvocationContext</code> implementations need two methods</h5>
+  <p><code>IsolationScope()</code> and <code>ResumedInput()</code> are now part of the contract.</p></div></div>
+
+<div class="note">
+<b>The subtle one.</b> <code>NodeInterruptedError</code> subclasses <b>BaseException</b>, not <code>Exception</code> — deliberately, so that a stray <code>except Exception</code> cannot swallow a human-in-the-loop pause. But the inverse trap is real: a broad <code>except Exception</code> around node logic still masks ordinary failures from the engine and silently disables its automatic retries, and <code>except BaseException</code> will eat the interrupt itself and hang the workflow.
+</div>
+</section>
+
+<!-- 07 stayed -->
+<section>
+<div class="crumb">MODULE 7 of 8</div>
+<h1><span class="h-emoji">🧬</span> stayed</h1>
+<div class="module">what did not change</div>
+
+<p>The framing “hierarchical executor replaced by graph engine” overstates the demolition. The hierarchy is still there — it stopped being <i>the engine</i> and became a pattern that runs on one.</p>
+
+<div class="tw">
+<table>
+<thead><tr><th>Still present in 2.x</th><th>What changed about it</th></tr></thead>
+<tbody>
+  <tr><td><code>sub_agents</code> delegation</td><td>Alive and documented as “collaborative workflows”. The coordinator auto-generates one delegation tool per sub-agent.</td></tr>
+  <tr><td><code>transfer_to_agent</code></td><td>Still in <code>flows/llm_flows/agent_transfer.py</code>. Now suppressed for <code>task</code> and <code>single_turn</code> agents, which return automatically instead.</td></tr>
+  <tr><td>Peer and parent transfer</td><td>Same <code>disallow_transfer_to_parent</code> / <code>disallow_transfer_to_peers</code> flags govern the reachable set.</td></tr>
+  <tr><td><code>SequentialAgent</code>, <code>ParallelAgent</code>, <code>LoopAgent</code></td><td>Superseded by graph and dynamic workflows in Python/Go 2.0, but not removed. Fine for fixed-shape flows.</td></tr>
+  <tr><td>The Runner event loop</td><td>Unchanged in shape: yield → Runner processes and commits → resume. State deltas still commit on the yielded event.</td></tr>
+  <tr><td>Session state and prefixes</td><td><code>app:</code>, <code>user:</code>, <code>temp:</code> still work — but the docs now say not to move large payloads through state between nodes.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+<b>So which do you reach for?</b> Use the <b>graph</b> when the process is knowable — you get determinism, per-node retries, typed data flow, and a trace that explains itself. Use <b>collaborative delegation</b> when the request types are not enumerable and you genuinely need a model to choose the specialist. The healthy shape for most production systems is both: a deterministic graph spine with model-driven decisions confined to the nodes that actually need one.
+</div>
+</section>
+
+<!-- 08 sources -->
+<section>
+<div class="crumb">MODULE 8 of 8</div>
+<h1><span class="h-emoji">🔬</span> sources</h1>
+<div class="module">read from source · re-verify before recording</div>
+
+<h2>Read from source</h2>
+<ul>
+  <li><code>adk-python/src/google/adk/agents/base_agent.py</code> — <code>class BaseAgent(BaseNode, abc.ABC)</code>, <code>parent_agent</code>, <code>sub_agents</code>, <code>find_agent</code>, <code>root_agent</code></li>
+  <li><code>adk-python/src/google/adk/flows/llm_flows/agent_transfer.py</code> — <code>_get_transfer_targets()</code> and the prompt text ADK injects to make the model route</li>
+  <li><code>adk-python/src/google/adk/workflow/</code> — <code>_base_node.py</code>, <code>_graph.py</code> (<code>Edge</code>, <code>DEFAULT_ROUTE</code>, <code>get_next_pending_nodes</code>), <code>_node_status.py</code>, <code>_node_state.py</code>, <code>_errors.py</code>, <code>_workflow.py</code> (<code>class Workflow(BaseNode)</code>)</li>
+  <li><a href="https://github.com/google/adk-go/blob/main/README-v2.md">adk-go/README-v2.md</a> — Go breaking changes and <code>agent.StrictContextMock</code></li>
+</ul>
+
+<h2>Documentation</h2>
+<ul>
+  <li><a href="https://adk.dev/2.0/">Welcome to ADK 2.0</a> · <a href="https://adk.dev/graphs/">Graphs</a> · <a href="https://adk.dev/graphs/data-handling/">Data handling</a> · <a href="https://adk.dev/runtime/event-loop/">Event loop</a> · <a href="https://adk.dev/runtime/resume/">Resume agents</a> · <a href="https://adk.dev/workflows/collaboration/">Collaborative workflows</a></li>
+  <li><a href="https://developers.googleblog.com/announcing-adk-go-20/">Announcing ADK Go 2.0</a> · <a href="https://github.com/google/adk-go/releases/tag/v2.0.0">v2.0.0 release notes</a></li>
+  <li><a href="https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system">Choose a design pattern for your agentic AI system</a> — the pattern taxonomy that sits on top of this engine</li>
+</ul>
+
+<h2>Also on this shelf</h2>
+<div class="grid">
+  <a class="card" href="/docs/adk-go-workflows.html"><h3>ADK Go — Workflow Graphs</h3><p>The 2.x graph engine end to end: node constructors, wiring, routes, human-in-the-loop, migration.</p><span class="path">adk-go-workflows.html</span></a>
+  <a class="card" href="/docs/adk-go-2x-cheatsheet.html"><h3>ADK Go 2.x — cheatsheet</h3><p>The API surface, condensed.</p><span class="path">adk-go-2x-cheatsheet.html</span></a>
+</div>
+
+<h2>How to re-run the version check</h2>
+<pre><code># latest release, straight from the module proxy
+curl -s https://proxy.golang.org/google.golang.org/adk/v2/@latest
+
+# ADK's own Go floor at that version
+curl -s https://proxy.golang.org/google.golang.org/adk/v2/@v/v2.2.0.mod
+
+# and ours, which is a different number
+grep '^go ' wiki-tools/go.mod</code></pre>
+<p class="muted">Do this again before anything here is recorded or taught. Станом на 08/2026 the answers are <code>v2.2.0</code>, <code>go 1.26.5</code> and <code>go 1.27</code> respectively — the deck this was built from was already stale on all three within weeks.</p>
+</section>
+
+</template>
+<script>
+(function () {
+  const src = document.getElementById("src");
+  const deck = document.getElementById("deck");
+  const slides = [...src.content.querySelectorAll("section")].map((s) => {
+    const el = s.cloneNode(true);
+    el.classList.add("slide");
+    deck.appendChild(el);
+    return el;
+  });
+  const navs = [...document.querySelectorAll(".nav-item")];
+  const bar = document.getElementById("progress");
+  let i = 0;
+
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle("active", k === i));
+    navs.forEach((a, k) => a.classList.toggle("on", k === i));
+    bar.style.width = ((i + 1) / slides.length) * 100 + "%";
+    // Stagger the direct children of the active slide. Assigned here rather
+    // than authored into the markup so a new block never needs a hand-typed
+    // delay; capped so a long module does not fade in for three seconds.
+    const kids = [...slides[i].children];
+    kids.forEach((c, k) => {
+      c.classList.add("rise");
+      c.style.setProperty("--d", Math.min(k * 0.05, 0.4) + "s");
+    });
+    if (location.hash !== "#" + (i + 1)) history.replaceState(null, "", "#" + (i + 1));
+    deck.scrollIntoView({ block: "start" });
+  }
+
+  navs.forEach((a) =>
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      show(+a.dataset.go);
+    })
+  );
+
+  addEventListener("keydown", (e) => {
+    if (e.target.matches("input,textarea")) return;
+    if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); show(i + 1); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); show(i - 1); }
+    else if (e.key === "Home") show(0);
+    else if (e.key === "End") show(slides.length - 1);
+    else if (e.key === "o" || e.key === "O") show(0);
+    else if (e.key === "f" || e.key === "F") {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen?.();
+    }
+  });
+
+  addEventListener("hashchange", () => {
+    const n = parseInt(location.hash.slice(1), 10);
+    if (!isNaN(n)) show(n - 1);
+  });
+
+  const start = parseInt(location.hash.slice(1), 10);
+  show(isNaN(start) ? 0 : start - 1);
+})();
+</script>
+</body>
+</html>

@@ -8,3 +8,21 @@ demo/1_ai-gateway/mock-llm/mock-llm
 # 80+ MB Mach-O/ELF executable at the root, named "labs" — which is a directory
 # in this tree. Never commit it.
 /labs
+
+# Local scratch checkouts (e.g. a reference clone of adk-go). Never published.
+tmp/
+.tmp*
+.pi-go/tasks/
+
+# Same story for a single lab: `go build ./week2/<day>/labs3` from the root
+# leaves an 80+ MB binary named labs3 at the root, and `cd labs3 && go build .`
+# leaves it inside the lab. Paths are relative to this file — no leading "./" —
+# and a bare "labs3" would ignore the lab directory itself, so both lines name
+# the binary, not the directory.
+/labs3
+/labs4
+week2/*/labs3/labs3
+week2/*/labs4/labs4
+
+# macOS/VS Code droppings.
+.DS_Store

@@ -20,8 +20,8 @@
 |---|---|---|---|---|---|
 | 1 | Пн 21.09.2026 | 18:00 UTC | week1 | [`Day1_Models_and_Frameworks_Landscape`](week1/Day1_Models_and_Frameworks_Landscape/) | ✅ у репозиторії |
 | 2 | Чт 24.09.2026 | 18:00 UTC | week1 | [`Day2_Structured_Output_Function_Calling`](week1/Day2_Structured_Output_Function_Calling/) | ✅ у репозиторії |
-| 3 | Пн 28.09.2026 | 18:00 UTC | week2 | `Day3_First_ADK2_Agent_Workflow_Graph` | ⏳ очікує |
-| 4 | Чт 01.10.2026 | 18:00 UTC | week2 | `Day4_Agent_as_Service_Deploy` | ⏳ очікує |
+| 3 | Пн 28.09.2026 | 18:00 UTC | week2 | [`Day3_First_ADK2_Agent_Workflow_Graph`](week2/Day3_First_ADK2_Agent_Workflow_Graph/) | ✅ у репозиторії |
+| 4 | Чт 01.10.2026 | 18:00 UTC | week2 | [`Day4_Agent_as_Service_Deploy`](week2/Day4_Agent_as_Service_Deploy/) | ✅ у репозиторії |
 | 5 | Пн 05.10.2026 | 18:00 UTC | week3 | `Day5_Lossless_PDF_Parsing_Chunking` | ⏳ очікує |
 | 6 | Чт 08.10.2026 | 18:00 UTC | week3 | `Day6_Reranking_Semantic_Cache_Maturity_Ladder` | ⏳ очікує |
 | 7 | Пн 12.10.2026 | 18:00 UTC | week4 | `Day7_ReAct_Loop_Internals` | ⏳ очікує |
@@ -31,7 +31,7 @@
 | 11 | Пн 26.10.2026 | 18:00 UTC | week6 | `Day11_Dynamic_Workflows_Multi_Critic` | ⏳ очікує |
 | 12 | Чт 29.10.2026 | 18:00 UTC | week6 | `Day12_Self_Improving_Agents_Demo_Day` | ⏳ очікує |
 
-> **Тиждень 1 вже в репозиторії.** Наступні тижні з'являються
+> **Тижні 1–2 вже в репозиторії.** Наступні тижні з'являються
 > за графіком вище: у понеділок і четвер о 18:00 UTC. Час указано в UTC.
 > Щоб отримати новий тиждень у своїй копії, зробіть `git pull`.
 
@@ -89,14 +89,15 @@
    `cd courses/AI_Agents_Engineering/lectures`, просто лишайтеся в корені):
 
    ```bash
-   go run ./week1/Day1_Models_and_Frameworks_Landscape/labs
+   go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3
    ```
 
 ## Структура
 
 ```
-week1/<День>/labs/          стартовий шаблон лаби + README з покроковою інструкцією
-week1/<День>/Homework.md    умова домашнього завдання, критерії оцінювання, формат здачі
+week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3/ стартовий шаблон лаби + README з покроковою інструкцією
+week2/Day4_Agent_as_Service_Deploy/labs4/ стартовий шаблон лаби + README з покроковою інструкцією
+week2/<День>/Homework.md    умова домашнього завдання, критерії оцінювання, формат здачі
 week1/<День>/labs/solution/ еталонний розв'язок (публікується вручну після дедлайну)
 internal/                   спільні helper-пакети (adkenv, fakellm, labrun)
 apps/.env-example           шаблон ключів провайдерів (копія → apps/.env)

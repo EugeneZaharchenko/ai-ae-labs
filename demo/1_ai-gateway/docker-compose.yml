@@ -62,6 +62,17 @@ services:
       # Catalog paths, resolved against working_dir inside the container.
       AGENTGATEWAY_BASE_COSTS: ${AGENTGATEWAY_BASE_COSTS:-./base-costs.json}
       AGENTGATEWAY_PI_ALIASES: ${AGENTGATEWAY_PI_ALIASES:-./pi-aliases.json}
+      # The Jaeger OTLP collector, as a compose-network name — not localhost,
+      # which inside this container would point at the gateway itself. This is
+      # what config/agentgateway.yaml interpolates into `tracing.otlpEndpoint`.
+      #
+      # Deliberately NOT OTEL_EXPORTER_OTLP_ENDPOINT. That name is a standard
+      # one other tools set, and an inherited value would silently win over the
+      # default here: `OTEL_EXPORTER_OTLP_ENDPOINT=127.0.0.1:4317` (which pi-go
+      # exports) has no scheme and points at the gateway itself inside its own
+      # container, so tracing would break with a parse error rather than a
+      # missing-collector message. A namespaced name cannot collide.
+      AGENTGATEWAY_OTLP_ENDPOINT: ${AGENTGATEWAY_OTLP_ENDPOINT:-http://jaeger:4317}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

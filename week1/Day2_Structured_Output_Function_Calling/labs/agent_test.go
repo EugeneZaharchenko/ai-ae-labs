@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 
@@ -102,119 +101,6 @@ func TestNewAgent(t *testing.T) {
 	}
 	if a.Name() != "currency_agent" {
 		t.Errorf("agent name = %q, want %q", a.Name(), "currency_agent")
-	}
-}
-
-// --- Provider selection -----------------------------------------------------
-
-// clearProviderEnv removes every provider variable so each case starts clean.
-// t.Setenv restores the previous value automatically at test end.
-func clearProviderEnv(t *testing.T) {
-	t.Helper()
-	for _, k := range []string{
-		"OLLAMA_BASE_URL", "OLLAMA_MODEL", "OLLAMA_API_KEY",
-		"AGENTGATEWAY_BASE_URL", "AGENTGATEWAY_MODEL", "AGENTGATEWAY_API_KEY",
-		"GOOGLE_API_KEY", "GEMINI_MODEL",
-		"OPENAI_API_KEY", "OPENAI_MODEL",
-		"ANTHROPIC_API_KEY",
-	} {
-		t.Setenv(k, "")
-	}
-}
-
-func TestBuildModelPrecedence(t *testing.T) {
-	tests := []struct {
-		name         string
-		env          map[string]string
-		wantProvider string
-		wantModel    string
-	}{
-		{
-			name:         "agentgateway wins over everything",
-			env:          map[string]string{"AGENTGATEWAY_BASE_URL": "http://localhost:4000/v1", "OLLAMA_BASE_URL": "http://localhost:11434/v1", "GOOGLE_API_KEY": "g", "OPENAI_API_KEY": "o"},
-			wantProvider: "agentgateway",
-			wantModel:    "mock-gpt",
-		},
-		{
-			name:         "agentgateway model is overridable",
-			env:          map[string]string{"AGENTGATEWAY_BASE_URL": "http://localhost:4000/v1", "AGENTGATEWAY_MODEL": "smart"},
-			wantProvider: "agentgateway",
-			wantModel:    "smart",
-		},
-		{
-			name:         "ollama wins over the direct providers",
-			env:          map[string]string{"OLLAMA_BASE_URL": "http://localhost:11434/v1", "GOOGLE_API_KEY": "g", "OPENAI_API_KEY": "o"},
-			wantProvider: "ollama",
-			wantModel:    "qwen3",
-		},
-		{
-			name:         "ollama model is overridable",
-			env:          map[string]string{"OLLAMA_BASE_URL": "http://localhost:11434/v1", "OLLAMA_MODEL": "llama4"},
-			wantProvider: "ollama",
-			wantModel:    "llama4",
-		},
-		{
-			name:         "gemini wins over openai",
-			env:          map[string]string{"GOOGLE_API_KEY": "g", "OPENAI_API_KEY": "o"},
-			wantProvider: "gemini",
-			wantModel:    "gemini-flash-latest",
-		},
-		{
-			name:         "openai when it is the only key",
-			env:          map[string]string{"OPENAI_API_KEY": "o"},
-			wantProvider: "openai",
-			wantModel:    "gpt-5.6",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			clearProviderEnv(t)
-			for k, v := range tc.env {
-				t.Setenv(k, v)
-			}
-
-			_, choice, err := BuildModel(context.Background())
-			if err != nil {
-				t.Fatalf("BuildModel() error = %v", err)
-			}
-			if choice.Provider != tc.wantProvider {
-				t.Errorf("provider = %q, want %q", choice.Provider, tc.wantProvider)
-			}
-			if choice.Model != tc.wantModel {
-				t.Errorf("model = %q, want %q", choice.Model, tc.wantModel)
-			}
-			if choice.Reason == "" {
-				t.Error("Reason is empty; a learner cannot tell why this provider was chosen")
-			}
-		})
-	}
-}
-
-// TestBuildModelAnthropicIsRejectedClearly pins the framework limitation that
-// week 1 part 2's materials get wrong: ADK Go v2.4.0 has no Anthropic backend.
-// A learner holding only an Anthropic key must get an actionable message, not a
-// confusing auth failure at first request.
-func TestBuildModelAnthropicIsRejectedClearly(t *testing.T) {
-	clearProviderEnv(t)
-	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-
-	_, _, err := BuildModel(context.Background())
-	if !errors.Is(err, ErrNoProvider) {
-		t.Fatalf("error = %v, want ErrNoProvider", err)
-	}
-	for _, want := range []string{"Anthropic", "GOOGLE_API_KEY", "OPENAI_API_KEY"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error %q does not mention %q", err, want)
-		}
-	}
-}
-
-func TestBuildModelNoKeys(t *testing.T) {
-	clearProviderEnv(t)
-
-	_, _, err := BuildModel(context.Background())
-	if !errors.Is(err, ErrNoProvider) {
-		t.Fatalf("error = %v, want ErrNoProvider", err)
 	}
 }
 

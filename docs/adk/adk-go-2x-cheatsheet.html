@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADK Go 2.x — Learning Deck</title>
+<style>
+/* ============================================================================
+   ADK Go 2.x — single-file learning deck.
+   Merged from the 14 per-module pages: one SPA, one file, no CDN, no webfonts,
+   no JS libraries — it has to open from a USB stick with no network.
+
+   Visual system: the Pi-Go design system (wiki-tools/internal/docsingest/
+   shell/deck.css). Closed palette — deep-space navy grounds, neon cyan as the
+   primary accent, magenta/purple/green secondaries. Moved off the Prometheus
+   brandbook on 2026-08-30 with the rest of the shelf; courses/STYLE.md still
+   governs the actual course decks under courses/.
+   Light mode only, one plashka radius per макет.
+
+   Deck chrome (nav, .rise staged reveal, progress, hash routing) is the same
+   mechanism as courses/AI_Agents_Engineering/week0_open/slides.html.
+
+   Keys: → / Space next · ← prev · O overview · F fullscreen · Home/End
+   PDF:  Cmd-P → Save as PDF (backgrounds on) — every module prints in order.
+   ========================================================================== */
+
+:root{
+  /* ── Pi-Go design system ──────────────────────────────────────────────
+     Source of truth: the "Pi-Go Design System" project on claude.ai/design,
+     mirrored for the app at internal/serve/static/theme.css. These tokens are
+     INLINED rather than linked because a shelf document must open from a USB
+     stick with no network (verify.go rule 3), and because it is published as
+     a Gist or handed round as a file — nothing external may be fetched at
+     render time.
+
+     Same constraint kills the webfonts: the three families are named below so
+     a machine that has them installed uses them, but there is no @font-face
+     (the woff2 live behind the server, and @import is a verify.go error), so
+     most readers see the fallback stacks. That is the accepted trade for
+     portability — the palette, not the type, is what makes the shelf read as
+     one set.
+
+     This shelf used to carry the Prometheus brandbook (cream/peach/orange,
+     light mode). It moved to Pi-Go on 2026-08-30: the shelf is a wiki reading
+     surface viewed inside `wiki serve`, not a learner-facing Prometheus deck,
+     so it follows the wiki's own system. courses/STYLE.md still governs actual
+     course decks under courses/ — do not "align" those to this file. */
+
+  /* surfaces */
+  --bg:#0a0a12; --bg-alt:#0d0d1a; --panel:#0f0f1e; --code-bg:#0a0a14;
+  /* neon palette */
+  --cyan:#00f0ff; --magenta:#ff00aa; --purple:#b347ff;
+  --green:#00ff88; --yellow:#ffe600; --orange:#ff6a00;
+  /* foreground — no pure white anywhere */
+  --ink:#e0e0f0; --ink-dim:#8888aa; --ink-faint:#555577; --code-text:#cdd6f4;
+
+  --line:rgba(0,240,255,.12); --line-strong:rgba(0,240,255,.25);
+  --wash:rgba(0,240,255,.08);   /* the lit surface: tags, notes, chips */
+  --accent:var(--cyan); --accent-2:var(--magenta);
+  --glow:0 0 20px rgba(0,240,255,.3), 0 0 60px rgba(0,240,255,.1);
+
+  /* Sharp, not rounded: 2px for chips and controls, 4px for panels. Pills and
+     heavy rounding are off-brand in this system, which is why --pill is 2px
+     and not 999px — the name is kept so the rules below did not have to move. */
+  --radius:4px;
+  --pill:2px;
+  --nav-w:264px;
+  --font-display:'Orbitron','SF Mono',ui-monospace,monospace;
+  --font-body:'Rajdhani',system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);line-height:1.55;
+     -webkit-font-smoothing:antialiased}
+/* The system's two signature textures: a fixed 60px grid floor behind
+   everything and a 2px scanline wash above it. Both are pointer-events:none
+   and neither animates, so they survive the reduced-motion block untouched. */
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,240,255,.03) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,240,255,.03) 1px,transparent 1px);
+  background-size:60px 60px}
+body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,
+             rgba(0,0,0,.05) 2px,rgba(0,0,0,.05) 4px)}
+::selection{background:var(--magenta);color:#000}
+
+/* ---- navigation ---------------------------------------------------------- */
+
+#toc{
+  position:fixed;left:0;top:0;bottom:0;width:var(--nav-w);z-index:50;
+  background:var(--panel);border-right:1px solid var(--line);
+  overflow-y:auto;padding:1.1rem .8rem 2rem;
+}
+#toc .toc-h{
+  font-family:var(--font-display);
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+  color:var(--cyan);border-left:2px solid var(--cyan);padding-left:9px;margin:.2rem 0 .8rem 4px;
+}
+.nav-item{
+  display:flex;align-items:baseline;gap:.55rem;
+  padding:.42rem .6rem;margin-bottom:2px;border-radius:var(--radius);
+  text-decoration:none;color:var(--ink-dim);font-size:.9rem;
+  border:1px solid transparent;transition:background .15s,border-color .15s,color .15s;
+}
+.nav-item:hover{background:var(--wash);color:var(--ink)}
+.nav-item.on{background:var(--wash);border-color:var(--line-strong);color:var(--cyan);font-weight:600}
+.n-num{font-family:var(--mono);font-size:.76rem;color:var(--ink-faint);flex:none}
+.nav-item.on .n-num{color:var(--cyan)}
+.n-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* emoji carry almost no right sidebearing, so the gap is set here, not typed
+   as a space in the markup where it visually collapses against the glyph. */
+.n-e,.c-e{margin-right:.4em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.c-e{font-weight:400}
+
+/* ---- deck ---------------------------------------------------------------- */
+
+#deck{margin-left:var(--nav-w);padding:3rem 1.5rem 5rem;position:relative;z-index:1}
+.slide{max-width:1000px;margin:0 auto;display:none}
+.slide.active{display:block;animation:slide-in .32s ease both}
+@keyframes slide-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* staged reveal: each block fades up in sequence once its slide is active.
+   --d is assigned in JS so authored markup stays free of stagger bookkeeping. */
+.slide.active > .rise{animation:rise .5s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.crumb{font-family:var(--mono);font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.5rem}
+h1{font-size:2.2rem;color:var(--cyan);margin-bottom:.3rem;font-family:var(--font-display);text-transform:uppercase;font-weight:800;letter-spacing:.5px;text-shadow:0 0 10px rgba(0,240,255,.5),0 0 30px rgba(0,240,255,.2)}
+.cover h1{font-size:2.4rem}
+.h-emoji{text-transform:none;font-weight:400;margin-right:.22em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.subtitle{color:var(--ink-dim);font-size:1.05rem;margin-bottom:1.5rem}
+.module{color:var(--cyan);font-family:var(--mono);font-size:.95rem;margin-bottom:1.2rem;word-break:break-word}
+h2{font-size:1.3rem;color:var(--ink);margin:2rem 0 .7rem;font-family:var(--font-display);text-transform:uppercase;font-weight:800;letter-spacing:1px;padding-bottom:.3em;border-bottom:1px solid transparent;border-image:linear-gradient(90deg,var(--cyan),transparent) 1}
+h3{font-size:1.05rem;color:var(--ink);font-weight:700;margin-bottom:.4rem}
+p{color:var(--ink-dim);margin-bottom:.8rem;max-width:70ch}
+.muted{color:var(--ink-dim)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin:1rem 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:1rem}
+/* the sidebar narrows the content column vs. the old standalone pages, so long
+   mono identifiers (workflow.NewEmittingFunctionNode) must be allowed to wrap
+   rather than run past the card border. */
+.card h3{font-size:1rem;color:var(--cyan);margin-bottom:.4rem;font-family:var(--mono);overflow-wrap:anywhere}
+.card p{font-size:.9rem;color:var(--ink-dim);margin:0}
+a.card{text-decoration:none;color:var(--ink);display:block;transition:border-color .15s,box-shadow .15s,transform .15s}
+/* Hover lifts and glows — depth comes from light outside the element, never
+   from an inner shadow. */
+a.card:hover{border-color:var(--line-strong);transform:translateY(-2px);box-shadow:var(--glow)}
+a.card .path{display:block;font-size:.75rem;color:var(--ink-faint);margin-top:.4rem;font-family:var(--mono)}
+.tag{display:inline-block;background:var(--wash);color:var(--cyan);border:1px solid var(--line-strong);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin:.15rem .15rem 0 0;font-family:var(--mono)}
+.badge{display:inline-block;background:var(--wash);color:var(--cyan);border:1px solid var(--line-strong);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin-left:.4rem;vertical-align:middle;text-transform:none;font-weight:400}
+svg{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;height:auto;display:block;margin:1rem 0}
+
+/* ---- diagram vocabulary -------------------------------------------------- */
+/* One vocabulary across all modules: the learner should recognise the same
+   shapes module to module. Every edge endpoint is computed from node geometry
+   by the generator, never typed by hand.
+   Node kinds are now told apart by their neon STROKE on a shared dark fill,
+   where the Prometheus version told them apart by stroke on white — same
+   mechanism, inverted ground. */
+.dg-frame{fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:6 5}
+.dg-ti{fill:var(--ink-faint);font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.dg-lb{fill:var(--ink);font-weight:700}
+.dg-sb{fill:var(--ink-dim);font-size:11.5px}
+.dg-el{fill:var(--ink-faint);font-size:11px}
+.dg-head{fill:var(--ink-faint)}
+.dg-link{stroke:var(--ink-faint);stroke-width:1.8;fill:none}
+.dg-link-warm{stroke:var(--magenta)}
+.dg-dash{stroke-dasharray:5 5}
+
+/* node kinds — closed palette, no invented colors */
+.dg-b-model{fill:var(--bg-alt);stroke:var(--purple);stroke-width:1.8}
+.dg-b-out  {fill:var(--bg-alt);stroke:var(--magenta);stroke-width:1.8}
+.dg-b-tool {fill:var(--bg-alt);stroke:var(--green);stroke-width:1.8}
+.dg-b-pill {fill:var(--bg-alt);stroke:var(--cyan);stroke-width:1.8}
+.dg-b-ghost{fill:var(--bg-alt);stroke:var(--line);stroke-width:1.5}
+.dg-b-group{fill:none;stroke:var(--line);stroke-width:1.5}
+.dg-dot{fill:var(--cyan)}
+
+/* ---- diagram animation --------------------------------------------------- */
+/* All of it is gated on .slide.active so only the visible module animates —
+   fourteen diagrams ticking at once in a hidden section is wasted paint. */
+
+/* a dash that crawls along a path = "data is moving here" */
+.flow{stroke-dasharray:7 9;stroke-linecap:round}
+.slide.active .flow{animation:crawl 1.1s linear infinite}
+@keyframes crawl{to{stroke-dashoffset:-32}}
+
+/* a packet riding the happy path, for the one-shot request/response */
+.packet{opacity:0}
+.slide.active .packet{animation:ride var(--dur,2.6s) cubic-bezier(.5,0,.5,1) infinite}
+@keyframes ride{
+  0%{offset-distance:0%;opacity:0}
+  8%{opacity:1}
+  92%{opacity:1}
+  100%{offset-distance:100%;opacity:0}
+}
+
+/* a dot orbiting a closed cycle — the plan/act loop */
+.slide.active .orbit{animation:orbit 3.6s linear infinite}
+@keyframes orbit{to{offset-distance:100%}}
+
+/* node that pulses as the loop passes through it */
+.slide.active .beat{animation:beat 3.3s ease-in-out infinite;animation-delay:var(--bd,0s)}
+@keyframes beat{
+  0%,70%,100%{filter:none}
+  78%{filter:drop-shadow(0 0 7px rgba(0,240,255,.85))}
+  90%{filter:none}
+}
+ul{margin:0 0 .8rem 1.3rem}
+li{margin-bottom:.35rem;color:var(--ink-dim)}
+li::marker{color:var(--cyan)}
+code{background:var(--wash);border:0;border-radius:2px;padding:.1rem .35rem;font-family:var(--mono);font-size:.85em;color:var(--cyan)}
+/* A code block is the one place a DARK shadow is on-brand: it is a depressed
+   element, so it recedes instead of glowing. */
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:.8rem 0;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+pre code{background:none;border:none;padding:0;color:var(--code-text);display:block}
+.note{border-left:2px solid var(--accent-2);background:rgba(255,0,170,.06);padding:.8rem 1rem;border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0;font-size:.92rem;color:var(--ink)}
+
+/* ---- chrome -------------------------------------------------------------- */
+
+#progress{position:fixed;left:0;top:0;height:2px;background:var(--cyan);z-index:60;transition:width .3s ease;box-shadow:0 0 10px rgba(0,240,255,.6)}
+#help{position:fixed;right:14px;top:12px;z-index:60;font-size:12px;color:var(--ink-faint)}
+
+@media (prefers-reduced-motion:reduce){
+  .slide.active,.slide.active > .rise,
+  .slide.active .flow,.slide.active .packet,.slide.active .orbit,.slide.active .beat{animation:none!important}
+  .packet{opacity:1}
+}
+
+/* ---- mobile: sidebar becomes a scrollable strip -------------------------- */
+
+@media (max-width:900px){
+  :root{--nav-w:0px}
+  #toc{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);
+       display:flex;gap:.35rem;overflow-x:auto;padding:.6rem .8rem;white-space:nowrap;
+       position:relative;z-index:1}
+  #toc .toc-h{display:none}
+  .nav-item{flex:none;margin:0}
+  .n-t{max-width:42vw}
+  #deck{margin-left:0;padding:1.6rem 1rem 4rem}
+  #help{display:none}
+  h1{font-size:1.7rem}
+}
+
+/* ---- print → PDF: every module, in order --------------------------------- */
+/* The deck is dark on screen and PAPER in print. This block is not cosmetic:
+   the rules below set print-color-adjust:exact, so without it a #0a0a12 page
+   background is faithfully reproduced and every sheet comes out solid black.
+   So print re-grounds the whole document — light paper, dark ink — and keeps
+   only the accent hues, which read fine on white. The textures go entirely:
+   a scanline overlay is a screen effect and prints as grey banding. */
+@media print{
+  @page{margin:14mm}
+  :root{
+    --bg:#ffffff; --bg-alt:#ffffff; --panel:#ffffff; --code-bg:#f4f4f8;
+    --ink:#0a0a12; --ink-dim:#33333f; --ink-faint:#666677; --code-text:#0a0a12;
+    --line:#c8c8d4; --line-strong:#9a9ab0; --wash:#eef9fb;
+    --glow:none;
+  }
+  body{background:#ffffff;color:#0a0a12}
+  body::before,body::after{display:none!important}
+  h1{color:#0a0a12;text-shadow:none}
+  h2{color:#0a0a12;border-image:none;border-bottom:1px solid #c8c8d4}
+  /* Neon cyan is invisible on white, so the accent darkens to a teal that
+     still reads as "the accent colour" but survives a laser printer. */
+  .module,.card h3,code,.tag,.badge{color:#005f6b}
+  pre{box-shadow:none}
+  #progress{box-shadow:none}
+  #toc,#progress,#help{display:none!important}
+  #deck{margin:0;padding:0}
+  .slide{display:block!important;page-break-after:always;break-after:page;max-width:none}
+  .slide *{animation:none!important;opacity:1!important;transform:none!important}
+  .packet{opacity:1}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+
+<nav id="toc">
+  <div class="toc-h">Modules</div>
+  <a class="nav-item" data-go="0" href="#1"><span class="n-num">00</span><span class="n-t">Overview</span></a>
+  <a class="nav-item" data-go="1" href="#2"><span class="n-num">01</span><span class="n-t"><span class="n-e">🤖</span>agents</span></a>
+  <a class="nav-item" data-go="2" href="#3"><span class="n-num">02</span><span class="n-t"><span class="n-e">🔀</span>workflow</span></a>
+  <a class="nav-item" data-go="3" href="#4"><span class="n-num">03</span><span class="n-t"><span class="n-e">🔧</span>tools</span></a>
+  <a class="nav-item" data-go="4" href="#5"><span class="n-num">04</span><span class="n-t"><span class="n-e">💬</span>sessions</span></a>
+  <a class="nav-item" data-go="5" href="#6"><span class="n-num">05</span><span class="n-t"><span class="n-e">📡</span>events</span></a>
+  <a class="nav-item" data-go="6" href="#7"><span class="n-num">06</span><span class="n-t"><span class="n-e">🧠</span>models</span></a>
+  <a class="nav-item" data-go="7" href="#8"><span class="n-num">07</span><span class="n-t"><span class="n-e">▶️</span>runners</span></a>
+  <a class="nav-item" data-go="8" href="#9"><span class="n-num">08</span><span class="n-t"><span class="n-e">🔌</span>plugins / callbacks</span></a>
+  <a class="nav-item" data-go="9" href="#10"><span class="n-num">09</span><span class="n-t"><span class="n-e">💾</span>memory</span></a>
+  <a class="nav-item" data-go="10" href="#11"><span class="n-num">10</span><span class="n-t"><span class="n-e">📦</span>artifacts</span></a>
+  <a class="nav-item" data-go="11" href="#12"><span class="n-num">11</span><span class="n-t"><span class="n-e">🎓</span>skills</span></a>
+  <a class="nav-item" data-go="12" href="#13"><span class="n-num">12</span><span class="n-t"><span class="n-e">🗺️</span>planners</span></a>
+  <a class="nav-item" data-go="13" href="#14"><span class="n-num">13</span><span class="n-t"><span class="n-e">📊</span>telemetry</span></a>
+  <a class="nav-item" data-go="14" href="#15"><span class="n-num">14</span><span class="n-t"><span class="n-e">✅</span>evaluation</span></a>
+</nav>
+
+<div id="progress"></div>
+<div id="help">← → navigate · O overview · F fullscreen</div>
+<main id="deck"></main>
+
+<template id="src">
+
+<section class="cover">
+  <h1>ADK Go 2.x — Learning Slides</h1>
+  <div class="subtitle">Self-contained single-HTML slides, one per module · <code>google.golang.org/adk/v2</code> (v2.2.0, станом на 08/2026)</div>
+  <div class="note"><strong>2.0 headline:</strong> the <strong>Workflow Runtime</strong> — a graph-based execution engine. Agents, tools, and functions are all <em>nodes</em> in a workflow graph. Every agent implements <code>agent.Agent</code> and runs as a node.</div>
+  <div class="grid">
+    <a class="card" data-go="1" href="#2"><h3><span class="c-e">🤖</span>01 · agents</h3><p>llmagent, workflow agents, Context, RunConfig, callbacks.</p><span class="path">/agent · /agent/llmagent</span></a>
+    <a class="card" data-go="2" href="#3"><h3><span class="c-e">🔀</span>02 · workflow</h3><p>Graph engine: NewFunctionNode, Edge, Chain, JoinNode.<span class="tag">NEW</span></p><span class="path">/workflow · /agent/workflowagent</span></a>
+    <a class="card" data-go="3" href="#4"><h3><span class="c-e">🔧</span>03 · tools</h3><p>tool.Tool, functiontool.New, agenttool.New, geminitool.</p><span class="path">/tool</span></a>
+    <a class="card" data-go="4" href="#5"><h3><span class="c-e">💬</span>04 · sessions</h3><p>Session, State, session.Service, InMemoryService.</p><span class="path">/session</span></a>
+    <a class="card" data-go="5" href="#6"><h3><span class="c-e">📡</span>05 · events</h3><p>Event, Actions, RequestInput; graph fields added in 2.0.<span class="tag">ext</span></p><span class="path">/session (Event)</span></a>
+    <a class="card" data-go="6" href="#7"><h3><span class="c-e">🧠</span>06 · models</h3><p>gemini.NewModel, model.Model, genai.ClientConfig.</p><span class="path">/model/gemini</span></a>
+    <a class="card" data-go="7" href="#8"><h3><span class="c-e">▶️</span>07 · runners</h3><p>runner.New, runner.Config, Run, RunConfig.</p><span class="path">/runner</span></a>
+    <a class="card" data-go="8" href="#9"><h3><span class="c-e">🔌</span>08 · plugins / callbacks</h3><p>Before/AfterAgentCallback, model &amp; tool callbacks.</p><span class="path">/agent</span></a>
+    <a class="card" data-go="9" href="#10"><h3><span class="c-e">💾</span>09 · memory</h3><p>memory.Service; long-term cross-session recall.</p><span class="path">/memory</span></a>
+    <a class="card" data-go="10" href="#11"><h3><span class="c-e">📦</span>10 · artifacts</h3><p>artifact.Service; versioned file/data storage.</p><span class="path">/artifact</span></a>
+    <a class="card" data-go="11" href="#12"><h3><span class="c-e">🎓</span>11 · skills</h3><p>skill.Skill, skill.Registry, SkillToolset.</p><span class="path">/skill</span></a>
+    <a class="card" data-go="12" href="#13"><h3><span class="c-e">🗺️</span>12 · planners</h3><p>Planner interface, llmagent planner config.</p><span class="path">/agent/llmagent</span></a>
+    <a class="card" data-go="13" href="#14"><h3><span class="c-e">📊</span>13 · telemetry</h3><p>telemetry package, RunConfig, OTel exporters.</p><span class="path">/telemetry</span></a>
+    <a class="card" data-go="14" href="#15"><h3><span class="c-e">✅</span>14 · evaluation</h3><p>eval package, criteria, custom metrics, simulation.</p><span class="path">/eval</span></a>
+  </div>
+  <h2>Not covered as slides (supporting modules &amp; ecosystem)</h2>
+  <p class="muted">auth, code executors, environment, flows/apps, optimization, a2a, integrations/* (Google Cloud), and the 100+ MCP tools &amp; observability integrations.</p>
+</section>
+
+<!-- 01-agents.html -->
+<section>
+  <div class="crumb">MODULE 1 of 14</div>
+  <h1><span class="h-emoji">🤖</span> agents</h1>
+  <div class="module">google.golang.org/adk/v2/agent · /agent/llmagent · /agent/sequentialagent · /agent/parallelagent · /agent/loopagent · /agent/workflowagent</div>
+  <p>The fundamental worker units of ADK. An agent either reasons over an LLM (<code>llmagent.New</code>) or deterministically orchestrates sub-agents/tasks (<code>sequentialagent</code>, <code>parallelagent</code>, <code>loopagent</code>). In ADK Go 2.0 every agent implements the <code>agent.Agent</code> interface and is evaluated as a node inside the Workflow Graph engine.</p>
+
+  <h2>Hierarchy &amp; execution model</h2>
+  <svg viewBox="0 0 760 340" role="img" aria-label="agent hierarchy">
+    <defs>
+      <marker id="ah01" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="25" y="142" width="180" height="58" rx="10" class="dg-b-out"/>
+    <text x="115" y="166.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">workflow.Node</text>
+    <text x="115" y="184.1" class="dg-sb" text-anchor="middle">graph node primitive</text>
+    <rect x="255" y="142" width="190" height="58" rx="10" class="dg-b-model"/>
+    <text x="350" y="166.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">agent.Agent</text>
+    <text x="350" y="184.1" class="dg-sb" text-anchor="middle">interface, runs as a node</text>
+    <rect x="500" y="18" width="240" height="52" rx="10" class="dg-b-model"/>
+    <text x="620" y="39" class="dg-lb" style="font-size:13.5px" text-anchor="middle">llmagent.New</text>
+    <text x="620" y="57" class="dg-sb" text-anchor="middle">LLM reasoning + tools</text>
+    <rect x="500" y="82" width="240" height="52" rx="10" class="dg-b-model"/>
+    <text x="620" y="103" class="dg-lb" style="font-size:13.5px" text-anchor="middle">workflowagent.New</text>
+    <text x="620" y="121" class="dg-sb" text-anchor="middle">wraps a graph as an agent</text>
+    <rect x="500" y="146" width="240" height="52" rx="10" class="dg-b-tool"/>
+    <text x="620" y="167.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">sequentialagent.New</text>
+    <text x="620" y="185.1" class="dg-sb" text-anchor="middle">sub-agents in order</text>
+    <rect x="500" y="210" width="240" height="52" rx="10" class="dg-b-tool"/>
+    <text x="620" y="231.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">parallelagent.New</text>
+    <text x="620" y="249.1" class="dg-sb" text-anchor="middle">sub-agents concurrently</text>
+    <rect x="500" y="274" width="240" height="52" rx="10" class="dg-b-tool"/>
+    <text x="620" y="295.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">loopagent.New</text>
+    <text x="620" y="313.1" class="dg-sb" text-anchor="middle">repeat until exit</text>
+    <rect x="10" y="8" width="740" height="324" rx="12" class="dg-frame"/>
+    <text x="26" y="30" class="dg-ti">Workflow Graph (2.0)</text>
+    <path d="M 205 171 L 248 171" class="dg-link dg-link-warm flow" marker-end="url(#ah01)"/>
+    <path d="M 445 171 L 469 171 L 469 44 L 493 44" class="dg-link" marker-end="url(#ah01)"/>
+    <path d="M 445 171 L 469 171 L 469 108 L 493 108" class="dg-link" marker-end="url(#ah01)"/>
+    <path d="M 445 171 L 469 171 L 469 172 L 493 172" class="dg-link" marker-end="url(#ah01)"/>
+    <path d="M 445 171 L 469 171 L 469 236 L 493 236" class="dg-link" marker-end="url(#ah01)"/>
+    <path d="M 445 171 L 469 171 L 469 300 L 493 300" class="dg-link" marker-end="url(#ah01)"/>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>agent.Agent</h3><p>Interface every agent implements: Name(), Description(), Run(ctx, ...) and the node contract.</p></div>
+    <div class="card"><h3>agent.Context</h3><p>Runtime handle for the current invocation: session, state, events, artifacts, memory, credentials.</p></div>
+    <div class="card"><h3>agent.Config</h3><p>Shared base config: Name, Description, SubAgents, callbacks.</p></div>
+    <div class="card"><h3>agent.RunConfig</h3><p>Per-run tuning: StreamingMode, max LLM calls, telemetry, labels.</p></div>
+    <div class="card"><h3>llmagent.Config</h3><p>Model, Instruction, Tools, Input/OutputKey, planner, callbacks.</p></div>
+    <div class="card"><h3>agent.NewSingleLoader</h3><p>Wraps one agent for the launcher/CLI entry point.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li><strong>llmagent.New</strong> — a conversational agent with tools, an instruction, and structured input/output (the common default).</li>
+    <li><strong>sequentialagent.New</strong> — a fixed pipeline (e.g. extract → enrich → summarize) where each stage hands off to the next.</li>
+    <li><strong>parallelagent.New</strong> — fan out independent sub-tasks (e.g. analyze multiple reports at once) and merge results.</li>
+    <li><strong>loopagent.New</strong> — repeat a step until a condition is met.</li>
+    <li><strong>workflowagent.New</strong> — wrap a graph-based workflow as a standard <code>agent.Agent</code>.</li>
+  </ul>
+
+  <div class="note"><strong>2.0 migration note:</strong> custom execution must move from <code>Run</code> overrides into <code>BeforeAgentCallback</code> / <code>AfterAgentCallback</code> hooks. The graph engine bypasses legacy execution overrides.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import (
+    "google.golang.org/adk/v2/agent"
+    "google.golang.org/adk/v2/agent/llmagent"
+    "google.golang.org/adk/v2/model/gemini"
+    "google.golang.org/adk/v2/tool"
+    "google.golang.org/adk/v2/tool/geminitool"
+    "google.golang.org/genai"
+)
+
+model, _ := gemini.NewModel(ctx, "gemini-flash-latest", &amp;genai.ClientConfig{
+    APIKey: os.Getenv("GOOGLE_API_KEY"),
+})
+
+timeAgent, _ := llmagent.New(llmagent.Config{
+    Name:        "hello_time_agent",
+    Model:       model,
+    Description: "Tells the current time in a specified city.",
+    Instruction: "You are a helpful assistant that tells the current time in a city.",
+    Tools:       []tool.Tool{geminitool.GoogleSearch{}},
+})
+
+config := &amp;launcher.Config{AgentLoader: agent.NewSingleLoader(timeAgent)}
+full.NewLauncher().Execute(ctx, config, os.Args[1:])</code></pre>
+  <p class="muted">See also: <code>workflow</code> (2.0 graph engine), <code>tool</code>, callbacks/plugins.</p>
+</section>
+
+<!-- 02-workflow.html -->
+<section>
+  <div class="crumb">MODULE 2 of 14</div>
+  <h1><span class="h-emoji">🔀</span> workflow <span class="badge">NEW in 2.0</span></h1>
+  <div class="module">google.golang.org/adk/v2/workflow · /agent/workflowagent</div>
+  <p>The heart of ADK Go 2.0 — a <strong>graph-based execution engine</strong> that replaces the 1.x hierarchical agent executor. Agents, tools, and functions are all evaluated as <strong>nodes</strong> in a directed graph connected by <strong>edges</strong>. This gives you deterministic, predictable control over how tasks are routed and executed.</p>
+
+  <h2>Graph model</h2>
+  <svg viewBox="0 0 760 300" role="img" aria-label="workflow graph">
+    <defs>
+      <marker id="ah02" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="18" y="126" width="56" height="48" rx="24" class="dg-b-pill"/>
+    <text x="46" y="152.1" class="dg-lb" style="font-size:12px" text-anchor="middle">in</text>
+    <rect x="140" y="120" width="140" height="60" rx="10" class="dg-b-out beat" style="--bd:0.1s"/>
+    <text x="210" y="145.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Node A</text>
+    <text x="210" y="163.1" class="dg-sb" text-anchor="middle">NewFunctionNode</text>
+    <rect x="350" y="28" width="145" height="60" rx="10" class="dg-b-model beat" style="--bd:0.9s"/>
+    <text x="422.5" y="53" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Node B</text>
+    <text x="422.5" y="71" class="dg-sb" text-anchor="middle">NewAgentNode</text>
+    <rect x="350" y="212" width="145" height="60" rx="10" class="dg-b-model"/>
+    <text x="422.5" y="237.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Node C</text>
+    <text x="422.5" y="255.1" class="dg-sb" text-anchor="middle">NewAgentNode</text>
+    <rect x="555" y="120" width="145" height="60" rx="10" class="dg-b-tool beat" style="--bd:1.7s"/>
+    <text x="627.5" y="145.1" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Node D</text>
+    <text x="627.5" y="163.1" class="dg-sb" text-anchor="middle">NewJoinNode</text>
+    <rect x="714" y="126" width="46" height="48" rx="24" class="dg-b-pill"/>
+    <text x="737" y="152.1" class="dg-lb" style="font-size:12px" text-anchor="middle">out</text>
+    <path d="M 74 150 L 133 150" class="dg-link flow" marker-end="url(#ah02)"/>
+    <path d="M 279.3 120 Q 304.8 91.5 343 92.4" class="dg-link dg-link-warm flow" marker-end="url(#ah02)"/>
+    <text x="300.8" y="86.3" class="dg-el" text-anchor="middle">route</text>
+    <path d="M 279.3 180 Q 304.8 208.5 343 207.6" class="dg-link dg-link-warm flow" marker-end="url(#ah02)"/>
+    <path d="M 489.3 88 Q 522.8 92 548 114.3" class="dg-link" marker-end="url(#ah02)"/>
+    <path d="M 489.3 212 Q 522.8 208 548 185.7" class="dg-link" marker-end="url(#ah02)"/>
+    <path d="M 700 150 L 707 150" class="dg-link flow" marker-end="url(#ah02)"/>
+    <circle r="5.5" class="dg-dot packet" style="offset-path:path('M 46 150 L 210 150 L 422 58 L 627 150 L 737 150');--dur:3.2s"/>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>workflow.NewFunctionNode</h3><p>Wraps a plain Go function as a node; its return value becomes <code>event.Output</code> forwarded to the next node.</p></div>
+    <div class="card"><h3>workflow.NewAgentNode</h3><p>Wraps an <code>agent.Agent</code> as a node in the graph.</p></div>
+    <div class="card"><h3>workflow.NewEmittingFunctionNode</h3><p>A function node that can emit events (e.g. set <code>ev.Routes</code> for routing).</p></div>
+    <div class="card"><h3>workflow.NewJoinNode</h3><p>Joins branches after parallel fan-out, waiting for all inputs.</p></div>
+    <div class="card"><h3>workflow.Edge</h3><p>Directed link with optional <code>Route</code> matcher for conditional dispatch.</p></div>
+    <div class="card"><h3>workflow.Chain / Concat</h3><p>Helpers to wire nodes into a sequential <code>[]workflow.Edge</code> slice.</p></div>
+    <div class="card"><h3>workflow.StringRoute / IntRoute / BoolRoute</h3><p>Route matchers checked against <code>event.Routes</code>.</p></div>
+    <div class="card"><h3>workflowagent.New</h3><p>Wraps the whole graph as a standard <code>agent.Agent</code>.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li><strong>Deterministic pipelines</strong> — a fixed sequence of processing stages with a clear start/end.</li>
+    <li><strong>Conditional routing</strong> — branch on a node's output via <code>workflow.StringRoute</code> edges for decision logic.</li>
+    <li><strong>Parallel fan-out / join</strong> — run multiple sub-tasks concurrently and gather results.</li>
+    <li><strong>Dynamic / iterative workflows</strong> — code-based control flow (loops, complex branching).</li>
+    <li><strong>Robustness</strong> — automatic retries and HITL pauses per node.</li>
+  </ul>
+
+  <div class="note"><strong>Why it matters:</strong> the graph engine gives the framework strict control over event emission, state, routing, and streaming. Data flows between nodes via <code>event.Output</code> — no session-state writes needed. Emit events from your node rather than appending to the session.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import (
+    "google.golang.org/adk/v2/agent"
+    "google.golang.org/adk/v2/agent/workflowagent"
+    "google.golang.org/adk/v2/workflow"
+)
+
+cityGen := workflow.NewFunctionNode("city_generator_agent",
+    func(_ agent.Context, _ any) (string, error) { return "Tokyo", nil },
+    workflow.NodeConfig{})
+
+lookup := workflow.NewFunctionNode("lookup_time_function",
+    func(_ agent.Context, city string) (cityTime, error) {
+        return cityTime{City: city, TimeInfo: "10:10 AM"}, nil
+    }, workflow.NodeConfig{})
+
+return workflowagent.New(workflowagent.Config{
+    Name:  "root_agent",
+    Edges: workflow.Chain(workflow.Start, cityGen, lookup),
+})</code></pre>
+  <p class="muted">See also: <code>agents</code> (agents as nodes), graphs docs, dynamic &amp; parallel workflow guides.</p>
+</section>
+
+<!-- 03-tools.html -->
+<section>
+  <div class="crumb">MODULE 3 of 14</div>
+  <h1><span class="h-emoji">🔧</span> tools</h1>
+  <div class="module">google.golang.org/adk/v2/tool · /tool/functiontool · /tool/agenttool · /tool/geminitool</div>
+  <p>Tools give agents abilities beyond conversation — calling APIs, searching, running code, invoking other agents, or talking to external services. In Go, a tool is a function with a typed input struct; the framework derives the JSON schema from <code>json</code> and <code>jsonschema</code> struct tags. Tools are attached to an agent via <code>llmagent.Config.Tools</code>.</p>
+
+  <h2>Tool architecture</h2>
+  <svg viewBox="0 0 760 268" role="img" aria-label="tool architecture">
+    <defs>
+      <marker id="ah03" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="40" y="58" width="185" height="46" rx="12" class="dg-b-ghost"/>
+    <text x="132.5" y="75.6" class="dg-lb" style="font-size:12px" text-anchor="middle">Name() / Description()</text>
+    <text x="132.5" y="93.6" class="dg-sb" text-anchor="middle">schema from struct tags</text>
+    <rect x="40" y="116" width="185" height="46" rx="12" class="dg-b-ghost"/>
+    <text x="132.5" y="133.6" class="dg-lb" style="font-size:12px" text-anchor="middle">Run(ctx, args)</text>
+    <text x="132.5" y="151.6" class="dg-sb" text-anchor="middle">typed input/output</text>
+    <rect x="40" y="174" width="185" height="38" rx="12" class="dg-b-ghost"/>
+    <text x="132.5" y="194.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">[]tool.Tool for agent</text>
+    <rect x="305" y="52" width="180" height="42" rx="10" class="dg-b-out"/>
+    <text x="395" y="75.1" class="dg-lb" style="font-size:12px" text-anchor="middle">functiontool.New</text>
+    <rect x="305" y="112" width="180" height="42" rx="10" class="dg-b-out"/>
+    <text x="395" y="135.1" class="dg-lb" style="font-size:12px" text-anchor="middle">agenttool.New</text>
+    <rect x="305" y="172" width="180" height="42" rx="10" class="dg-b-out"/>
+    <text x="395" y="194.8" class="dg-lb" style="font-size:11px" text-anchor="middle">geminitool.GoogleSearch</text>
+    <rect x="545" y="62" width="195" height="96" rx="10" class="dg-b-model"/>
+    <text x="642.5" y="90" class="dg-lb" style="font-size:13.5px" text-anchor="middle">llmagent.New</text>
+    <text x="642.5" y="108" class="dg-sb" text-anchor="middle">LLM picks tool + args</text>
+    <text x="642.5" y="123" class="dg-sb" text-anchor="middle">calls Run(), result fed</text>
+    <text x="642.5" y="138.1" class="dg-sb" text-anchor="middle">back as an event</text>
+    <rect x="545" y="200" width="195" height="50" rx="12" class="dg-b-ghost"/>
+    <text x="642.5" y="226.8" class="dg-lb" style="font-size:11px" text-anchor="middle">External APIs / MCP / agents</text>
+    <rect x="20" y="20" width="225" height="208" rx="12" class="dg-frame"/>
+    <text x="36" y="42" class="dg-ti">tool.Tool</text>
+    <path d="M 245 124 L 271.5 124 L 271.5 73 L 298 73" class="dg-link dg-link-warm" marker-end="url(#ah03)"/>
+    <path d="M 245 124 L 271.5 124 L 271.5 133 L 298 133" class="dg-link dg-link-warm flow" marker-end="url(#ah03)"/>
+    <text x="258.2" y="116" class="dg-el" text-anchor="middle">implement</text>
+    <path d="M 245 124 L 271.5 124 L 271.5 193 L 298 193" class="dg-link dg-link-warm" marker-end="url(#ah03)"/>
+    <path d="M 485 73 L 511.5 73 L 511.5 110 L 538 110" class="dg-link" marker-end="url(#ah03)"/>
+    <path d="M 485 133 L 511.5 133 L 511.5 110 L 538 110" class="dg-link" marker-end="url(#ah03)"/>
+    <path d="M 485 193 L 511.5 193 L 511.5 110 L 538 110" class="dg-link" marker-end="url(#ah03)"/>
+    <path d="M 642.5 158 L 642.5 193" class="dg-link flow" marker-end="url(#ah03)"/>
+    <text x="650.5" y="179.5" class="dg-el" text-anchor="start">calls</text>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>tool.Tool</h3><p>Interface: Name(), Description(), Run(ctx, args). Schema derived from struct tags.</p></div>
+    <div class="card"><h3>functiontool.New</h3><p>Wraps a Go function as a tool; typed input/output structs define the schema.</p></div>
+    <div class="card"><h3>agenttool.New</h3><p>Expose another agent as a tool so one agent delegates to a sub-agent.</p></div>
+    <div class="card"><h3>geminitool.GoogleSearch</h3><p>Built-in Google Search tool for grounding.</p></div>
+    <div class="card"><h3>Struct tags</h3><p><code>json</code> (required/optional via omitempty) + <code>jsonschema</code> (description).</p></div>
+    <div class="card"><h3>agent.Context</h3><p>Injected into tool funcs for session state, artifacts, credentials.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li><strong>functiontool.New</strong> — give an agent a bespoke function (search, calculator, internal lookup).</li>
+    <li><strong>agenttool.New</strong> — hierarchical delegation: a coordinator calls specialist sub-agents.</li>
+    <li><strong>geminitool.GoogleSearch</strong> — ground answers with live web search.</li>
+    <li><strong>MCP / OpenAPI</strong> — reuse the MCP ecosystem or any REST API.</li>
+  </ul>
+
+  <div class="note"><strong>Go schema rules:</strong> a field is <em>required</em> if its <code>json</code> tag has no <code>omitempty</code>/<code>omitzero</code>; <em>optional</em> if it does. Use <code>jsonschema</code> tags to describe each argument for the LLM.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>type getStockPriceArgs struct {
+    Symbol string `json:"symbol" jsonschema:"The stock ticker symbol, e.g., GOOG"`
+}
+type getStockPriceResults struct {
+    Symbol string  `json:"symbol"`
+    Price  float64 `json:"price,omitempty"`
+    Error  string  `json:"error,omitempty"`
+}
+func getStockPrice(ctx agent.Context, input getStockPriceArgs) (getStockPriceResults, error) {
+    return getStockPriceResults{Symbol: input.Symbol, Price: 300.6}, nil
+}
+
+stockPriceTool, _ := functiontool.New(functiontool.Config{
+    Name: "get_stock_price", Description: "Retrieves the current stock price.",
+}, getStockPrice)
+
+agent, _ := llmagent.New(llmagent.Config{
+    Name: "stock_agent", Model: model, Tools: []tool.Tool{stockPriceTool},
+})</code></pre>
+  <p class="muted">See also: <code>agents</code>, <code>plugins</code>, integrations/MCP/OpenAPI docs.</p>
+</section>
+
+<!-- 04-sessions.html -->
+<section>
+  <div class="crumb">MODULE 4 of 14</div>
+  <h1><span class="h-emoji">💬</span> sessions</h1>
+  <div class="module">google.golang.org/adk/v2/session</div>
+  <p>A <strong>Session</strong> tracks a single conversation: its event history, per-user state, and metadata. Session <strong>services</strong> persist those sessions and events so conversations survive across requests. <strong>State</strong> is the agent's working memory for the conversation (distinct from long-term memory).</p>
+
+  <h2>Session model</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="session model">
+    <defs>
+      <marker id="ah04" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="45" y="62" width="300" height="46" rx="12" class="dg-b-ghost"/>
+    <text x="195" y="79.6" class="dg-lb" style="font-size:12px" text-anchor="middle">ID / AppName / UserID</text>
+    <text x="195" y="97.6" class="dg-sb" text-anchor="middle">LastUpdateTime</text>
+    <rect x="45" y="118" width="300" height="46" rx="12" class="dg-b-ghost"/>
+    <text x="195" y="135.6" class="dg-lb" style="font-size:12px" text-anchor="middle">Events[] — conversation history</text>
+    <text x="195" y="153.6" class="dg-sb" text-anchor="middle">*session.Event</text>
+    <rect x="45" y="174" width="300" height="38" rx="12" class="dg-b-ghost"/>
+    <text x="195" y="195.1" class="dg-lb" style="font-size:12px" text-anchor="middle">State — working memory</text>
+    <rect x="440" y="36" width="295" height="92" rx="10" class="dg-b-out"/>
+    <text x="587.5" y="69.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">session.Service</text>
+    <text x="587.5" y="87.5" class="dg-sb" text-anchor="middle">Create / Get / List / Delete</text>
+    <text x="587.5" y="102.5" class="dg-sb" text-anchor="middle">AppendEvent / GetUserState</text>
+    <rect x="440" y="160" width="295" height="62" rx="12" class="dg-b-ghost"/>
+    <text x="587.5" y="185.6" class="dg-lb" style="font-size:12px" text-anchor="middle">session.InMemoryService()</text>
+    <text x="587.5" y="203.6" class="dg-sb" text-anchor="middle">implementations of session.Service</text>
+    <rect x="25" y="26" width="340" height="200" rx="12" class="dg-frame"/>
+    <text x="41" y="48" class="dg-ti">Session</text>
+    <path d="M 365 106.9 L 433 99.3" class="dg-link dg-link-warm flow" marker-end="url(#ah04)"/>
+    <text x="399" y="95.1" class="dg-el" text-anchor="middle">managed by</text>
+    <path d="M 587.5 128 L 587.5 153" class="dg-link dg-dash" marker-end="url(#ah04)"/>
+    <text x="595.5" y="144.5" class="dg-el" text-anchor="start">implemented by</text>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>session.Session</h3><p>ID, AppName, UserID, LastUpdateTime, Events[], State.</p></div>
+    <div class="card"><h3>session.Service</h3><p>Abstract persistence contract (Create/Get/List/Delete/AppendEvent).</p></div>
+    <div class="card"><h3>session.InMemoryService</h3><p>In-memory store — great for tests/prototyping.</p></div>
+    <div class="card"><h3>session.CreateRequest</h3><p>AppName + UserID used to create a new session.</p></div>
+    <div class="card"><h3>session.NewEvent</h3><p>Constructs an event; in 2.0 requires a <code>context.Context</code> first arg.</p></div>
+    <div class="card"><h3>State</h3><p>Working memory with prefixed keys: user/state/app/temp.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li>Maintain multi-turn context — a chat agent that remembers prior turns across requests.</li>
+    <li>Persist state so an agent can resume a task (e.g. a multi-step workflow) later.</li>
+    <li>User-scoped conversations via <code>UserID</code> for per-user session isolation.</li>
+    <li>InMemoryService for fast local dev/tests; a custom <code>session.Service</code> for production.</li>
+  </ul>
+
+  <div class="note"><strong>2.0 note:</strong> the Event struct added <code>IsolationScope</code>, <code>Routes</code>, <code>RequestedInput</code>, <code>Output</code>, <code>NodeInfo</code>. If you store sessions in a rigid DB schema (explicit columns), update it to accommodate the new fields.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import "google.golang.org/adk/v2/session"
+
+svc := session.InMemoryService()
+sess, err := svc.Create(ctx, &amp;session.CreateRequest{
+    AppName: "myapp",
+    UserID:  "u1",
+})
+sessionID := sess.Session.ID()
+// pass svc to runner.Config.SessionService</code></pre>
+  <p class="muted">See also: <code>events</code>, memory (long-term), <code>runner</code>.</p>
+</section>
+
+<!-- 05-events.html -->
+<section>
+  <div class="crumb">MODULE 5 of 14</div>
+  <h1><span class="h-emoji">📡</span> events <span class="badge">extended in 2.0</span></h1>
+  <div class="module">google.golang.org/adk/v2/session (Event)</div>
+  <p><strong>Event</strong> is the basic unit of communication in a session — a user message, an agent reply, a tool call/result. Events form the conversation history, drive the runner, and carry routing/state metadata. In 2.0 the Event struct gained graph fields (<code>Routes</code>, <code>Output</code>, <code>NodeInfo</code>, <code>RequestedInput</code>, <code>IsolationScope</code>).</p>
+
+  <h2>Event anatomy &amp; flow</h2>
+  <svg viewBox="0 0 760 276" role="img" aria-label="event flow">
+    <defs>
+      <marker id="ah05" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="40" y="56" width="300" height="30" rx="12" class="dg-b-ghost"/>
+    <text x="190" y="73" class="dg-lb" style="font-size:11.5px" text-anchor="middle">ID, Author, Timestamp, InvocationID</text>
+    <rect x="40" y="92" width="300" height="30" rx="12" class="dg-b-ghost"/>
+    <text x="190" y="109" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Content (genai parts)</text>
+    <rect x="40" y="128" width="300" height="30" rx="12" class="dg-b-ghost"/>
+    <text x="190" y="144.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Actions (transfer, route, ...)</text>
+    <rect x="40" y="164" width="300" height="30" rx="10" class="dg-b-tool"/>
+    <text x="190" y="180.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">NodeInfo, Output, IsolationScope (2.0)</text>
+    <rect x="40" y="200" width="300" height="30" rx="10" class="dg-b-tool"/>
+    <text x="190" y="216.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Routes, RequestedInput (2.0)</text>
+    <rect x="430" y="30" width="305" height="170" rx="10" class="dg-b-out"/>
+    <text x="582.5" y="80" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Event.Actions</text>
+    <text x="582.5" y="98" class="dg-sb" text-anchor="middle">TransferToAgent / Escalate</text>
+    <text x="582.5" y="113" class="dg-sb" text-anchor="middle">StateDelta / AgentState</text>
+    <text x="582.5" y="128.1" class="dg-sb" text-anchor="middle">Route / SetModelResponse</text>
+    <text x="582.5" y="143.1" class="dg-sb" text-anchor="middle">RequestedToolConfirmations</text>
+    <text x="582.5" y="158.1" class="dg-sb" text-anchor="middle">Rewind / Compaction</text>
+    <rect x="430" y="222" width="305" height="42" rx="12" class="dg-b-ghost"/>
+    <text x="582.5" y="244.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Runner consumes events → drives execution</text>
+    <rect x="20" y="20" width="340" height="232" rx="12" class="dg-frame"/>
+    <text x="36" y="42" class="dg-ti">session.Event</text>
+    <path d="M 360 126.9 L 423 123.5" class="dg-link dg-link-warm flow" marker-end="url(#ah05)"/>
+    <text x="391.5" y="117.2" class="dg-el" text-anchor="middle">carries</text>
+    <path d="M 582.5 200 L 582.5 215" class="dg-link flow" marker-end="url(#ah05)"/>
+    <text x="590.5" y="211.5" class="dg-el" text-anchor="start">applied by</text>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>session.Event</h3><p>Core event: content, author, actions, plus 2.0 graph fields.</p></div>
+    <div class="card"><h3>session.NewEvent</h3><p>Constructor; in 2.0 requires <code>context.Context</code> as the first argument.</p></div>
+    <div class="card"><h3>Event.Actions</h3><p>Control signals: transfer, route, escalate, state delta, rewind, request input.</p></div>
+    <div class="card"><h3>RequestInput</h3><p>Represents a paused node asking for human input (HITL) with a response schema.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li>Streaming UIs subscribe to events to render replies/tool progress live.</li>
+    <li>Agents set <code>Actions.TransferToAgent</code> to hand off to another agent.</li>
+    <li>2.0 <code>Routes</code> + <code>NodeInfo</code> drive graph edge dispatch and node tracking.</li>
+    <li><code>RequestedInput</code> pauses a workflow node for human-in-the-loop input.</li>
+  </ul>
+
+  <div class="note"><strong>2.0 breaking change:</strong> <code>session.NewEvent</code> now takes a <code>context.Context</code> first: <code>ev := session.NewEvent(ctx, ctx.InvocationID())</code>. The old parameterless form and <code>NewEventWithContext</code> are removed.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import "google.golang.org/adk/v2/session"
+
+ev := session.NewEvent(ctx, ctx.InvocationID())
+ev.Routes = []string{"BUG"}   // drives edge dispatch
+ev.Output = msg               // forward data to the next node
+// in an emitting node: emit(ev) so the engine manages persistence</code></pre>
+  <p class="muted">See also: <code>sessions</code>, <code>workflow</code>, <code>runner</code>.</p>
+</section>
+
+<!-- 06-models.html -->
+<section>
+  <div class="crumb">MODULE 6 of 14</div>
+  <h1><span class="h-emoji">🧠</span> models</h1>
+  <div class="module">google.golang.org/adk/v2/model/gemini · google.golang.org/genai</div>
+  <p>Models are the LLMs that power <code>llmagent</code> reasoning. In Go, a model is created via a provider package (e.g. <code>gemini.NewModel</code>) and passed to <code>llmagent.Config.Model</code>. ADK is LLM-agnostic — while optimized for Gemini, it supports many providers via integrations (Anthropic, OpenAI, Ollama, vLLM, LiteLLM, etc.).</p>
+
+  <h2>Model abstraction</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="model abstraction">
+    <defs>
+      <marker id="ah06" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="20" y="84" width="200" height="82" rx="10" class="dg-b-model"/>
+    <text x="120" y="112.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">llmagent.New</text>
+    <text x="120" y="130.6" class="dg-sb" text-anchor="middle">Model: model.Model</text>
+    <text x="120" y="145.6" class="dg-sb" text-anchor="middle">from provider package</text>
+    <rect x="290" y="22" width="225" height="74" rx="10" class="dg-b-out"/>
+    <text x="402.5" y="46.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">gemini.NewModel</text>
+    <text x="402.5" y="64.5" class="dg-sb" text-anchor="middle">model name + genai.ClientConfig</text>
+    <text x="402.5" y="79.5" class="dg-sb" text-anchor="middle">returns model.Model</text>
+    <rect x="290" y="150" width="225" height="74" rx="10" class="dg-b-out"/>
+    <text x="402.5" y="174.6" class="dg-lb" style="font-size:13.5px" text-anchor="middle">model.Model</text>
+    <text x="402.5" y="192.6" class="dg-sb" text-anchor="middle">GenerateContent(ctx, ...)</text>
+    <text x="402.5" y="207.6" class="dg-sb" text-anchor="middle">provider-agnostic</text>
+    <rect x="565" y="150" width="180" height="74" rx="12" class="dg-b-ghost"/>
+    <text x="655" y="173.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Gemini | Anthropic | OpenAI</text>
+    <text x="655" y="191.9" class="dg-sb" text-anchor="middle">Ollama | vLLM | LiteLLM</text>
+    <text x="655" y="206.9" class="dg-sb" text-anchor="middle">via integrations</text>
+    <path d="M 220 101.6 Q 249.7 86.5 283 86.9" class="dg-link flow" marker-end="url(#ah06)"/>
+    <path d="M 402.5 96 L 402.5 143" class="dg-link dg-link-warm flow" marker-end="url(#ah06)"/>
+    <text x="410.5" y="123.5" class="dg-el" text-anchor="start">returns</text>
+    <path d="M 515 187 L 558 187" class="dg-link dg-link-warm flow" marker-end="url(#ah06)"/>
+    <path d="M 220 146.9 Q 249.4 163.6 283 160.8" class="dg-link dg-dash" marker-end="url(#ah06)"/>
+    <text x="246.6" y="180.3" class="dg-el" text-anchor="middle">calls</text>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>gemini.NewModel</h3><p>Creates a Gemini model from a name + <code>genai.ClientConfig</code> (API key / project).</p></div>
+    <div class="card"><h3>model.Model</h3><p>Provider-agnostic interface passed to <code>llmagent.Config.Model</code>.</p></div>
+    <div class="card"><h3>genai.ClientConfig</h3><p>Auth config: APIKey, project, region, etc.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li>Point an agent at any supported model by name, e.g. <code>gemini.NewModel(ctx, "gemini-flash-latest", ...)</code>.</li>
+    <li>Swap providers by constructing a different model and passing it to the same agent config.</li>
+    <li>Combine with <strong>model routing</strong> for cost/quality trade-offs per request.</li>
+  </ul>
+
+  <div class="note">Beyond Gemini: the ecosystem adds provider-specific model packages (Anthropic, OpenAI, Ollama, vLLM, LiteLLM, Agent Platform, Apigee AI Gateway) — most live under integrations docs.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import (
+    "google.golang.org/adk/v2/model/gemini"
+    "google.golang.org/genai"
+)
+
+model, err := gemini.NewModel(ctx, "gemini-flash-latest", &amp;genai.ClientConfig{
+    APIKey: os.Getenv("GOOGLE_API_KEY"),
+})
+agent, _ := llmagent.New(llmagent.Config{Name: "root", Model: model})</code></pre>
+  <p class="muted">See also: <code>agents</code>, model-routing docs.</p>
+</section>
+
+<!-- 07-runners.html -->
+<section>
+  <div class="crumb">MODULE 7 of 14</div>
+  <h1><span class="h-emoji">▶️</span> runners</h1>
+  <div class="module">google.golang.org/adk/v2/runner</div>
+  <p>The <strong>Runner</strong> is the engine that executes an agent (or workflow), orchestrating the interaction between the LLM, tools, session services, memory, artifacts, credentials, and plugins. It consumes events, manages invocation context, and returns the run results.</p>
+
+  <h2>Runner wiring</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="runner wiring">
+    <defs>
+      <marker id="ah07" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="18" y="10" width="195" height="48" rx="10" class="dg-b-out"/>
+    <text x="115.5" y="28.4" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Agent (agent.Agent)</text>
+    <text x="115.5" y="46.5" class="dg-sb" text-anchor="middle">what to execute</text>
+    <rect x="18" y="68" width="195" height="48" rx="10" class="dg-b-out"/>
+    <text x="115.5" y="86.5" class="dg-lb" style="font-size:11.5px" text-anchor="middle">SessionService</text>
+    <text x="115.5" y="104.5" class="dg-sb" text-anchor="middle">persistence</text>
+    <rect x="18" y="126" width="195" height="48" rx="10" class="dg-b-out"/>
+    <text x="115.5" y="144.4" class="dg-lb" style="font-size:11.5px" text-anchor="middle">Artifact / Memory / Credential</text>
+    <text x="115.5" y="162.4" class="dg-sb" text-anchor="middle">services</text>
+    <rect x="18" y="184" width="195" height="48" rx="10" class="dg-b-out"/>
+    <text x="115.5" y="202.4" class="dg-lb" style="font-size:11.5px" text-anchor="middle">PluginManager</text>
+    <text x="115.5" y="220.4" class="dg-sb" text-anchor="middle">hooks</text>
+    <rect x="285" y="62" width="200" height="122" rx="10" class="dg-b-model"/>
+    <text x="385" y="96" class="dg-lb" style="font-size:15px" text-anchor="middle">runner.New</text>
+    <text x="385" y="114" class="dg-sb" text-anchor="middle">Run(ctx, userID,</text>
+    <text x="385" y="129" class="dg-sb" text-anchor="middle">sessionID, msg)</text>
+    <text x="385" y="144" class="dg-sb" text-anchor="middle">iterates events</text>
+    <text x="385" y="159" class="dg-sb" text-anchor="middle">agent.RunConfig</text>
+    <rect x="560" y="62" width="185" height="122" rx="10" class="dg-b-tool"/>
+    <text x="652.5" y="103" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Events</text>
+    <text x="652.5" y="121" class="dg-sb" text-anchor="middle">streamed to caller</text>
+    <text x="652.5" y="136.1" class="dg-sb" text-anchor="middle">final response / state</text>
+    <text x="652.5" y="151.1" class="dg-sb" text-anchor="middle">rendered to UI</text>
+    <path d="M 213 34 L 245.5 34 L 245.5 123 L 278 123" class="dg-link dg-link-warm" marker-end="url(#ah07)"/>
+    <path d="M 213 92 L 245.5 92 L 245.5 123 L 278 123" class="dg-link dg-link-warm" marker-end="url(#ah07)"/>
+    <path d="M 213 150 L 245.5 150 L 245.5 123 L 278 123" class="dg-link dg-link-warm" marker-end="url(#ah07)"/>
+    <path d="M 213 208 L 245.5 208 L 245.5 123 L 278 123" class="dg-link dg-link-warm" marker-end="url(#ah07)"/>
+    <path d="M 485 123 L 553 123" class="dg-link flow" marker-end="url(#ah07)"/>
+    <text x="519" y="115" class="dg-el" text-anchor="middle">streams</text>
+    <circle r="5.5" class="dg-dot packet" style="offset-path:path('M 492 123 L 648 123');--dur:2.2s"/>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>runner.New</h3><p>Builds a Runner from <code>runner.Config</code> (AppName, Agent, SessionService, ...).</p></div>
+    <div class="card"><h3>runner.Config</h3><p>Wires the agent, session service, and other services.</p></div>
+    <div class="card"><h3>Run</h3><p>Executes a turn; returns an iterator of <code>*session.Event</code> (and errors).</p></div>
+    <div class="card"><h3>agent.RunConfig</h3><p>Per-run tuning: StreamingMode, max LLM calls, telemetry, labels.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li>Execute an <code>llmagent</code> or a full <code>workflowagent</code> graph.</li>
+    <li>Stream events to a UI or CLI by iterating <code>r.Run(...)</code>.</li>
+    <li>Persist across turns with a real session service attached to the runner.</li>
+    <li>Set <code>StreamingMode</code> for token-level streaming.</li>
+  </ul>
+
+  <div class="note">The runner is how the 2.0 graph engine drives everything — it evaluates workflow nodes, collects emitted events, applies routing, and coordinates services. Build your app around <code>runner.New</code> + services.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import "google.golang.org/adk/v2/runner"
+
+r, _ := runner.New(runner.Config{
+    AppName:        "demo",
+    Agent:          myAgent,
+    SessionService: session.InMemoryService(),
+})
+
+userMsg := genai.NewContentFromText("hi", genai.RoleUser)
+for event, err := range r.Run(ctx, userID, sessionID, userMsg, agent.RunConfig{
+    StreamingMode: agent.StreamingModeNone,
+}) {
+    if err != nil { fmt.Println("AGENT_ERROR:", err); continue }
+    for _, p := range event.Content.Parts { fmt.Print(p.Text) }
+}</code></pre>
+  <p class="muted">See also: <code>workflow</code>, <code>sessions</code>, <code>events</code>, plugins.</p>
+</section>
+
+<!-- 08-plugins.html -->
+<section>
+  <div class="crumb">MODULE 8 of 14</div>
+  <h1><span class="h-emoji">🔌</span> plugins / callbacks</h1>
+  <div class="module">google.golang.org/adk/v2/agent (callbacks) · /plugin</div>
+  <p>Plugins and callbacks let you <strong>observe, customize, and control</strong> agent behavior by injecting code at defined points in the execution lifecycle — without overriding agent internals. This is the sanctioned 2.0 mechanism for custom logic (guardrails, logging, auth, retries).</p>
+
+  <h2>Callback lifecycle</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="callback lifecycle">
+    <defs>
+      <marker id="ah08" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="25" y="96" width="150" height="56" rx="10" class="dg-b-model"/>
+    <text x="100" y="119" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Run</text>
+    <text x="100" y="137.1" class="dg-sb" text-anchor="middle">invocation</text>
+    <rect x="210" y="96" width="150" height="56" rx="10" class="dg-b-out beat" style="--bd:0.6s"/>
+    <text x="285" y="119" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Agent</text>
+    <text x="285" y="137.1" class="dg-sb" text-anchor="middle">node</text>
+    <rect x="395" y="96" width="150" height="56" rx="10" class="dg-b-model beat" style="--bd:1.1s"/>
+    <text x="470" y="119" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Model</text>
+    <text x="470" y="137.1" class="dg-sb" text-anchor="middle">LLM call</text>
+    <rect x="580" y="96" width="150" height="56" rx="10" class="dg-b-model beat" style="--bd:1.7s"/>
+    <text x="655" y="119" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Tool</text>
+    <text x="655" y="137.1" class="dg-sb" text-anchor="middle">execution</text>
+    <path d="M 175 124 L 203 124" class="dg-link flow" marker-end="url(#ah08)"/>
+    <path d="M 360 124 L 388 124" class="dg-link flow" marker-end="url(#ah08)"/>
+    <path d="M 545 124 L 573 124" class="dg-link flow" marker-end="url(#ah08)"/>
+    <circle r="5.5" class="dg-dot packet" style="offset-path:path('M 28 124 L 726 124');--dur:2.4s"/>
+    <text x="100" y="72" class="dg-el" text-anchor="middle">before/after_run</text>
+    <text x="285" y="72" class="dg-el" text-anchor="middle">before/after_agent</text>
+    <text x="470" y="72" class="dg-el" text-anchor="middle">before/after_model</text>
+    <text x="655" y="72" class="dg-el" text-anchor="middle">before/after_tool</text>
+    <text x="380" y="196" class="dg-sb" text-anchor="middle">on_run_error · on_user_message</text>
+    <text x="380" y="216" class="dg-sb" text-anchor="middle">on_model_error · on_event</text>
+    <text x="380" y="236" class="dg-sb" text-anchor="middle">on_tool_error · on_agent_error</text>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>Before/AfterAgentCallback</h3><p>Hooks around agent execution — the 2.0 way to inject custom logic.</p></div>
+    <div class="card"><h3>Model &amp; Tool callbacks</h3><p>before/after model and tool calls; on-model-error / on-tool-error.</p></div>
+    <div class="card"><h3>Plugin</h3><p>Reusable bundle of lifecycle hooks attached to a runner/agent.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li><strong>Guardrails</strong> — block or modify a tool call before execution.</li>
+    <li><strong>Observability</strong> — log events, tool calls, and errors to a monitoring backend.</li>
+    <li><strong>Auth / context injection</strong> — set credentials or state at run start.</li>
+    <li><strong>Retries &amp; policy</strong> — react to tool/model errors with custom behavior.</li>
+    <li><strong>Reusable cross-agent behavior</strong> — package a plugin and attach to many agents.</li>
+  </ul>
+
+  <div class="note"><strong>2.0 guidance:</strong> move custom execution logic out of <code>Run</code> overrides into <code>BeforeAgentCallback</code> / <code>AfterAgentCallback</code> hooks — the graph engine bypasses legacy overrides. This is the supported extension point.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import "google.golang.org/adk/v2/agent"
+
+// Implement agent.BeforeAgentCallback / AfterAgentCallback
+type guard struct{}
+func (guard) BeforeAgentCallback(ctx agent.Context, invocation *agent.Invocation) error {
+    // inspect / modify the invocation before the agent runs
+    return nil
+}
+
+agent, _ := llmagent.New(llmagent.Config{
+    Name: "root", Model: model,
+    BeforeAgentCallbacks: []agent.BeforeAgentCallback{guard{}},
+})</code></pre>
+  <p class="muted">See also: <code>agents</code>, <code>tools</code>, <code>runner</code>, <code>events</code>.</p>
+</section>
+
+<!-- 09-memory.html -->
+<section>
+  <div class="crumb">MODULE 9 of 14</div>
+  <h1><span class="h-emoji">💾</span> memory</h1>
+  <div class="module">google.golang.org/adk/v2/memory</div>
+  <p><strong>Memory</strong> gives agents long-term recall about a user <em>across multiple sessions</em> — distinct from short-term session state. A memory service stores and retrieves memories so an agent can remember user preferences or prior facts over time.</p>
+
+  <h2>Memory vs session state</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="memory vs state">
+    <defs>
+      <marker id="ah09" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="25" y="22" width="335" height="140" rx="10" class="dg-b-out"/>
+    <text x="192.5" y="65" class="dg-lb" style="font-size:15px" text-anchor="middle">Session State</text>
+    <text x="192.5" y="83" class="dg-sb" text-anchor="middle">scope: one conversation</text>
+    <text x="192.5" y="98" class="dg-sb" text-anchor="middle">working memory, resets per session</text>
+    <text x="192.5" y="113" class="dg-sb" text-anchor="middle">managed by session.Service</text>
+    <text x="192.5" y="128" class="dg-sb" text-anchor="middle">session.State</text>
+    <rect x="400" y="22" width="335" height="140" rx="10" class="dg-b-model"/>
+    <text x="567.5" y="65" class="dg-lb" style="font-size:15px" text-anchor="middle">Memory</text>
+    <text x="567.5" y="83" class="dg-sb" text-anchor="middle">scope: across sessions / user</text>
+    <text x="567.5" y="98" class="dg-sb" text-anchor="middle">long-term recall (preferences, facts)</text>
+    <text x="567.5" y="113" class="dg-sb" text-anchor="middle">memory.Service + search/add</text>
+    <text x="567.5" y="128" class="dg-sb" text-anchor="middle">google.golang.org/adk/v2/memory</text>
+    <rect x="205" y="194" width="350" height="44" rx="10" class="dg-b-tool"/>
+    <text x="380" y="218.2" class="dg-lb" style="font-size:12.5px" text-anchor="middle">Agent reads/writes both via Context</text>
+    <path d="M 346.7 194 Q 335.6 169.8 308.9 169" class="dg-link dg-link-warm flow" marker-end="url(#ah09)"/>
+    <path d="M 413.3 194 Q 424.4 169.8 451.1 169" class="dg-link dg-link-warm flow" marker-end="url(#ah09)"/>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>memory.Service</h3><p>Interface for storing and searching long-term memories.</p></div>
+    <div class="card"><h3>Context integration</h3><p>Agent Context exposes memory add/search methods.</p></div>
+    <div class="card"><h3>Memory tools</h3><p>load_memory / preload_memory tools let the agent query memory directly.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li>A personal assistant that remembers the user's name, preferences, and past topics.</li>
+    <li>Save a session to memory at the end so future sessions can recall it.</li>
+    <li>Vector/DB-backed memory (Redis, Milvus, Perseus Vault, Database Memory Service) for semantic recall.</li>
+  </ul>
+
+  <div class="note">Memory complements (not replaces) session state. Use session state for the current task's scratchpad; use memory for durable, cross-session user facts.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import "google.golang.org/adk/v2/memory"
+
+// Implement memory.Service (Search, Add, ...) backed by your store.
+type myMemory struct{ /* ... */ }
+
+// attach to runner.Config.MemoryService
+r, _ := runner.New(runner.Config{
+    AppName: "demo", Agent: myAgent,
+    SessionService: session.InMemoryService(),
+    MemoryService:  &amp;myMemory{},
+})</code></pre>
+  <p class="muted">See also: <code>sessions</code>, <code>artifacts</code>, <code>tools</code> (load_memory).</p>
+</section>
+
+<!-- 10-artifacts.html -->
+<section>
+  <div class="crumb">MODULE 10 of 14</div>
+  <h1><span class="h-emoji">📦</span> artifacts</h1>
+  <div class="module">google.golang.org/adk/v2/artifact</div>
+  <p><strong>Artifacts</strong> let agents save, load, and manage files or binary data (images, PDFs, generated reports) associated with a session or user — with versioning. An artifact service provides the storage backend, exposed to agents via <code>Context</code> methods.</p>
+
+  <h2>Artifact flow</h2>
+  <svg viewBox="0 0 760 220" role="img" aria-label="artifact flow">
+    <defs>
+      <marker id="ah10" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="25" y="68" width="200" height="76" rx="10" class="dg-b-model"/>
+    <text x="125" y="101" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Agent / Context</text>
+    <text x="125" y="119" class="dg-sb" text-anchor="middle">save/load/list artifact</text>
+    <rect x="285" y="58" width="210" height="96" rx="10" class="dg-b-out"/>
+    <text x="390" y="93.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">artifact.Service</text>
+    <text x="390" y="111.5" class="dg-sb" text-anchor="middle">save / load / list</text>
+    <text x="390" y="126.5" class="dg-sb" text-anchor="middle">delete / version</text>
+    <rect x="555" y="22" width="185" height="74" rx="12" class="dg-b-ghost"/>
+    <text x="647.5" y="53.6" class="dg-lb" style="font-size:12px" text-anchor="middle">storage backends</text>
+    <text x="647.5" y="71.6" class="dg-sb" text-anchor="middle">local / GCS / custom</text>
+    <rect x="555" y="122" width="185" height="74" rx="10" class="dg-b-tool"/>
+    <text x="647.5" y="153.6" class="dg-lb" style="font-size:12px" text-anchor="middle">Versioned file</text>
+    <text x="647.5" y="171.6" class="dg-sb" text-anchor="middle">v1, v2, ... per artifact</text>
+    <path d="M 225 106 L 278 106" class="dg-link dg-link-warm flow" marker-end="url(#ah10)"/>
+    <path d="M 495 106 L 521.5 106 L 521.5 59 L 548 59" class="dg-link flow" marker-end="url(#ah10)"/>
+    <path d="M 495 106 L 521.5 106 L 521.5 159 L 548 159" class="dg-link flow" marker-end="url(#ah10)"/>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>artifact.Service</h3><p>Interface: Save, Load, Delete, List, version helpers.</p></div>
+    <div class="card"><h3>Context helpers</h3><p>SaveArtifact / LoadArtifact / ListArtifacts on the agent Context.</p></div>
+    <div class="card"><h3>LoadArtifactsTool</h3><p>Tool that lets an LLM load artifacts into its prompt context.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li>Generate and persist a PDF/report, then let the agent reload it next turn.</li>
+    <li>Store uploaded images the agent must reference in later turns.</li>
+    <li>Version documents so changes are tracked per artifact.</li>
+  </ul>
+
+  <div class="note">Artifacts are keyed by user/session — scope them so different users don't see each other's files. Backends like GCS scale for production.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import "google.golang.org/adk/v2/artifact"
+
+// Implement artifact.Service (Save, Load, ...) backed by your store.
+type localArtifacts struct{ /* ... */ }
+
+r, _ := runner.New(runner.Config{
+    AppName: "demo", Agent: myAgent,
+    SessionService: session.InMemoryService(),
+    ArtifactService: &amp;localArtifacts{},
+})
+// in the agent: ctx.SaveArtifact(key=..., artifact=...)</code></pre>
+  <p class="muted">See also: <code>sessions</code>, <code>memory</code>, <code>tools</code> (LoadArtifactsTool).</p>
+</section>
+
+<!-- 11-skills.html -->
+<section>
+  <div class="crumb">MODULE 11 of 14</div>
+  <h1><span class="h-emoji">🎓</span> skills</h1>
+  <div class="module">google.golang.org/adk/v2/skill</div>
+  <p><strong>Skills</strong> are packaged, reusable capabilities (instructions + resources + scripts) an agent can load on demand. A skill bundles a markdown instruction, optional reference/asset files, and helper scripts — discoverable via a registry and surfaced to the agent as tools.</p>
+
+  <h2>Skill anatomy</h2>
+  <svg viewBox="0 0 760 250" role="img" aria-label="skill anatomy">
+    <defs>
+      <marker id="ah11" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="20" y="38" width="205" height="116" rx="10" class="dg-b-out"/>
+    <text x="122.5" y="76.5" class="dg-lb" style="font-size:15px" text-anchor="middle">Skill</text>
+    <text x="122.5" y="94.5" class="dg-sb" text-anchor="middle">frontmatter (name, description)</text>
+    <text x="122.5" y="109.5" class="dg-sb" text-anchor="middle">instructions (markdown)</text>
+    <text x="122.5" y="124.5" class="dg-sb" text-anchor="middle">resources (assets/refs/scripts)</text>
+    <rect x="270" y="52" width="190" height="88" rx="10" class="dg-b-model"/>
+    <text x="365" y="83.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">skill.Registry</text>
+    <text x="365" y="101.5" class="dg-sb" text-anchor="middle">Get / Search skills</text>
+    <text x="365" y="116.5" class="dg-sb" text-anchor="middle">search tool descriptions</text>
+    <rect x="505" y="52" width="235" height="88" rx="10" class="dg-b-model"/>
+    <text x="622.5" y="83.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">SkillToolset</text>
+    <text x="622.5" y="101.5" class="dg-sb" text-anchor="middle">load / search / list / run-script</text>
+    <text x="622.5" y="116.5" class="dg-sb" text-anchor="middle">tools an agent can call</text>
+    <rect x="270" y="182" width="470" height="48" rx="10" class="dg-b-tool"/>
+    <text x="505" y="200.9" class="dg-lb" style="font-size:13px" text-anchor="middle">llmagent</text>
+    <text x="505" y="218.9" class="dg-sb" text-anchor="middle">loads skills as tools</text>
+    <path d="M 225 96 L 263 96" class="dg-link dg-link-warm flow" marker-end="url(#ah11)"/>
+    <path d="M 460 96 L 498 96" class="dg-link dg-link-warm flow" marker-end="url(#ah11)"/>
+    <path d="M 575.5 140 Q 548.6 148.7 538.1 175" class="dg-link flow" marker-end="url(#ah11)"/>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>skill.Skill</h3><p>Name, description, instructions, resources (references/assets/scripts).</p></div>
+    <div class="card"><h3>skill.Registry</h3><p>Discovers and fetches skills by name/description.</p></div>
+    <div class="card"><h3>SkillToolset</h3><p>Exposes skills to an agent as tools: list/search/load/run-script.</p></div>
+    <div class="card"><h3>Loaders</h3><p>Load skills from a local dir or GCS.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li>Package a domain procedure (e.g. "summarize financial docs") as a reusable skill.</li>
+    <li>Share skills across agents or teams via a registry or GCS.</li>
+    <li>Let an agent discover and load the right skill dynamically via a search tool.</li>
+  </ul>
+
+  <div class="note">Skills differ from tools: a skill is a bundled <em>instruction set</em> (with supporting files) that teaches an agent how to do something, whereas a tool is a directly callable function. ADK also integrates Google Cloud Skill Registry for managed skills.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import "google.golang.org/adk/v2/skill"
+
+// Load a skill from a directory (SKILL.md + files)
+s, err := skill.LoadFromDir(ctx, "path/to/my_skill")
+
+// Attach skills to an agent via a SkillToolset
+agent, _ := llmagent.New(llmagent.Config{
+    Name: "root", Model: model,
+    Tools: []tool.Tool{skill.NewToolset(s)},
+})</code></pre>
+  <p class="muted">See also: <code>tools</code>, <code>agents</code>, integrations/skills-registry.</p>
+</section>
+
+<!-- 12-planners.html -->
+<section>
+  <div class="crumb">MODULE 12 of 14</div>
+  <h1><span class="h-emoji">🗺️</span> planners</h1>
+  <div class="module">google.golang.org/adk/v2/agent/llmagent (planner)</div>
+  <p><strong>Planners</strong> give an agent the ability to break a complex goal into smaller steps and execute them — a ReAct-style plan-then-act loop. A planner translates a user goal into a structured plan and processes the result into actions the agent carries out.</p>
+
+  <h2>Plan-then-act flow</h2>
+  <svg viewBox="0 0 760 292" role="img" aria-label="plan-then-act loop">
+    <defs>
+      <marker id="ah12" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="20" y="96" width="170" height="68" rx="10" class="dg-b-out"/>
+    <text x="105" y="125" class="dg-lb" style="font-size:13.5px" text-anchor="middle">User goal</text>
+    <text x="105" y="143.1" class="dg-sb" text-anchor="middle">complex request</text>
+    <rect x="255" y="96" width="190" height="68" rx="10" class="dg-b-model beat" style="--bd:0.2s"/>
+    <text x="350" y="117.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Planner</text>
+    <text x="350" y="135.6" class="dg-sb" text-anchor="middle">build plan instruction</text>
+    <text x="350" y="150.6" class="dg-sb" text-anchor="middle">process plan response</text>
+    <rect x="520" y="20" width="215" height="66" rx="10" class="dg-b-model beat" style="--bd:1.4s"/>
+    <text x="627.5" y="48" class="dg-lb" style="font-size:13.5px" text-anchor="middle">LLM plan</text>
+    <text x="627.5" y="66" class="dg-sb" text-anchor="middle">structured steps</text>
+    <rect x="520" y="172" width="215" height="66" rx="10" class="dg-b-tool beat" style="--bd:2.6s"/>
+    <text x="627.5" y="199.8" class="dg-lb" style="font-size:12.5px" text-anchor="middle">Agent executes steps</text>
+    <text x="627.5" y="217.8" class="dg-sb" text-anchor="middle">tools + model</text>
+    <path d="M 190 130 L 248 130" class="dg-link flow" marker-end="url(#ah12)"/>
+    <path d="M 445 103.6 Q 476.3 84.6 513 84.8" class="dg-link dg-link-warm flow" marker-end="url(#ah12)"/>
+    <path d="M 627.5 86 Q 641.5 125.5 627.5 165" class="dg-link dg-link-warm flow" marker-end="url(#ah12)"/>
+    <path d="M 520 175.9 Q 483.4 176.4 452 157.6" class="dg-link dg-link-warm flow" marker-end="url(#ah12)"/>
+    <circle r="5" class="dg-dot orbit" style="offset-path:path('M 350 130 L 627 53 L 627 205 Z');animation-duration:4.2s"/>
+    <text x="455" y="276" class="dg-el" text-anchor="middle">iterate until the goal is met</text>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>Planner</h3><p>Interface: build a planning instruction and process the plan response.</p></div>
+    <div class="card"><h3>llmagent.Config.Planner</h3><p>Attach a planner to an agent to enable plan-then-act.</p></div>
+    <div class="card"><h3>ReAct style</h3><p>Plan a goal, then act via reasoning + tools, iterating until done.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li>Complex multi-step tasks where a single LLM call is insufficient (e.g. "research and summarize a topic").</li>
+    <li>Tasks requiring intermediate planning before tool use (ReAct).</li>
+    <li>Improve reliability on long goals by forcing structured step decomposition.</li>
+  </ul>
+
+  <div class="note">Attach a planner to an <code>llmagent</code> via the <code>Planner</code> config field. The planner influences the agent's reasoning/planning loop; combine with planning callbacks for observability.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import "google.golang.org/adk/v2/agent/llmagent"
+
+agent, _ := llmagent.New(llmagent.Config{
+    Name:    "research",
+    Model:   model,
+    Planner: myPlanner,   // implements the planner interface
+    Tools:   []tool.Tool{webSearchTool},
+})</code></pre>
+  <p class="muted">See also: <code>agents</code> (llmagent planner), <code>workflow</code> (graph alternatives).</p>
+</section>
+
+<!-- 13-telemetry.html -->
+<section>
+  <div class="crumb">MODULE 13 of 14</div>
+  <h1><span class="h-emoji">📊</span> telemetry</h1>
+  <div class="module">google.golang.org/adk/v2/telemetry</div>
+  <p>Telemetry captures traces, metrics, and logs from agent runs so you can observe behavior in production or during development. Built on OpenTelemetry, ADK emits spans for model calls, tool calls, and data transfer, with configurable content capture for privacy.</p>
+
+  <h2>Telemetry flow</h2>
+  <svg viewBox="0 0 760 262" role="img" aria-label="telemetry flow">
+    <defs>
+      <marker id="ah13" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="25" y="74" width="195" height="82" rx="10" class="dg-b-model"/>
+    <text x="122.5" y="102.5" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Agent run</text>
+    <text x="122.5" y="120.5" class="dg-sb" text-anchor="middle">model + tool + data</text>
+    <text x="122.5" y="135.6" class="dg-sb" text-anchor="middle">events</text>
+    <rect x="285" y="64" width="200" height="102" rx="10" class="dg-b-out"/>
+    <text x="385" y="102.4" class="dg-lb" style="font-size:13px" text-anchor="middle">telemetry package</text>
+    <text x="385" y="120.4" class="dg-sb" text-anchor="middle">trace LLM / tool calls</text>
+    <text x="385" y="135.4" class="dg-sb" text-anchor="middle">spans + attributes</text>
+    <rect x="550" y="74" width="190" height="82" rx="10" class="dg-b-tool"/>
+    <text x="645" y="102.4" class="dg-lb" style="font-size:13px" text-anchor="middle">OTel exporters</text>
+    <text x="645" y="120.4" class="dg-sb" text-anchor="middle">Datadog · Langfuse</text>
+    <text x="645" y="135.4" class="dg-sb" text-anchor="middle">MLflow · ...</text>
+    <rect x="265" y="196" width="240" height="56" rx="12" class="dg-b-ghost"/>
+    <text x="385" y="210.9" class="dg-lb" style="font-size:11.5px" text-anchor="middle">agent.RunConfig</text>
+    <text x="385" y="228.9" class="dg-sb" text-anchor="middle">telemetry config per run</text>
+    <text x="385" y="243.9" class="dg-sb" text-anchor="middle">content capture (privacy)</text>
+    <path d="M 220 115 L 278 115" class="dg-link dg-link-warm flow" marker-end="url(#ah13)"/>
+    <path d="M 485 115 L 543 115" class="dg-link dg-link-warm flow" marker-end="url(#ah13)"/>
+    <path d="M 385 196 L 385 173" class="dg-link dg-dash" marker-end="url(#ah13)"/>
+    <text x="393" y="188.5" class="dg-el" text-anchor="start">configures</text>
+    <circle r="5.5" class="dg-dot packet" style="offset-path:path('M 30 115 L 736 115');--dur:2.6s"/>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>telemetry package</h3><p>Trace helpers for LLM and tool calls; spans and attributes.</p></div>
+    <div class="card"><h3>agent.RunConfig</h3><p>Per-run telemetry configuration, including content capture.</p></div>
+    <div class="card"><h3>OTel exporters</h3><p>Send spans to Datadog, Langfuse, MLflow, and more.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li>Debug agent behavior by inspecting model/tool call traces.</li>
+    <li>Emit metrics and logs to an observability backend (Datadog, Langfuse, etc.).</li>
+    <li>Limit or redact content capture for compliance.</li>
+  </ul>
+
+  <div class="note">The ecosystem provides many observability integrations (AgentOps, Langfuse, MLflow, W&amp;B Weave, Phoenix, Cloud Trace, and more). Telemetry is typically configured per run via <code>agent.RunConfig</code>.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import "google.golang.org/adk/v2/agent"
+
+// Configure telemetry on a run
+for event, err := range r.Run(ctx, userID, sessionID, userMsg, agent.RunConfig{
+    StreamingMode: agent.StreamingModeNone,
+    // telemetry options here
+}) {
+    // ...
+}</code></pre>
+  <p class="muted">See also: <code>runner</code> (RunConfig), observability integrations.</p>
+</section>
+
+<!-- 14-evaluation.html -->
+<section>
+  <div class="crumb">MODULE 14 of 14</div>
+  <h1><span class="h-emoji">✅</span> evaluation</h1>
+  <div class="module">google.golang.org/adk/v2/eval</div>
+  <p>ADK provides <strong>built-in agent evaluation</strong>: create multi-turn evaluation datasets and run them against an agent to measure quality and guide improvements. The evaluator runs each test case, records events, and scores the results against criteria.</p>
+
+  <h2>Evaluation pipeline</h2>
+  <svg viewBox="0 0 760 220" role="img" aria-label="evaluation pipeline">
+    <defs>
+      <marker id="ah14" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="18" y="62" width="172" height="96" rx="10" class="dg-b-out"/>
+    <text x="104" y="104.9" class="dg-lb" style="font-size:13px" text-anchor="middle">Eval dataset</text>
+    <text x="104" y="122.9" class="dg-sb" text-anchor="middle">multi-turn test cases</text>
+    <rect x="206" y="62" width="172" height="96" rx="10" class="dg-b-model beat" style="--bd:0.6s"/>
+    <text x="292" y="97.4" class="dg-lb" style="font-size:13px" text-anchor="middle">eval package</text>
+    <text x="292" y="115.4" class="dg-sb" text-anchor="middle">run agent per case</text>
+    <text x="292" y="130.4" class="dg-sb" text-anchor="middle">record events</text>
+    <rect x="394" y="62" width="172" height="96" rx="10" class="dg-b-model beat" style="--bd:1.1s"/>
+    <text x="480" y="97.4" class="dg-lb" style="font-size:13px" text-anchor="middle">Scorers / Criteria</text>
+    <text x="480" y="115.4" class="dg-sb" text-anchor="middle">score each response</text>
+    <text x="480" y="130.4" class="dg-sb" text-anchor="middle">LLM/rule-based</text>
+    <rect x="582" y="62" width="172" height="96" rx="10" class="dg-b-tool beat" style="--bd:1.7s"/>
+    <text x="668" y="97.4" class="dg-lb" style="font-size:13px" text-anchor="middle">Results</text>
+    <text x="668" y="115.4" class="dg-sb" text-anchor="middle">quality metrics</text>
+    <text x="668" y="130.4" class="dg-sb" text-anchor="middle">guide iterations</text>
+    <path d="M 190 110 L 199 110" class="dg-link flow" marker-end="url(#ah14)"/>
+    <path d="M 378 110 L 387 110" class="dg-link flow" marker-end="url(#ah14)"/>
+    <path d="M 566 110 L 575 110" class="dg-link dg-link-warm flow" marker-end="url(#ah14)"/>
+    <circle r="5.5" class="dg-dot packet" style="offset-path:path('M 24 110 L 748 110');--dur:2.6s"/>
+  </svg>
+
+  <h2>Key components</h2>
+  <div class="grid">
+    <div class="card"><h3>eval package</h3><p>Runs evaluation datasets against an agent and records results.</p></div>
+    <div class="card"><h3>Criteria</h3><p>Structured evaluation criteria to score responses.</p></div>
+    <div class="card"><h3>Custom Metrics</h3><p>Define bespoke scoring functions for your domain.</p></div>
+    <div class="card"><h3>User/Env Simulation</h3><p>Simulate users and environments for multi-turn eval realism.</p></div>
+  </div>
+
+  <h2>Use cases</h2>
+  <ul>
+    <li>Regression-test an agent after changes with a fixed dataset.</li>
+    <li>Compare models/configs on the same evaluation suite.</li>
+    <li>Track quality across releases; tune prompts based on scores.</li>
+  </ul>
+
+  <div class="note">Evaluation ties into <code>telemetry</code> (captured traces) for inspection. Also see the optimization tooling for tuning and example stores used in eval.</div>
+
+  <h2>Quick sketch</h2>
+  <pre><code>import "google.golang.org/adk/v2/eval"
+
+// Run an evaluation dataset against an agent
+results, err := eval.Run(ctx, eval.Config{
+    Agent:   myAgent,
+    Dataset: "path/to/eval.jsonl",
+    Workers: 4,
+})
+// results contain per-case scores and events</code></pre>
+  <p class="muted">See also: telemetry, optimization, evaluate/criteria docs.</p>
+</section>
+
+</template>
+
+<script>
+(function () {
+  'use strict';
+
+  // Modules are authored inside <template> so the source stays readable; lift
+  // them into the deck and let the .active class drive display + animation.
+  var deck = document.getElementById('deck');
+  var bar  = document.getElementById('progress');
+  var tpl  = document.getElementById('src');
+  var nav  = document.getElementById('toc');
+
+  Array.prototype.forEach.call(tpl.content.querySelectorAll('section'), function (s) {
+    s.classList.add('slide');
+    deck.appendChild(document.importNode(s, true));
+  });
+
+  var slides = Array.prototype.slice.call(deck.querySelectorAll('.slide'));
+  var items  = Array.prototype.slice.call(nav.querySelectorAll('.nav-item'));
+  var i = 0;
+
+  // Stagger is generated, never hand-maintained: authoring a --d on every block
+  // is exactly the bookkeeping that rots when a section is inserted mid-page.
+  slides.forEach(function (s) {
+    var d = 0;
+    Array.prototype.forEach.call(s.children, function (el) {
+      el.classList.add('rise');
+      el.style.setProperty('--d', d.toFixed(2) + 's');
+      d = Math.min(d + 0.05, 0.6);
+    });
+  });
+
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function (s, k) { s.classList.toggle('active', k === i); });
+    items.forEach(function (a, k) { a.classList.toggle('on', k === i); });
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    scrollTo(0, 0);
+    var on = items[i];
+    if (on && on.scrollIntoView) { on.scrollIntoView({block: 'nearest', inline: 'nearest'}); }
+    try { location.hash = String(i + 1); } catch (e) {}
+  }
+
+  // One handler for both the sidebar and the overview cards: anything carrying
+  // data-go is a jump target, so adding a link never means adding a listener.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-go]');
+    if (!a) return;
+    e.preventDefault();
+    show(parseInt(a.dataset.go, 10));
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); show(i + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End') { e.preventDefault(); show(slides.length - 1); }
+    else if (e.key === 'o' || e.key === 'O') { show(0); }
+    else if (e.key === 'f' || e.key === 'F') {
+      if (document.fullscreenElement) { document.exitFullscreen(); }
+      else { document.documentElement.requestFullscreen().catch(function () {}); }
+    }
+  });
+
+  // Deep links: #7 opens module 6, and editing the hash live still works.
+  addEventListener('hashchange', function () {
+    var n = parseInt((location.hash || '#1').slice(1), 10) - 1;
+    if (!isNaN(n) && n !== i) show(n);
+  });
+
+  show(parseInt((location.hash || '#1').slice(1), 10) - 1 || 0);
+})();
+</script>
+</body>
+</html>

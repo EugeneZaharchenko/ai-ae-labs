@@ -1,5 +1,28 @@
 # yaml-language-server: $schema=https://agentgateway.dev/schema/config
 config:
+  # Траси до Jaeger. Без цього блоку шлюз не надсилає нічого: контейнер jaeger
+  # піднятий, UI на :16686 відповідає, але список сервісів порожній — що
+  # виглядає як зламаний експортер, а не як вимкнений.
+  #
+  # `randomSampling: true` обов'язковий, а не косметичний. Типове значення
+  # семплінгу — «не брати нічого»: перевірено живцем, 5 запитів без цього поля
+  # дали 0 нових трас, ті самі 5 з ним — 5 трас.
+  tracing:
+    # Сусід по compose-мережі, а не localhost: шлюз у контейнері, і
+    # `localhost:4317` указував би на нього самого.
+    #
+    # Змінна НАВМИСНО не зветься OTEL_EXPORTER_OTLP_ENDPOINT, хоч шлюз її і
+    # розуміє. Це загальновідоме ім'я, яке ставлять інші інструменти: якщо в
+    # оточенні вже є `OTEL_EXPORTER_OTLP_ENDPOINT=127.0.0.1:4317` (а воно
+    # трапляється — так робить pi-go), `${VAR:-default}` підхопить саме його,
+    # і трасування мовчки зламається: без схеми `http://` парсер падає з
+    # `first path segment in URL cannot contain colon`, а `127.0.0.1` у
+    # контейнері — це сам шлюз. Окреме ім'я прибирає цю пастку.
+    otlpEndpoint: ${AGENTGATEWAY_OTLP_ENDPOINT:-http://jaeger:4317}
+    # Jaeger all-in-one приймає OTLP саме по gRPC на 4317. 4318 — HTTP-приймач,
+    # і з ним цей самий endpoint мовчки не працює.
+    otlpProtocol: grpc
+    randomSampling: true
   logging:
     fields:
       add:
@@ -50,15 +73,56 @@ llm:
       provider: openai
       params:
         apiKey: ${OPENAI_API_KEY:-}
+    # gemini — один провайдер, обидва протоколи.
+    #
+    # `formats[].path` перевизначає шлях для конкретного формату, тому
+    # OpenAI-сумісний шлях і нативний живуть на одному `baseUrl` і не
+    # потребують двох провайдерів: голий baseUrl + `path` на кожен формат.
+    #
+    # Чому baseUrl голий, без `/v1beta/openai`: `path` уже містить повний
+    # шлях, і `/v1beta/openai` у baseUrl дав би `.../v1beta/openai/v1beta/openai/...`.
+    #
+    # Автентифікація теж одна на обидва: `authorization` знімається, ключ іде
+    # заголовком `x-goog-api-key`, який приймає і нативний Gemini, і його
+    # OpenAI-сумісна поверхня. `apiKey` у `params` лишається, бо без нього
+    # провайдер не має чим себе ідентифікувати в каталозі.
+    #
+    # УВАГА, головна межа — на серверних інструментах, і вона між ФОРМАТАМИ, а
+    # не між форматами й нативом:
+    #   * нативний формат (клієнт сам кличе `:generateContent`) доносить
+    #     `{"googleSearch":{}}` до Google і дає `groundingMetadata`;
+    #   * формат `completions` його ВТРАЧАЄ ТИХО: конвертер OpenAI→native
+    #     відкидає `{"type":"google_search"}`, у запиті до upstream ключа
+    #     `tools` немає взагалі (перевірено перехопленням), у лозі — нічого, а
+    #     модель відповідає впевнено й вигадує (у тесті: «June 8th» замість
+    #     вересня, `grounding` відсутній). Функціональні інструменти
+    #     (`functionDeclarations`) конвертуються нормально.
+    #
+    # Тобто переведення `gemini/*` на нативний формат НЕ лікує OpenAI-форматних
+    # клієнтів — воно замінює гучний `400 Invalid tool type` на тиху вигадку.
+    # Лікує лише нативний клієнт: він кличе `:generateContent` на тому самому
+    # маршруті `gemini/*`, який тепер обслуговує обидва формати.
     - name: gemini
       provider:
         custom:
           providerOverride: gcp.gemini
           formats:
             - type: completions
+              path: /v1beta/openai/chat/completions
+            - type: generateContent
       params:
-        baseUrl: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+        baseUrl: https://generativelanguage.googleapis.com
         apiKey: ${GEMINI_API_KEY:-}
+      defaults:
+        requestHeaders:
+          remove:
+            - authorization
+          set:
+            # Лапки обов'язкові: порожня підстановка дає YAML null, а заголовок
+            # мусить бути рядком — без лапок конфіг не проходить валідацію:
+            #   requestHeaders.set.x-goog-api-key: invalid type: null, expected a string
+            # `apiKey` того ж `${VAR:-}` переживає, бо приймає null.
+            x-goog-api-key: "${GEMINI_API_KEY:-}"
     - name: mistral
       provider: mistral
       params:
@@ -109,6 +173,30 @@ llm:
         reference: openai
       transformation:
         model: llmRequest.model.stripPrefix("openai/")
+    # gemini/* — НАТИВНИЙ маршрут.
+    #
+    # Було: OpenAI-сумісний (`formats: [completions]`, `/v1beta/openai`), і
+    # `gemini/gemini-2.5-flash + geminitool.GoogleSearch` падало з
+    # `400 Invalid tool type: google_search` — OpenAI-схема не виражає
+    # вбудовані серверні інструменти Gemini.
+    #
+    # Стало: нативний `generateContent`. Для клієнтів, які говорять нативним
+    # протоколом, `{"googleSearch":{}}` доходить до Gemini і дає справжній
+    # grounding (`groundingMetadata.searchEntryPoint`).
+    #
+    # УВАГА, ціна зміни: для OpenAI-форматних клієнтів (у т.ч. лаби Day1 через
+    # `agentgateway/gemini/...`) конвертер OpenAI→native відкидає
+    # `{"type":"google_search"}` ТИХО — у запиті до upstream ключа `tools` немає
+    # взагалі, у лозі нічого, а модель відповідає впевнено й вигадує
+    # (перевірено: дати «June 15th» замість вересня, `groundingMetadata`
+    # відсутня). Раніше на цьому шляху був гучний 400. Функціональні
+    # інструменти (`functionDeclarations`) конвертуються нормально — втрата
+    # стосується саме вбудованих.
+    #
+    # Маршрут `gemini/*` лишається на провайдері `gemini`, який тепер
+    # обслуговує обидва формати: OpenAI-форматний клієнт іде `completions`, а
+    # нативний — `generateContent`. Обидва шляхи перевірені на одному
+    # провайдері.
     - name: gemini/*
       provider:
         reference: gemini

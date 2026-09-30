@@ -3,7 +3,7 @@ module github.com/dimetron/ai-eng-course/demo/adk-quickstart
 go 1.27.0
 
 require (
-	github.com/dimetron/pi-go v0.1.7
+	github.com/dimetron/pi-go v0.2.3
 	google.golang.org/adk/v2 v2.4.0
 	google.golang.org/genai v1.71.0
 )
@@ -21,6 +21,7 @@ require (
 	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/coder/websocket v1.8.15 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -39,7 +40,7 @@ require (
 	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/ollama/ollama v0.33.3 // indirect
-	github.com/openai/openai-go/v3 v3.56.0 // indirect
+	github.com/openai/openai-go/v3 v3.66.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
 	github.com/tidwall/gjson v1.19.0 // indirect

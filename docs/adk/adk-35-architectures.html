@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>35 Agentic Architectures in ADK Go</title>
+<style>
+/* ============================================================================
+   35 agentic architectures, rebuilt in ADK Go 2.x — single-file shelf deck.
+
+   Same shell as adk-1-vs-2.html and adk-go-workflows.html on purpose: one
+   file, no CDN, no webfonts, no JS libraries, opens from a USB stick with no
+   network. Palette, radii, deck chrome, staged reveal, hash routing and the
+   print path are copied verbatim so the shelf reads as one set. This deck adds
+   one component of its own — the architecture card (.arch) — because all 35
+   entries are the same shape: name, one-line summary, the ADK Go construction,
+   the catalog pattern it collapses onto, and the caveat.
+
+   Visual system: the Pi-Go design system (wiki-tools/internal/docsingest/
+   shell/deck.css). Closed palette — deep-space navy grounds, neon cyan as the
+   primary accent, magenta/purple/green secondaries. The port-quality trio uses
+   GREEN (direct), YELLOW (needs a store) and ORANGE (needs a host), all from
+   that closed palette; no hue is invented for this deck.
+
+   Provenance: reworked from a Claude artifact ("35 Architectures in ADK Go",
+   a32f0e09-099b-40ba-906a-0724afb0b322, 2026-08-30), which maps every
+   architecture in github.com/FareedKhan-dev/all-agentic-architectures (written
+   in LangGraph) onto the ADK Go 2.x `workflow` package. Its structure, the
+   per-architecture notes and the 16-pattern collapse are its work, re-cut into
+   shelf modules. Nothing under courses/ was read or modified.
+
+   VERIFICATION done on ingest, against the pinned module in the Go module
+   cache (google.golang.org/adk/v2@v2.2.0/workflow), not against the artifact's
+   own claims:
+
+     · Every API symbol the deck names was checked to exist. Confirmed:
+       NewEdgeBuilder, AddRoutes, AddRoute, AddFanOut, AddFanIn, Chain, Concat,
+       StringRoute, BoolRoute, NewWorkflowNode, NewParallelWorker, NewJoinNode,
+       NewDynamicNode, NewEmittingFunctionNode, NewAgentNode(Typed),
+       WithUseSubBranch, WithRunID, ResumeOrRequestInput, RunNode, and
+       RerunOnResume as a NodeConfig field. `Start` and `Default` are package
+       VARS, not functions — the artifact was right about this and an earlier
+       deck on this shelf was wrong.
+     · All four validation errors module 02 is built on exist verbatim:
+       ErrUnconditionalCycle, ErrParallelHITLUnsupported,
+       ErrMultipleDefaultRoutes, ErrNodesNotReachable.
+     · The assembly snippet in module 01 was replaced with the shape used by
+       the shipped example examples/workflow/routing/llm/main.go, rather than
+       the artifact's paraphrase.
+
+   TWO CORRECTIONS to the source, both arithmetic:
+
+     · Its header claimed "31 of 35 port directly". Counting its own data gives
+       27 direct, 5 needs-a-store, 3 needs-a-host. The deck now states the
+       real split and shows it as a running total.
+     · Its gaps table listed BrowserAgent as #34. BrowserAgent is #26; #34 is
+       RLHF Self-Improvement. Corrected.
+
+   Every version number is a dated snapshot, «станом на 08/2026». Re-verify
+   before this is recorded or taught.
+   ========================================================================== */
+
+:root{
+  /* ── Pi-Go design system ──────────────────────────────────────────────
+     Source of truth: the "Pi-Go Design System" project on claude.ai/design,
+     mirrored for the app at internal/serve/static/theme.css. These tokens are
+     INLINED rather than linked because a shelf document must open from a USB
+     stick with no network (verify.go rule 3), and because it is published as
+     a Gist or handed round as a file — nothing external may be fetched at
+     render time.
+
+     Same constraint kills the webfonts: the three families are named below so
+     a machine that has them installed uses them, but there is no @font-face
+     (the woff2 live behind the server, and @import is a verify.go error), so
+     most readers see the fallback stacks. That is the accepted trade for
+     portability — the palette, not the type, is what makes the shelf read as
+     one set.
+
+     This shelf used to carry the Prometheus brandbook (cream/peach/orange,
+     light mode). It moved to Pi-Go on 2026-08-30: the shelf is a wiki reading
+     surface viewed inside `wiki serve`, not a learner-facing Prometheus deck,
+     so it follows the wiki's own system. courses/STYLE.md still governs actual
+     course decks under courses/ — do not "align" those to this file. */
+
+  /* surfaces */
+  --bg:#0a0a12; --bg-alt:#0d0d1a; --panel:#0f0f1e; --code-bg:#0a0a14;
+  /* neon palette */
+  --cyan:#00f0ff; --magenta:#ff00aa; --purple:#b347ff;
+  --green:#00ff88; --yellow:#ffe600; --orange:#ff6a00;
+  /* foreground — no pure white anywhere */
+  --ink:#e0e0f0; --ink-dim:#8888aa; --ink-faint:#555577; --code-text:#cdd6f4;
+
+  --line:rgba(0,240,255,.12); --line-strong:rgba(0,240,255,.25);
+  --wash:rgba(0,240,255,.08);   /* the lit surface: tags, notes, chips */
+  --accent:var(--cyan); --accent-2:var(--magenta);
+  --glow:0 0 20px rgba(0,240,255,.3), 0 0 60px rgba(0,240,255,.1);
+
+  /* Sharp, not rounded: 2px for chips and controls, 4px for panels. Pills and
+     heavy rounding are off-brand in this system, which is why --pill is 2px
+     and not 999px — the name is kept so the rules below did not have to move. */
+  --radius:4px;
+  --pill:2px;
+  --nav-w:264px;
+  --font-display:'Orbitron','SF Mono',ui-monospace,monospace;
+  --font-body:'Rajdhani',system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);line-height:1.55;
+     -webkit-font-smoothing:antialiased}
+/* The system's two signature textures: a fixed 60px grid floor behind
+   everything and a 2px scanline wash above it. Both are pointer-events:none
+   and neither animates, so they survive the reduced-motion block untouched. */
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,240,255,.03) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,240,255,.03) 1px,transparent 1px);
+  background-size:60px 60px}
+body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,
+             rgba(0,0,0,.05) 2px,rgba(0,0,0,.05) 4px)}
+::selection{background:var(--magenta);color:#000}
+
+/* ---- navigation ---------------------------------------------------------- */
+
+#toc{
+  position:fixed;left:0;top:0;bottom:0;width:var(--nav-w);z-index:50;
+  background:var(--panel);border-right:1px solid var(--line);
+  overflow-y:auto;padding:1.1rem .8rem 2rem;
+}
+#toc .toc-h{
+  font-family:var(--font-display);
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+  color:var(--cyan);border-left:2px solid var(--cyan);padding-left:9px;margin:.2rem 0 .8rem 4px;
+}
+.nav-item{
+  display:flex;align-items:baseline;gap:.55rem;
+  padding:.42rem .6rem;margin-bottom:2px;border-radius:var(--radius);
+  text-decoration:none;color:var(--ink-dim);font-size:.9rem;
+  border:1px solid transparent;transition:background .15s,border-color .15s,color .15s;
+}
+.nav-item:hover{background:var(--wash);color:var(--ink)}
+.nav-item.on{background:var(--wash);border-color:var(--line-strong);color:var(--cyan);font-weight:600}
+.n-num{font-family:var(--mono);font-size:.76rem;color:var(--ink-faint);flex:none}
+.nav-item.on .n-num{color:var(--cyan)}
+.n-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* emoji carry almost no right sidebearing, so the gap is set here, not typed
+   as a space in the markup where it visually collapses against the glyph. */
+.n-e,.c-e{margin-right:.4em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.c-e{font-weight:400}
+
+/* ---- deck ---------------------------------------------------------------- */
+
+#deck{margin-left:var(--nav-w);padding:3rem 1.5rem 5rem;position:relative;z-index:1}
+.slide{max-width:1000px;margin:0 auto;display:none}
+.slide.active{display:block;animation:slide-in .32s ease both}
+@keyframes slide-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* staged reveal: each block fades up in sequence once its slide is active.
+   --d is assigned in JS so authored markup stays free of stagger bookkeeping. */
+.slide.active > .rise{animation:rise .5s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.crumb{font-family:var(--mono);font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.5rem}
+h1{font-size:2.2rem;color:var(--cyan);margin-bottom:.3rem;font-family:var(--font-display);text-transform:uppercase;font-weight:800;letter-spacing:.5px;text-shadow:0 0 10px rgba(0,240,255,.5),0 0 30px rgba(0,240,255,.2)}
+.cover h1{font-size:2.4rem}
+.h-emoji{text-transform:none;font-weight:400;margin-right:.22em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.subtitle{color:var(--ink-dim);font-size:1.05rem;margin-bottom:1.5rem}
+.module{color:var(--cyan);font-family:var(--mono);font-size:.95rem;margin-bottom:1.2rem;word-break:break-word}
+h2{font-size:1.3rem;color:var(--ink);margin:2rem 0 .7rem;font-family:var(--font-display);text-transform:uppercase;font-weight:800;letter-spacing:1px;padding-bottom:.3em;border-bottom:1px solid transparent;border-image:linear-gradient(90deg,var(--cyan),transparent) 1}
+h3{font-size:1.05rem;color:var(--ink);font-weight:700;margin-bottom:.4rem}
+p{color:var(--ink-dim);margin-bottom:.8rem;max-width:70ch}
+.muted{color:var(--ink-dim)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin:1rem 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:1rem}
+/* the sidebar narrows the content column vs. the old standalone pages, so long
+   mono identifiers (workflow.NewEmittingFunctionNode) must be allowed to wrap
+   rather than run past the card border. */
+.card h3{font-size:1rem;color:var(--cyan);margin-bottom:.4rem;font-family:var(--mono);overflow-wrap:anywhere}
+.card p{font-size:.9rem;color:var(--ink-dim);margin:0}
+a.card{text-decoration:none;color:var(--ink);display:block;transition:border-color .15s,box-shadow .15s,transform .15s}
+/* Hover lifts and glows — depth comes from light outside the element, never
+   from an inner shadow. */
+a.card:hover{border-color:var(--line-strong);transform:translateY(-2px);box-shadow:var(--glow)}
+a.card .path{display:block;font-size:.75rem;color:var(--ink-faint);margin-top:.4rem;font-family:var(--mono)}
+.tag{display:inline-block;background:var(--wash);color:var(--cyan);border:1px solid var(--line-strong);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin:.15rem .15rem 0 0;font-family:var(--mono)}
+.badge{display:inline-block;background:var(--wash);color:var(--cyan);border:1px solid var(--line-strong);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin-left:.4rem;vertical-align:middle;text-transform:none;font-weight:400}
+svg{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;height:auto;display:block;margin:1rem 0}
+
+/* ---- diagram vocabulary -------------------------------------------------- */
+/* One vocabulary across all modules: the learner should recognise the same
+   shapes module to module. Every edge endpoint is computed from node geometry
+   by the generator, never typed by hand.
+   Node kinds are now told apart by their neon STROKE on a shared dark fill,
+   where the Prometheus version told them apart by stroke on white — same
+   mechanism, inverted ground. */
+.dg-frame{fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:6 5}
+.dg-ti{fill:var(--ink-faint);font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.dg-lb{fill:var(--ink);font-weight:700}
+.dg-sb{fill:var(--ink-dim);font-size:11.5px}
+.dg-el{fill:var(--ink-faint);font-size:11px}
+.dg-head{fill:var(--ink-faint)}
+.dg-link{stroke:var(--ink-faint);stroke-width:1.8;fill:none}
+.dg-link-warm{stroke:var(--magenta)}
+.dg-dash{stroke-dasharray:5 5}
+
+/* node kinds — closed palette, no invented colors */
+.dg-b-model{fill:var(--bg-alt);stroke:var(--purple);stroke-width:1.8}
+.dg-b-out  {fill:var(--bg-alt);stroke:var(--magenta);stroke-width:1.8}
+.dg-b-tool {fill:var(--bg-alt);stroke:var(--green);stroke-width:1.8}
+.dg-b-pill {fill:var(--bg-alt);stroke:var(--cyan);stroke-width:1.8}
+.dg-b-ghost{fill:var(--bg-alt);stroke:var(--line);stroke-width:1.5}
+.dg-b-group{fill:none;stroke:var(--line);stroke-width:1.5}
+.dg-dot{fill:var(--cyan)}
+
+/* ---- diagram animation --------------------------------------------------- */
+/* All of it is gated on .slide.active so only the visible module animates —
+   fourteen diagrams ticking at once in a hidden section is wasted paint. */
+
+/* a dash that crawls along a path = "data is moving here" */
+.flow{stroke-dasharray:7 9;stroke-linecap:round}
+.slide.active .flow{animation:crawl 1.1s linear infinite}
+@keyframes crawl{to{stroke-dashoffset:-32}}
+
+/* a packet riding the happy path, for the one-shot request/response */
+.packet{opacity:0}
+.slide.active .packet{animation:ride var(--dur,2.6s) cubic-bezier(.5,0,.5,1) infinite}
+@keyframes ride{
+  0%{offset-distance:0%;opacity:0}
+  8%{opacity:1}
+  92%{opacity:1}
+  100%{offset-distance:100%;opacity:0}
+}
+
+/* a dot orbiting a closed cycle — the plan/act loop */
+.slide.active .orbit{animation:orbit 3.6s linear infinite}
+@keyframes orbit{to{offset-distance:100%}}
+
+/* node that pulses as the loop passes through it */
+.slide.active .beat{animation:beat 3.3s ease-in-out infinite;animation-delay:var(--bd,0s)}
+@keyframes beat{
+  0%,70%,100%{filter:none}
+  78%{filter:drop-shadow(0 0 7px rgba(0,240,255,.85))}
+  90%{filter:none}
+}
+ul{margin:0 0 .8rem 1.3rem}
+li{margin-bottom:.35rem;color:var(--ink-dim)}
+li::marker{color:var(--cyan)}
+code{background:var(--wash);border:0;border-radius:2px;padding:.1rem .35rem;font-family:var(--mono);font-size:.85em;color:var(--cyan)}
+/* A code block is the one place a DARK shadow is on-brand: it is a depressed
+   element, so it recedes instead of glowing. */
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:.8rem 0;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+pre code{background:none;border:none;padding:0;color:var(--code-text);display:block}
+.note{border-left:2px solid var(--accent-2);background:rgba(255,0,170,.06);padding:.8rem 1rem;border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0;font-size:.92rem;color:var(--ink)}
+
+/* ---- chrome -------------------------------------------------------------- */
+
+#progress{position:fixed;left:0;top:0;height:2px;background:var(--cyan);z-index:60;transition:width .3s ease;box-shadow:0 0 10px rgba(0,240,255,.6)}
+#help{position:fixed;right:14px;top:12px;z-index:60;font-size:12px;color:var(--ink-faint)}
+
+@media (prefers-reduced-motion:reduce){
+  .slide.active,.slide.active > .rise,
+  .slide.active .flow,.slide.active .packet,.slide.active .orbit,.slide.active .beat{animation:none!important}
+  .packet{opacity:1}
+}
+
+/* ---- mobile: sidebar becomes a scrollable strip -------------------------- */
+
+@media (max-width:900px){
+  :root{--nav-w:0px}
+  #toc{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);
+       display:flex;gap:.35rem;overflow-x:auto;padding:.6rem .8rem;white-space:nowrap;
+       position:relative;z-index:1}
+  #toc .toc-h{display:none}
+  .nav-item{flex:none;margin:0}
+  .n-t{max-width:42vw}
+  #deck{margin-left:0;padding:1.6rem 1rem 4rem}
+  #help{display:none}
+  h1{font-size:1.7rem}
+}
+
+/* ---- print → PDF: every module, in order --------------------------------- */
+/* The deck is dark on screen and PAPER in print. This block is not cosmetic:
+   the rules below set print-color-adjust:exact, so without it a #0a0a12 page
+   background is faithfully reproduced and every sheet comes out solid black.
+   So print re-grounds the whole document — light paper, dark ink — and keeps
+   only the accent hues, which read fine on white. The textures go entirely:
+   a scanline overlay is a screen effect and prints as grey banding. */
+@media print{
+  @page{margin:14mm}
+  :root{
+    --bg:#ffffff; --bg-alt:#ffffff; --panel:#ffffff; --code-bg:#f4f4f8;
+    --ink:#0a0a12; --ink-dim:#33333f; --ink-faint:#666677; --code-text:#0a0a12;
+    --line:#c8c8d4; --line-strong:#9a9ab0; --wash:#eef9fb;
+    --glow:none;
+  }
+  body{background:#ffffff;color:#0a0a12}
+  body::before,body::after{display:none!important}
+  h1{color:#0a0a12;text-shadow:none}
+  h2{color:#0a0a12;border-image:none;border-bottom:1px solid #c8c8d4}
+  /* Neon cyan is invisible on white, so the accent darkens to a teal that
+     still reads as "the accent colour" but survives a laser printer. */
+  .module,.card h3,code,.tag,.badge{color:#005f6b}
+  pre{box-shadow:none}
+  #progress{box-shadow:none}
+  #toc,#progress,#help{display:none!important}
+  #deck{margin:0;padding:0}
+  .slide{display:block!important;page-break-after:always;break-after:page;max-width:none}
+  .slide *{animation:none!important;opacity:1!important;transform:none!important}
+  .packet{opacity:1}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+/* ---- this deck's own vocabulary: the architecture card ------------------- */
+/* All 35 entries are one shape, so there is exactly one component. The port
+   quality is carried by a border colour plus a written label — never colour
+   alone, which would be unreadable in the printed PDF and to anyone who does
+   not separate green from orange. */
+.arch{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);
+      padding:.75rem .9rem;margin-bottom:.6rem}
+.arch.direct{border-left:3px solid var(--green)}
+.arch.store {border-left:3px solid var(--yellow)}
+.arch.host  {border-left:3px solid var(--orange)}
+.ahead{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem}
+.anum{font-family:var(--mono);font-size:.72rem;color:var(--ink-faint)}
+.ahead h4{font-size:.98rem;color:var(--ink);font-weight:700;margin:0}
+.qual{font-family:var(--mono);font-size:.66rem;border-radius:var(--pill);padding:.05rem .45rem;
+      border:1px solid currentColor;white-space:nowrap}
+.qual.direct{color:var(--green)} .qual.store{color:var(--yellow)} .qual.host{color:var(--orange)}
+.pat{margin-left:auto;font-family:var(--mono);font-size:.7rem;color:var(--cyan)}
+.aone{font-size:.88rem;color:var(--ink-dim);margin:.1rem 0 .35rem}
+.ago{font-family:var(--mono);font-size:.76rem;color:var(--code-text);background:var(--code-bg);
+     border:1px solid var(--line);border-radius:2px;padding:.25rem .45rem;margin:.2rem 0;
+     overflow-x:auto;white-space:pre}
+.anote{font-size:.82rem;color:var(--ink-dim);margin:.35rem 0 0;
+       border-left:2px solid var(--line);padding-left:.55rem}
+.anote b{color:var(--ink)}
+.tally{display:flex;gap:1.2rem;flex-wrap:wrap;font-family:var(--mono);font-size:.78rem;margin:.6rem 0}
+.tally span b{font-size:1.1rem}
+.con{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);
+     padding:.7rem .9rem;margin-bottom:.55rem}
+.con .err{font-family:var(--mono);font-size:.74rem;color:var(--magenta);margin-bottom:.2rem}
+.con h5{font-size:.92rem;color:var(--ink);font-weight:700;margin-bottom:.2rem}
+.con p{font-size:.85rem;margin:0}
+@media print{ .arch,.con{break-inside:avoid} }
+
+</style>
+</head>
+<body>
+<nav id="toc">
+<div class="toc-h">Modules</div>
+<a class="nav-item" data-go="0" href="#1"><span class="n-num">00</span><span class="n-t">Overview</span></a>
+<a class="nav-item" data-go="1" href="#2"><span class="n-num">01</span><span class="n-t"><span class='n-e'>🌉</span>bridge</span></a>
+<a class="nav-item" data-go="2" href="#3"><span class="n-num">02</span><span class="n-t"><span class='n-e'>⛔</span>constraints</span></a>
+<a class="nav-item" data-go="3" href="#4"><span class="n-num">03</span><span class="n-t"><span class='n-e'>🔁</span>reasoning</span></a>
+<a class="nav-item" data-go="4" href="#5"><span class="n-num">04</span><span class="n-t"><span class='n-e'>📚</span>rag &amp; memory</span></a>
+<a class="nav-item" data-go="5" href="#6"><span class="n-num">05</span><span class="n-t"><span class='n-e'>🛠</span>tools &amp; agents</span></a>
+<a class="nav-item" data-go="6" href="#7"><span class="n-num">06</span><span class="n-t"><span class='n-e'>🛡</span>safety + gaps</span></a>
+<a class="nav-item" data-go="7" href="#8"><span class="n-num">07</span><span class="n-t"><span class='n-e'>🧩</span>16 patterns</span></a>
+<a class="nav-item" data-go="8" href="#9"><span class="n-num">08</span><span class="n-t"><span class='n-e'>🔬</span>sources</span></a>
+</nav>
+<div id="progress"></div>
+<div id="help">&#8592; &#8594; navigate · O overview · F fullscreen</div>
+<main id="deck"></main>
+
+<template id="src">
+
+<section class="cover">
+<h1>35 agentic architectures, rebuilt in ADK Go</h1>
+<div class="subtitle">Every architecture from <code>FareedKhan-dev/all-agentic-architectures</code> — written in LangGraph — mapped onto the ADK Go 2.x <code>workflow</code> package: which node builds it, which constraint bites, and which of the 16 catalog patterns it really is underneath.</div>
+
+<h2>How cleanly they port</h2>
+<div class="tally">
+  <span style="color:var(--green)"><b>27</b> direct</span>
+  <span style="color:var(--yellow)"><b>5</b> need a store</span>
+  <span style="color:var(--orange)"><b>3</b> need a host</span>
+  <span class="faint">= 35</span>
+</div>
+<p><strong>Direct</strong> means the ADK Go graph builds it as-is. <strong>Needs a store</strong> means the control flow is native but you bring the persistence tier. <strong>Needs a host</strong> means it wants a sandbox or a driver ADK Go does not ship. None of the three gaps is a design limitation — the graph shape ports in every case.</p>
+
+<div class="note">
+<b>Two corrections made on ingest.</b> The source document's header claimed «31 of 35 port directly»; counting its own data gives <strong>27</strong> direct, 5 store, 3 host, and the figures above are the counted ones. Its gaps table also listed BrowserAgent as #34 — BrowserAgent is <strong>#26</strong>; #34 is RLHF Self-Improvement.
+</div>
+
+<h2>What was verified, and against what</h2>
+<p>Every API symbol named on this deck was checked to exist in <code>google.golang.org/adk/v2@v2.2.0/workflow</code> — the module this repo actually pins — rather than taken on trust from the source document. Confirmed: <code>NewEdgeBuilder</code>, <code>AddRoutes</code>, <code>AddRoute</code>, <code>AddFanOut</code>, <code>AddFanIn</code>, <code>Chain</code>, <code>Concat</code>, <code>StringRoute</code>, <code>BoolRoute</code>, <code>NewWorkflowNode</code>, <code>NewParallelWorker</code>, <code>NewJoinNode</code>, <code>NewDynamicNode</code>, <code>NewEmittingFunctionNode</code>, <code>NewAgentNode</code>/<code>Typed</code>, <code>WithUseSubBranch</code>, <code>WithRunID</code>, <code>ResumeOrRequestInput</code>, <code>RunNode</code>, and <code>RerunOnResume</code> as a <code>NodeConfig</code> field. All four validation errors in module 02 exist verbatim.</p>
+<p><strong><code>Start</code> and <code>Default</code> are package vars, not functions</strong>, and there is no <code>workflow.END</code> — a branch simply has no outgoing edge. Worth stating plainly because the sibling deck on this shelf originally got both wrong; it has been corrected.</p>
+<p class="muted">Pins are «станом на 08/2026». Re-verify before recording — this shelf has already watched the SDK move two minor versions in one month.</p>
+</section>
+
+<section>
+<div class="crumb">MODULE 1 of 8</div>
+<h1><span class="h-emoji">🌉</span> bridge</h1>
+<div class="module">the deterministic-picker pattern · Event.Routes · StringRoute</div>
+<p>The source repo's organising idea is the <strong>deterministic-picker pattern</strong>: the model commits to a <em>categorical</em> value — a boolean, an enum, a grade — and ordinary code composes those signals into the decision. It carries 13 of the 35 architectures, and ADK Go 2.x has a first-class primitive for exactly that shape.</p>
+<h2>“LLM returns an enum, code branches on it” <em>is</em> <code>Event.Routes</code></h2>
+<p>An <code>LlmAgent</code> classifies. A plain function turns the classification into a route. The <strong>graph</strong> dispatches — not the model.</p>
+<pre><code><span class="c">// The picker: an ordinary Go function emits a categorical value on the event.</span>
+<span class="k">func</span> routeByClassification(ctx agent.Context, input <span class="k">any</span>,
+    emit <span class="k">func</span>(*session.Event) <span class="k">error</span>) (<span class="k">any</span>, <span class="k">error</span>) {
+
+    category := normalize(fmt.Sprint(input))
+    ev := session.<span class="n">NewEvent</span>(ctx, ctx.InvocationID())
+    ev.Routes = []<span class="k">string</span>{category}        <span class="c">// &#8592; the picker</span>
+    <span class="k">if</span> err := emit(ev); err != <span class="k">nil</span> {
+        <span class="k">return</span> <span class="k">nil</span>, err
+    }
+    <span class="k">return</span> <span class="k">nil</span>, <span class="k">nil</span>
+}
+
+<span class="c">// Assembly. Edges are a VALUE you build and hand to the agent — this is the</span>
+<span class="c">// shape used verbatim by examples/workflow/routing/llm/main.go at v2.2.0.</span>
+edges := workflow.<span class="n">Concat</span>(
+    workflow.<span class="n">Chain</span>(workflow.Start, classifyNode, routeNode),
+    []workflow.Edge{
+        {From: routeNode, To: question,  Route: workflow.<span class="n">StringRoute</span>(<span class="s">"question"</span>)},
+        {From: routeNode, To: statement, Route: workflow.<span class="n">StringRoute</span>(<span class="s">"statement"</span>)},
+        {From: routeNode, To: fallback,  Route: workflow.Default},   <span class="c">// a VAR, not a call</span>
+    },
+)
+
+root, _ := workflowagent.<span class="n">New</span>(workflowagent.Config{
+    Name:      <span class="s">"router"</span>,
+    Edges:     edges,
+    SubAgents: []agent.Agent{classifier},   <span class="c">// so the runner resolves the author</span>
+})</code></pre>
+<div class="note">Internalise this one shape and most of the 35 stop being separate architectures: they become the same router with a different body.</div>
+</section>
+
+<section>
+<div class="crumb">MODULE 2 of 8</div>
+<h1><span class="h-emoji">⛔</span> constraints</h1>
+<div class="module">four validation errors that shape every port</div>
+<p>These are enforced by <code>workflow</code> validation and fail at <strong>construction</strong> time, not at runtime. Several architectures have to be written a specific way because of them — most notably every loop.</p>
+<div class="con"><div class="err">ErrUnconditionalCycle</div><h5>A cycle must be route-gated</h5><p>You cannot draw a plain back-edge. Every loop architecture — Reflection, Reflexion, ReAct, Planning, LATS — needs a BoolRoute exit edge, or must be written as a DynamicNode with a native <code>for</code>.</p></div>
+<div class="con"><div class="err">ErrParallelHITLUnsupported</div><h5>No human-in-the-loop inside a parallel worker</h5><p>Dry-Run and approval gates cannot live inside a ParallelWorker. Gate before the fan-out, or after the join.</p></div>
+<div class="con"><div class="err">ErrMultipleDefaultRoutes</div><h5>Exactly one default route per node</h5><p>Declare one — an unmatched route with no default silently ends the branch rather than erroring.</p></div>
+<div class="con"><div class="err">ErrNodesNotReachable</div><h5>Every node must be reachable</h5><p>Dead branches fail the build. Useful in practice: it catches half-wired architectures before they run.</p></div>
+<div class="note">All four error identifiers were confirmed to exist in <code>adk/v2@v2.2.0/workflow</code> on ingest. The first one is why no loop architecture on this deck is drawn as a plain back-edge.</div>
+</section>
+
+<section>
+<div class="crumb">MODULE 3 of 8</div>
+<h1><span class="h-emoji">🔁</span> reasoning</h1>
+<div class="module">families 1–2 · reflection, sampling and search · 10 architectures</div>
+<p>The two families where the cycle constraint bites hardest. Every one of these ports <span style="color:var(--green)">direct</span>.</p>
+<h2>1 · Reasoning &amp; Reflection</h2>
+<div class="arch direct"><div class="ahead"><span class="anum">01</span><h4>Reflection</h4><span class="qual direct">direct</span><span class="pat">D1 → D2</span></div><p class="aone">Generate → critique → refine until the critic approves.</p><div class="ago">AgentNode ×2 + EmittingFunctionNode gate + BoolRoute cycle</div><p class="anote">The back-edge <b>must</b> carry a BoolRoute or validation fails. A BoolRoute cycle has no trip limit — prefer a DynamicNode with a native loop so the cap is real.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">02</span><h4>Reflexion</h4><span class="qual direct">direct</span><span class="pat">D2</span></div><p class="aone">Verbal reflections accumulated in an episodic buffer across attempts.</p><div class="ago">DynamicNode + RunNode with WithRunID per trial</div><p class="anote">Lessons kept in the closure die with the invocation. For cross-session memory write to <b>memory.Service</b> — temp: keys are dropped at invocation end.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">03</span><h4>Chain-of-Verification</h4><span class="qual direct">direct</span><span class="pat">D2</span></div><p class="aone">Draft → plan checks → verify each independently → revise.</p><div class="ago">DynamicNode + WithUseSubBranch(true) per check</div><p class="anote">Isolation is the whole architecture. Without <b>WithUseSubBranch</b> the verifier sees the baseline and just re-agrees with itself.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">04</span><h4>Self-Discover</h4><span class="qual direct">direct</span><span class="pat">B1</span></div><p class="aone">SELECT → ADAPT → IMPLEMENT → SOLVE.</p><div class="ago">workflow.Chain(Start, select, adapt, implement, solve)</div><p class="anote">The purest Chain in the set. Give implementNode an OutputSchema via NewAgentNodeTyped so the reasoning structure is validated before solve consumes it.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">05</span><h4>Constitutional AI</h4><span class="qual direct">direct</span><span class="pat">D1</span></div><p class="aone">Check each rule independently, revise if any fails.</p><div class="ago">ParallelWorker + JoinNode + gate → revise / accept</div><p class="anote">One rule per parallel check beats one model call asked to weigh all rules at once.</p></div>
+<h2>2 · Sampling &amp; Search</h2>
+<div class="arch direct"><div class="ahead"><span class="anum">06</span><h4>Self-Consistency</h4><span class="qual direct">direct</span><span class="pat">B2</span></div><p class="aone">Sample N reasoning paths, take the majority answer.</p><div class="ago">NewParallelWorker(n) + JoinNode + FunctionNode vote</div><p class="anote">The vote is plain Go — no model call. Cap graph concurrency too, or N samplers inside a fan-out becomes N×fan-out in flight.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">07</span><h4>Tree of Thoughts</h4><span class="qual direct">direct</span><span class="pat">B5</span></div><p class="aone">Beam search over candidate thoughts.</p><div class="ago">DynamicNode; beam kept in Go memory</div><p class="anote">Encode depth <b>and</b> beam index in WithRunID. The same node runs many times per invocation and resume must tell the activations apart.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">08</span><h4>LATS</h4><span class="qual direct">direct</span><span class="pat">B5</span></div><p class="aone">MCTS over a thought tree with reward backup.</p><div class="ago">DynamicNode; select/backup in Go, expand/simulate via RunNode</div><p class="anote">Keep UCT selection and backup <b>out</b> of the graph — they are cheap arithmetic, and nodes buy only scheduler overhead.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">09</span><h4>Mental Loop</h4><span class="qual direct">direct</span><span class="pat">D1</span></div><p class="aone">Simulate outcomes, score them, pick deterministically.</p><div class="ago">Chain(propose, simulate, score, pick)</div><p class="anote">pickNode is a FunctionNode doing argmax. The point of the architecture is that the picker is not a model — keep it that way.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">10</span><h4>Ensemble</h4><span class="qual direct">direct</span><span class="pat">B2</span></div><p class="aone">N heterogeneous voters, weighted aggregation.</p><div class="ago">EdgeBuilder.AddFanOut to distinct nodes + AddFanIn</div><p class="anote">Fan out to <b>different</b> nodes, not one ParallelWorker. A different Model per voter is the cheapest real diversity — model-tier beats prompt-tier.</p></div>
+</section>
+
+<section>
+<div class="crumb">MODULE 4 of 8</div>
+<h1><span class="h-emoji">📚</span> rag &amp; memory</h1>
+<div class="module">families 3–4 · retrieval and memory · 10 architectures</div>
+<p>Every <span style="color:var(--yellow)">needs-a-store</span> entry on the deck lives in these two families. The pattern is consistent: ADK gives you the control flow, you bring the persistence tier.</p>
+<h2>3 · Retrieval (RAG)</h2>
+<div class="arch direct"><div class="ahead"><span class="anum">11</span><h4>Agentic RAG</h4><span class="qual direct">direct</span><span class="pat">A1</span></div><p class="aone">The agent decides when and what to retrieve.</p><div class="ago">llmagent.New with a retrieval tool.Tool — no graph needed</div><p class="anote">The simplest of the 35. If you are reaching for a graph here, you have over-built it.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">12</span><h4>Corrective RAG</h4><span class="qual direct">direct</span><span class="pat">B4</span></div><p class="aone">Grade retrieved docs; fall back to web search when they are poor.</p><div class="ago">EmittingFunctionNode grader → 3 StringRoutes + Default</div><p class="anote">The grader is the picker. Declare a Default even though all three cases look covered — an unmatched route ends the branch silently.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">13</span><h4>Self-RAG</h4><span class="qual direct">direct</span><span class="pat">B2</span></div><p class="aone">Per-document reflection tokens gate what reaches the answer.</p><div class="ago">ParallelWorker over docs + JoinNode + boolean composition</div><p class="anote">Three booleans composed in Go — relevant, supported, useful — is far more reliable than one model call asked for an overall judgement.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">14</span><h4>Adaptive RAG</h4><span class="qual direct">direct</span><span class="pat">B4</span></div><p class="aone">Route by query complexity before retrieving at all.</p><div class="ago">classify → StringRoute {simple, moderate, complex}</div><p class="anote">Routing <b>before</b> retrieval is the whole win: simple queries never pay the retrieval cost.</p></div>
+<div class="arch store"><div class="ahead"><span class="anum">15</span><h4>GraphRAG</h4><span class="qual store">needs a store</span><span class="pat">B1</span></div><p class="aone">Knowledge graph plus community summaries.</p><div class="ago">Two workflows: an offline ingest Chain, an online query Chain</div><p class="anote">Community summaries belong in a store your gather node reads — <b>not</b> in session state. The docs warn against moving large payloads through it.</p></div>
+<h2>4 · Memory</h2>
+<div class="arch store"><div class="ahead"><span class="anum">16</span><h4>Episodic + Semantic</h4><span class="qual store">needs a store</span><span class="pat">B1</span></div><p class="aone">Conversation turns plus extracted triples.</p><div class="ago">Chain(recall, respond, extract, persist)</div><p class="anote">ctx.SearchMemory is on the unified agent.Context, so any node can recall without a tool round-trip.</p></div>
+<div class="arch store"><div class="ahead"><span class="anum">17</span><h4>Graph Memory</h4><span class="qual store">needs a store</span><span class="pat">B1</span></div><p class="aone">Subject–predicate–object triples.</p><div class="ago">Same chain; NewAgentNodeTyped[Turn, []Triple] for extraction</div><p class="anote">Typed extraction is the difference between a graph memory that stays clean and one that fills with malformed rows.</p></div>
+<div class="arch store"><div class="ahead"><span class="anum">18</span><h4>MemGPT</h4><span class="qual store">needs a store</span><span class="pat">B4</span></div><p class="aone">OS-style main context with archival paging tiers.</p><div class="ago">EmittingFunctionNode → routes {evict, page_in, proceed}</div><p class="anote">Look at ADK's <b>context compaction</b> before hand-rolling this — it already covers the eviction half.</p></div>
+<div class="arch host"><div class="ahead"><span class="anum">19</span><h4>Voyager</h4><span class="qual host">needs a host</span><span class="pat">B5</span></div><p class="aone">Builds a growing library of reusable skills.</p><div class="ago">DynamicNode: retrieve skills → write → execute → store</div><p class="anote">Executes generated code. Use ADK's code-exec runtime or a real sandbox — <b>never os/exec on the host</b>.</p></div>
+<div class="arch store"><div class="ahead"><span class="anum">20</span><h4>Agent Workflow Memory</h4><span class="qual store">needs a store</span><span class="pat">B5</span></div><p class="aone">Stores reusable high-level workflow recipes.</p><div class="ago">NewWorkflowNode(name, recipe.ToEdges(registry)) at runtime</div><p class="anote">The most ADK-native of the five: a retrieved recipe becomes a real nested node. LangGraph has no direct equivalent.</p></div>
+</section>
+
+<section>
+<div class="crumb">MODULE 5 of 8</div>
+<h1><span class="h-emoji">🛠</span> tools &amp; agents</h1>
+<div class="module">families 5–6 · tools, actions, multi-agent · 11 architectures</div>
+<p>Two of the three <span style="color:var(--orange)">needs-a-host</span> entries are here, and both for the same reason: they execute something ADK deliberately does not sandbox for you.</p>
+<h2>5 · Tools &amp; Actions</h2>
+<div class="arch direct"><div class="ahead"><span class="anum">21</span><h4>Tool Use</h4><span class="qual direct">direct</span><span class="pat">A1</span></div><p class="aone">An agent with one tool.</p><div class="ago">llmagent.New(Config{Tools: []tool.Tool{…}})</div></div>
+<div class="arch direct"><div class="ahead"><span class="anum">22</span><h4>ReAct</h4><span class="qual direct">direct</span><span class="pat">A2</span></div><p class="aone">Thought → action → observation, looped.</p><div class="ago">Default LlmAgent behavior; or DynamicNode for a bounded loop</div><p class="anote">Write it as a DynamicNode when you want the step cap and the trace to be explicit rather than emergent.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">23</span><h4>Planning</h4><span class="qual direct">direct</span><span class="pat">C2 / D2</span></div><p class="aone">Decompose, execute, replan on failure.</p><div class="ago">DynamicNode: plan → per-step RunNode → replan</div><p class="anote">Put <b>step.ID</b> in the run id, not the loop index — replanning reorders steps and index-based ids collide across rounds.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">24</span><h4>Plan-Execute-Verify</h4><span class="qual direct">direct</span><span class="pat">D1</span></div><p class="aone">Verification after every step, not just at the end.</p><div class="ago">Planning + EmittingFunctionNode verifier → advance / repair</div><p class="anote">Use a <b>deterministic</b> verifier wherever one exists. A model judging its own step output is this architecture's weakest link.</p></div>
+<div class="arch host"><div class="ahead"><span class="anum">25</span><h4>SWE-Agent</h4><span class="qual host">needs a host</span><span class="pat">E2</span></div><p class="aone">Sandboxed filesystem agent.</p><div class="ago">Planning + PEV shape; file tools with RequireConfirmation</div><p class="anote">Graph shape is Planning + PEV. Sandboxing is not ADK's job — put file tools behind a container boundary.</p></div>
+<div class="arch host"><div class="ahead"><span class="anum">26</span><h4>BrowserAgent</h4><span class="qual host">needs a host</span><span class="pat">E2</span></div><p class="aone">Real browser control behind a safety gate.</p><div class="ago">ResumeOrRequestInput gate + RerunOnResume: ptr(true)</div><p class="anote">No first-party Go browser driver. The <b>safety gate is fully native</b> — drive the browser out-of-process as a tool.Tool.</p></div>
+<h2>6 · Multi-Agent</h2>
+<div class="arch direct"><div class="ahead"><span class="anum">27</span><h4>Multi-Agent</h4><span class="qual direct">direct</span><span class="pat">C1</span></div><p class="aone">Supervisor delegating to specialists.</p><div class="ago">llmagent SubAgents + ModeTask / ModeSingleTurn</div><p class="anote">Do <b>not</b> build this as a graph — it is exactly ADK 2.x collaborative workflows. Modes give isolated branches, which is what keeps supervisor context from exploding.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">28</span><h4>Blackboard</h4><span class="qual direct">direct</span><span class="pat">B5</span></div><p class="aone">Shared workspace, opportunistic contributors.</p><div class="ago">DynamicNode; board in Go memory, contributor picked in code</div><p class="anote">Persist only a compact snapshot. Keep the full board in the DynamicNode's memory, not session state.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">29</span><h4>Debate</h4><span class="qual direct">direct</span><span class="pat">C3</span></div><p class="aone">N agents arguing across K rounds, then a judge.</p><div class="ago">DynamicNode + WithUseSubBranch per debater per round</div><p class="anote">The most expensive and least reproducible pattern in the catalog. Try Review &amp; Critique first and <b>measure</b> before reaching for this.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">30</span><h4>STORM</h4><span class="qual direct">direct</span><span class="pat">C2 / B2</span></div><p class="aone">Multi-perspective research synthesised into an article.</p><div class="ago">Two ParallelWorkers (interviews, sections) + joins</div><p class="anote">The best showcase for nesting — each interview is itself a multi-turn sub-conversation, so make it its own NewWorkflowNode.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">31</span><h4>Meta-Controller</h4><span class="qual direct">direct</span><span class="pat">B4</span></div><p class="aone">Routes between whole architectures.</p><div class="ago">AddRoutes over AgentNodes wrapping other workflows</div><p class="anote">Only possible because <b>a workflow is an agent</b>. Each architecture becomes a node; the controller is one AddRoutes.</p></div>
+</section>
+
+<section>
+<div class="crumb">MODULE 6 of 8</div>
+<h1><span class="h-emoji">🛡</span> safety + gaps</h1>
+<div class="module">family 7 · and what does not port cleanly</div>
+<h2>7 · Safety, Routing &amp; Specialty</h2>
+<div class="arch direct"><div class="ahead"><span class="anum">32</span><h4>Dry-Run</h4><span class="qual direct">direct</span><span class="pat">E1</span></div><p class="aone">Propose → simulate → human approval gate.</p><div class="ago">ResumeOrRequestInput + NodeConfig{RerunOnResume: ptr(true)}</div><p class="anote">RerunOnResume is <b>required</b> here and replays the node from the top — do side effects <b>after</b> the resume, never before. Cannot sit inside a ParallelWorker.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">33</span><h4>Reflexive Metacognitive</h4><span class="qual direct">direct</span><span class="pat">B4</span></div><p class="aone">The agent assesses whether it can do the task before trying.</p><div class="ago">EmittingFunctionNode → {direct, tools, decompose, escalate}</div><p class="anote">Route escalate at a human gate. “I don't think I can do this” is the single most valuable route in a production agent.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">34</span><h4>RLHF Self-Improvement</h4><span class="qual direct">direct</span><span class="pat">B2</span></div><p class="aone">Multi-dimensional scoring, weighted deterministically.</p><div class="ago">ParallelWorker over dimensions + arithmetic composition</div><p class="anote">One model call per dimension plus one arithmetic step beats one call asked for an overall score.</p></div>
+<div class="arch direct"><div class="ahead"><span class="anum">35</span><h4>Cellular Automata</h4><span class="qual direct">direct</span><span class="pat">B3</span></div><p class="aone">LLM-authored rules applied over a grid.</p><div class="ago">DynamicNode looping generations until a fixed point</div><p class="anote">Batch the whole grid into one call per generation. Per-cell calls make the cost quadratic for no gain.</p></div>
+
+<h2>What does not port cleanly</h2>
+<p>Three architectures plus one family. None is a design limitation — they are host-environment concerns. The graph shape ports in every case; what is missing is a sandbox or a driver.</p>
+<div class="tw">
+<table>
+<thead><tr><th>#</th><th>Architecture</th><th>The gap</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td>19</td><td>Voyager</td><td>Executes generated code in a subprocess</td><td>Graph shape ports fine. Send execution to ADK's <code>code-exec-agent-runtime</code> or a real sandbox (gVisor, Firecracker, a container). Never <code>os/exec</code> on the host.</td></tr>
+<tr><td>25</td><td>SWE-Agent</td><td>Unsandboxed filesystem access</td><td>Same answer. Put file tools behind a container boundary and mark destructive ones <code>RequireConfirmation: true</code>.</td></tr>
+<tr><td><strong>26</strong></td><td>BrowserAgent</td><td>Playwright is Python/Node; no first-party Go driver</td><td>Drive a browser out-of-process — a Playwright sidecar behind MCP, or CDP straight from Go — exposed as a <code>tool.Tool</code>. The safety gate is fully native.</td></tr>
+<tr><td>16–20</td><td>All five memory architectures</td><td>ADK gives control flow, not a store</td><td>Graph shape is direct. Bring <code>memory.Service</code> plus your own store. Check ADK <strong>context compaction</strong> before hand-rolling MemGPT's eviction tier.</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note">The sandboxing answer for rows 19 and 25 is the Track 3 material — gVisor, Firecracker, kubernetes-sigs/agent-sandbox, E2B. “ADK does not sandbox this for you” is a statement about scope, not a shortcoming.</div>
+</section>
+
+<section>
+<div class="crumb">MODULE 7 of 8</div>
+<h1><span class="h-emoji">🧩</span> 16 patterns</h1>
+<div class="module">what you are actually building</div>
+<p>Most of the 35 are the same control-flow shape with a different body. Read this as “what am I actually building?” — it is the column that turns a list of 35 names into a handful of decisions.</p>
+<div class="tw">
+<table><thead><tr><th>Catalog pattern</th><th>Architectures with this shape</th></tr></thead>
+<tbody>
+<tr><td><code>A1 Single Agent</code></td><td>Tool Use (21), Agentic RAG (11)</td></tr>
+<tr><td><code>A2 ReAct</code></td><td>ReAct (22)</td></tr>
+<tr><td><code>B1 Sequential</code></td><td>Self-Discover (4), GraphRAG (15), Episodic+Semantic (16), Graph Memory (17)</td></tr>
+<tr><td><code>B2 Parallel Fan-Out</code></td><td>Self-Consistency (6), Ensemble (10), Self-RAG (13), STORM (30), RLHF (34)</td></tr>
+<tr><td><code>B3 Loop</code></td><td>Cellular Automata (35)</td></tr>
+<tr><td><code>B4 Conditional Route</code></td><td>Adaptive RAG (14), Corrective RAG (12), Meta-Controller (31), Reflexive Metacognitive (33), MemGPT paging (18)</td></tr>
+<tr><td><code>B5 Custom Logic / Dynamic</code></td><td>Tree of Thoughts (7), LATS (8), Blackboard (28), Voyager (19), Agent Workflow Memory (20)</td></tr>
+<tr><td><code>C1 Coordinator</code></td><td>Multi-Agent (27)</td></tr>
+<tr><td><code>C2 Hierarchical</code></td><td>STORM (30), Planning (23)</td></tr>
+<tr><td><code>C3 Swarm</code></td><td>Debate (29)</td></tr>
+<tr><td><code>D1 Review &amp; Critique</code></td><td>Reflection (1), Constitutional AI (5), PEV (24), Mental Loop (9)</td></tr>
+<tr><td><code>D2 Iterative Refinement</code></td><td>Reflexion (2), Chain-of-Verification (3), Planning replan (23)</td></tr>
+<tr><td><code>E1 Human-in-the-Loop</code></td><td>Dry-Run (32)</td></tr>
+<tr><td><code>E2 Tool Confirmation</code></td><td>SWE-Agent (25), BrowserAgent (26)</td></tr>
+</tbody></table>
+</div>
+<div class="note"><b>What the source repo has that the catalog does not:</b> a memory-tier taxonomy — episodic, semantic, archival, skills, workflow recipes. Those are orthogonal to control flow. They describe <em>what the nodes read and write</em>, not <em>how the nodes are wired</em>, and are better treated as a second axis than forced into the pattern taxonomy.</div>
+</section>
+
+<section>
+<div class="crumb">MODULE 8 of 8</div>
+<h1><span class="h-emoji">🔬</span> sources</h1>
+<div class="module">read from source · re-verify before recording</div>
+<h2>Sources</h2>
+<ul>
+<li><a href="https://github.com/FareedKhan-dev/all-agentic-architectures">FareedKhan-dev/all-agentic-architectures</a> — the 35, in LangGraph</li>
+<li><a href="https://pkg.go.dev/google.golang.org/adk/v2/workflow">pkg.go.dev — <code>adk/v2/workflow</code></a> — the full exported API</li>
+<li><a href="https://github.com/google/adk-go/tree/main/examples/workflow">adk-go <code>examples/workflow/</code></a> — <code>basic</code>, <code>routing/</code>, <code>dynamic/</code>, <code>hitl_simple</code>, <code>hitl_rerun</code>, <code>complex</code></li>
+<li><a href="https://adk.dev/graphs/">adk.dev — Graphs</a> · <a href="https://adk.dev/graphs/dynamic/">Dynamic</a> · <a href="https://adk.dev/graphs/human-input/">Human input</a> · <a href="https://adk.dev/workflows/collaboration/">Collaboration</a></li>
+</ul>
+<h2>Also on this shelf</h2>
+<div class="grid">
+<a class="card" href="/docs/adk-1-vs-2.html"><h3>ADK 1.x &#8594; 2.x: tree to graph</h3><p>Why the engine changed and what breaks on upgrade. Read it first if the <code>Event.Routes</code> idea in module 01 is new.</p><span class="path">adk-1-vs-2.html</span></a>
+<a class="card" href="/docs/adk-go-workflows.html"><h3>ADK Go — Workflow Graphs</h3><p>The graph engine end to end: node constructors, wiring, routes, human-in-the-loop.</p><span class="path">adk-go-workflows.html</span></a>
+</div>
+<h2>How to re-verify the API</h2>
+<pre><code># every symbol this deck names, against the pinned module
+MOD=$(go env GOMODCACHE)/google.golang.org/adk/v2@v2.2.0/workflow
+grep -rhoE '^func (New)?[A-Za-z]+' "$MOD"/*.go | sort -u
+
+# and the shape module 01 teaches, as shipped
+sed -n '128,160p' "$(go env GOMODCACHE)"/google.golang.org/adk/v2@v2.2.0/examples/workflow/routing/llm/main.go</code></pre>
+<p class="muted">Станом на 08/2026 the pinned release is v2.2.0. Do this again before anything here is recorded or taught.</p>
+</section>
+
+</template>
+<script>
+(function () {
+  const src = document.getElementById("src");
+  const deck = document.getElementById("deck");
+  const slides = [...src.content.querySelectorAll("section")].map((s) => {
+    const el = s.cloneNode(true);
+    el.classList.add("slide");
+    deck.appendChild(el);
+    return el;
+  });
+  const navs = [...document.querySelectorAll(".nav-item")];
+  const bar = document.getElementById("progress");
+  let i = 0;
+
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle("active", k === i));
+    navs.forEach((a, k) => a.classList.toggle("on", k === i));
+    bar.style.width = ((i + 1) / slides.length) * 100 + "%";
+    // Stagger the direct children of the active slide. Assigned here rather
+    // than authored into the markup so a new block never needs a hand-typed
+    // delay; capped so a long module does not fade in for three seconds.
+    const kids = [...slides[i].children];
+    kids.forEach((c, k) => {
+      c.classList.add("rise");
+      c.style.setProperty("--d", Math.min(k * 0.05, 0.4) + "s");
+    });
+    if (location.hash !== "#" + (i + 1)) history.replaceState(null, "", "#" + (i + 1));
+    deck.scrollIntoView({ block: "start" });
+  }
+
+  navs.forEach((a) =>
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      show(+a.dataset.go);
+    })
+  );
+
+  addEventListener("keydown", (e) => {
+    if (e.target.matches("input,textarea")) return;
+    if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); show(i + 1); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); show(i - 1); }
+    else if (e.key === "Home") show(0);
+    else if (e.key === "End") show(slides.length - 1);
+    else if (e.key === "o" || e.key === "O") show(0);
+    else if (e.key === "f" || e.key === "F") {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen?.();
+    }
+  });
+
+  addEventListener("hashchange", () => {
+    const n = parseInt(location.hash.slice(1), 10);
+    if (!isNaN(n)) show(n - 1);
+  });
+
+  const start = parseInt(location.hash.slice(1), 10);
+  show(isNaN(start) ? 0 : start - 1);
+})();
+</script>
+</body>
+</html>

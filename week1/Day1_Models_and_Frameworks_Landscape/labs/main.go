@@ -31,10 +31,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"log"
 	"os"
+	"time"
 
 	"github.com/dimetron/ai-eng-course/labs/internal/adkenv"
+	"google.golang.org/adk/v2/model"
 
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/agent/llmagent"
@@ -83,6 +86,9 @@ func main() {
 	}
 	log.Printf("Модель: %s", choice.Reason)
 
+	// in main:
+	m = timedLLM{m} // then pass to llmagent.Config.Model
+
 	a, err := llmagent.New(llmagent.Config{
 		Name:        "weekend_planner",
 		Model:       m,
@@ -112,5 +118,23 @@ func main() {
 	l := full.NewLauncher()
 	if err = l.Execute(ctx, config, os.Args[1:]); err != nil {
 		log.Fatalf("Run failed: %v\n\n%s", err, l.CommandLineSyntax())
+	}
+}
+
+type timedLLM struct{ model.LLM }
+
+func (t timedLLM) GenerateContent(ctx context.Context, req *model.LLMRequest, stream bool) iter.Seq2[*model.LLMResponse, error] {
+	return func(yield func(*model.LLMResponse, error) bool) {
+		start := time.Now()
+		first := time.Duration(0)
+		for resp, err := range t.LLM.GenerateContent(ctx, req, stream) {
+			if first == 0 {
+				first = time.Since(start)
+			} // TTFB
+			if !yield(resp, err) {
+				return
+			}
+		}
+		log.Printf("[llm call] model=%s ttfb=%s total=%s stream=%t\n", req.Model, first, time.Since(start), stream)
 	}
 }

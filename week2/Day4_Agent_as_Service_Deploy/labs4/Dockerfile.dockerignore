@@ -1,0 +1,10 @@
+**
+!go.mod
+!go.sum
+!week2/
+!week2/internal/
+!week2/internal/refund/
+!week2/internal/refund/*.go
+!week2/Day4_Agent_as_Service_Deploy/
+!week2/Day4_Agent_as_Service_Deploy/labs4/
+!week2/Day4_Agent_as_Service_Deploy/labs4/*.go

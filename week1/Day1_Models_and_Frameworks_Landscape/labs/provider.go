@@ -16,7 +16,7 @@
 // bootstrap оточення застосунку, а не властивість провайдера. Викликайте його
 // ДО LoadModel, інакше ключі з файлу ще не будуть в оточенні.
 //
-// Перевірено проти google.golang.org/adk/v2 v2.4.0 і pi-go v0.1.4 (станом на 09/2026).
+// Перевірено проти google.golang.org/adk/v2 v2.4.0 і pi-go v0.2.3 (станом на 09/2026).
 package main
 
 import (
@@ -258,9 +258,15 @@ func envVarAliases(name string) []string {
 //     якщо префікса немає, його підказує pimodels.
 //  3. Нічого не задано — провайдер за наявним ключем, модель — його дефолт.
 //
-// Помилка тут лише одна й гучна: названий провайдер, якого немає в таблиці.
-// Усе інше — фолбек на gemini, як було в стартері доти: студент без ключів
-// має отримати зрозумілу помилку від провайдера, а не паніку в resolve.
+// Усі чотири відмови гучні: невідомий провайдер у DEFAULT_MODEL_PROVIDER,
+// нерозпізнаний MODEL, і «не задано нічого». Кожна називає відомі провайдери
+// (knownProviders) — щоб після помилки не доводилося шукати таблицю.
+//
+// Мовчазного фолбека на gemini тут немає навмисно. Раніше студент без жодного
+// ключа отримував «gemini → gemini-3.8-flash» у лозі й падіння аж на першому
+// запиті — з помилкою чужого провайдера, за якою не видно причини. Провайдер,
+// якого ніхто не вибирав, — це не дефолт, а здогад; здогад мусить бути видимим
+// (той самий принцип, що й у невідомого DEFAULT_MODEL_PROVIDER нижче).
 func chooseModel(modelEnv, providerEnv string) (modelChoice, error) {
 	if provider := strings.TrimSpace(providerEnv); provider != "" {
 		d, ok := resolveProvider(provider)
@@ -272,24 +278,26 @@ func chooseModel(modelEnv, providerEnv string) (modelChoice, error) {
 	}
 
 	if model := strings.TrimSpace(modelEnv); model != "" {
-		d := fallbackProvider()
-		if fromPrefix, ok := providerForModel(model); ok {
-			d = fromPrefix
+		fromPrefix, ok := providerForModel(model)
+		if !ok {
+			return modelChoice{}, fmt.Errorf(
+				"не вдалося визначити провайдера для MODEL=%q: ні префікс маршруту, ні pimodels його не знають.\n"+
+					"Допишіть маршрут у MODEL (напр. MODEL=ollama/%s) або задайте DEFAULT_MODEL_PROVIDER.\n"+
+					"Відомі провайдери: %s",
+				model, model, knownProviders())
 		}
-		return choiceFor(d, model), nil
+		return choiceFor(fromPrefix, model), nil
 	}
 
-	if d, ok := autoProvider(); ok {
-		return choiceFor(d, ""), nil
+	d, ok := autoProvider()
+	if !ok {
+		return modelChoice{}, fmt.Errorf(
+			"жодного провайдера не налаштовано: немає ні ключа, ні MODEL, ні DEFAULT_MODEL_PROVIDER.\n"+
+				"Впишіть ключ у apps/.env (шаблон — apps/.env-example) або задайте DEFAULT_MODEL_PROVIDER.\n"+
+				"Відомі провайдери: %s",
+			knownProviders())
 	}
-	return choiceFor(fallbackProvider(), ""), nil
-}
-
-// fallbackProvider — провайдер, який обирається, коли вирішувати нема з чого.
-// Той самий Gemini, що був єдиним дефолтом стартера доти.
-func fallbackProvider() providerDefault {
-	d, _ := resolveProvider("gemini")
-	return d
+	return choiceFor(d, ""), nil
 }
 
 // choiceFor заповнює вибір.
@@ -305,12 +313,44 @@ func choiceFor(d providerDefault, modelEnv string) modelChoice {
 			model = v
 		}
 	}
-	model = resolveModelName(model, d.Model)
+	model = qualifyGatewayModel(d.Provider, resolveModelName(model, d.Model))
 	return modelChoice{
 		Provider: d.Provider,
 		Model:    model,
 		Reason:   fmt.Sprintf("%s → %s", d.Provider, model),
 	}
+}
+
+// qualifyGatewayModel добудовує маршрут шлюзу в ім'я моделі, коли провайдер —
+// agentgateway, а ім'я — голе.
+//
+// Це не косметика, а сама маршрутизація: pimodels вирішує «шлюз чи вендор»
+// ВИКЛЮЧНО за префіксом імені. Голе `gemini-3.8-flash` при провайдері
+// `agentgateway/gemini` раніше йшло в pimodels як є — і резолвилося в прямий
+// Gemini-клієнт до Google, тихо обминаючи шлюз. Назовні це виглядало як
+// «через шлюз grounding не працює», хоча запит шлюзу навіть не торкався;
+// траси й облік вартості при цьому теж діряві (той самий інваріант, що в
+// коментарі до providerDefaults: піднятий шлюз має бачити весь трафік).
+//
+// Правила добудови — від найточнішого збігу до повного:
+//
+//   - ім'я вже несе `agentgateway/` — не чіпаємо (MODEL задано цілком);
+//   - ім'я вже несе вендорський сегмент маршруту (`gemini/...`) — досить
+//     докласти `agentgateway/`, інакше вийшов би подвоєний сегмент;
+//   - голе ім'я — докладаємо весь маршрут (`agentgateway/gemini/`).
+func qualifyGatewayModel(provider, model string) string {
+	if !isAgentGateway(provider) {
+		return model
+	}
+	lower := strings.ToLower(model)
+	if strings.HasPrefix(lower, "agentgateway/") {
+		return model
+	}
+	if vendor, ok := strings.CutPrefix(strings.ToLower(provider), "agentgateway/"); ok &&
+		strings.HasPrefix(lower, vendor+"/") {
+		return "agentgateway/" + model
+	}
+	return provider + "/" + model
 }
 
 // knownProviders збирає перелік провайдерів для повідомлення про помилку.
@@ -329,21 +369,42 @@ func knownProviders() string {
 // Два випадки, які треба розрізняти:
 //
 //   - `agentgateway/<vendor>/<model>` — це маршрут шлюзу, а не вендорський API.
-//     pimodels знає про agentgateway і сам підставить його base URL (за
-//     замовчуванням http://localhost:4000), тому WithBaseURL тут НЕ передається:
-//     вона перебила б рішення pimodels і зламала б маршрутизацію всередині шлюзу.
+//     Endpoint тут — сам шлюз: AGENTGATEWAY_BASE_URL, якщо задано, інакше
+//     дефолт pimodels (http://localhost:4000). OLLAMA_BASE_URL сюди НЕ
+//     передається: це адреса іншого сервіса, і вона перебила б адресу шлюзу
+//     та зламала б маршрутизацію всередині нього.
 //   - будь-яка інша модель плюс OLLAMA_BASE_URL — це вказівка на конкретний
 //     endpoint, і вона передається явно.
+//
+// Ретрай з префіксом `ollama/` умовний, і умова тут — суть. Він існує для
+// голого локального тега (`qwen3.5:4b-mlx`), який pimodels не впізнає взагалі.
+// Раніше він спрацьовував на БУДЬ-ЯКУ помилку, і це робило його генератором
+// фальшивих успіхів: `ollama/` не потребує ключа й нічого не викликає, тож
+// модель будувалася завжди, а справжня причина — «api key is required» —
+// зникала. Назовні це виглядало як чужий 404 на першому запиті. Перевірка
+// Resolve повертає рівно те, для чого ретрай писався.
 func createModel(ctx context.Context, provider, modelName string) (model.LLM, error) {
 	var opts []pimodels.Option
-	if !isAgentGateway(provider) {
-		if base := os.Getenv("OLLAMA_BASE_URL"); base != "" {
+	if isAgentGateway(provider) {
+		// Адресу шлюзу треба передати явно: pimodels цю змінну як endpoint не
+		// читає, а без неї шлюз на нестандартному порту тихо ігнорувався б —
+		// клієнт стукав би в дефолтний :4000. Читання через adkenv.Key, щоб
+		// порожня-але-виставлена змінна не затерла дефолт pimodels.
+		if base, ok := adkenv.Key("AGENTGATEWAY_BASE_URL"); ok {
 			opts = append(opts, pimodels.WithBaseURL(base))
 		}
+	} else if base := os.Getenv("OLLAMA_BASE_URL"); base != "" {
+		opts = append(opts, pimodels.WithBaseURL(base))
 	}
 	m, err := pimodels.New(ctx, modelName, opts...)
 	if err != nil {
-		// If bare local model name like "qwen3.5:4b-mlx", try prefixing with ollama/
+		// Prefixing only helps a name pimodels cannot route at all. When it
+		// CAN route the name, the failure is real — a missing credential or a
+		// bad endpoint — and re-asking as ollama/<name> would replace it with a
+		// successful build of a model nobody asked for.
+		if _, resolveErr := pimodels.Resolve(modelName); resolveErr == nil {
+			return nil, err
+		}
 		if mOllama, errOllama := pimodels.New(ctx, "ollama/"+modelName, opts...); errOllama == nil {
 			return mOllama, nil
 		}

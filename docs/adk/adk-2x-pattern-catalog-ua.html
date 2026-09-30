@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Каталог патернів ADK 2.x — шпаргалка</title>
+<style>
+/* ============================================================================
+   Каталог патернів ADK 2.x — single-file cheat sheet deck.
+
+   Same shell as knowledge-layer-graphrag-cheatsheet-ua.html,
+   model-api-contract-cheatsheet-ua.html and git-cheatsheet.html on purpose:
+   one file, no CDN, no webfonts, no JS libraries, opens from a USB stick with
+   no network. The design system (palette, one plashka radius, deck chrome,
+   staged reveal, hash routing, print-to-PDF) is copied verbatim from those
+   decks so the shelf reads as one set. UPDATE 2026-09-03: this document
+   originally dropped the source's sixteen miniature diagrams — a pill chain
+   and a table said the same thing and survived print and mobile without
+   hand-computed coordinates. That decision is reversed here: each of the
+   sixteen patterns now carries one small inline SVG topology diagram of our
+   own, not a reproduction of the source's. The node/link/marker vocabulary
+   (.dg-b-model/.dg-b-tool/.dg-b-out/.dg-b-pill/.dg-b-ghost/.dg-b-group,
+   .dg-link, .dg-ti/.dg-lb/.dg-sb/.dg-el, one shared <marker>) is copied
+   verbatim from adk-go-workflows.html on this same shelf, which already
+   established it for module 05/06 of that document — not invented fresh, so
+   the shelf keeps reading as one set. See the PROVENANCE note below.
+
+   Visual system: the Pi-Go design system (wiki-tools/internal/docsingest/
+   shell/deck.css). Closed palette — deep-space navy grounds, neon cyan as the
+   primary accent, magenta/purple/green secondaries. Moved off the Prometheus
+   brandbook on 2026-08-30 with the rest of the shelf; courses/STYLE.md still
+   governs the actual course decks under courses/.
+   same pair as the other -ua sheets on this shelf.
+
+   PROVENANCE — what this document actually is.
+
+   Content skeleton (the 16 patterns, their intent / use / avoid text, the
+   10 anti-patterns, the 1.x→2.x table and the decision tree) is a condensed
+   Ukrainian rewrite of one source: the artifact "ADK Pattern Catalog", which
+   in turn positions itself as an extension of the Google Cloud 12-pattern
+   taxonomy. Nothing here is a paragraph-for-paragraph translation: sixteen
+   patterns are re-cut into five modules by category, the decision tree is
+   folded into the axis module, and the per-pattern latency/cost meters are
+   collapsed into three numeric columns of one table because they are opinion
+   scores, not measurements — stated as such in module 01.
+
+   What this document adds, and why it exists at all: the source's `prims`
+   lists silently mix Go, Python and TypeScript identifiers, so a Go reader
+   cannot tell which of the sixteen patterns they can actually build. Module 02
+   is that missing column. EVERY Go claim in it was read on 2026-08-30 out of
+   the module this repo pins — google.golang.org/adk/v2 v2.2.0, in the local
+   GOMODCACHE — not from the source and not from memory. Where a name in the
+   source turned out to be Python-only, TypeScript-only, internal, or simply
+   absent from the Go module, it is marked absent rather than dropped; the
+   marks in module 02 are the point of the page. Statements about the Python
+   and TypeScript SDKs are carried from the source UNVERIFIED and labelled.
+
+   Two further additions with no upstream equivalent:
+     · module 09 — for each anti-pattern, whether ADK Go v2.2.0 stops it
+       MECHANICALLY (a named validation or error sentinel, quoted) or only by
+       discipline. The source lists ten failure modes and no guards;
+       workflow/validation.go and workflow/errors.go carry eleven.
+     · module 11 — the map onto this repo: which course week teaches each
+       pattern, and which patterns wiki-tools' own ADK Go pipelines actually
+       implement (three of sixteen), cited by file path.
+
+   Deliberately NOT reproduced: the source's claim that a prose catalog lives
+   at topics/ai/adk-2x-agent-design-patterns/ — that path does not exist in
+   this vault. Deliberately out of scope: API code samples (see
+   adk-go-workflows.html and adk-go-2x-cheatsheet-ua.html on this same shelf),
+   the Python API surface, any benchmark numbers, and the production layer
+   (Kubernetes, Temporal, sandboxing) which is Course 3.
+
+   Every version claim is «станом на 08/2026».
+
+   Keys: → / Space next · ← prev · O overview · F fullscreen · Home/End
+   PDF:  Cmd-P → Save as PDF (backgrounds on) — every module prints in order.
+   ========================================================================== */
+
+:root{
+  /* ── Pi-Go design system ──────────────────────────────────────────────
+     Source of truth: the "Pi-Go Design System" project on claude.ai/design,
+     mirrored for the app at internal/serve/static/theme.css. These tokens are
+     INLINED rather than linked because a shelf document must open from a USB
+     stick with no network (verify.go rule 3), and because it is published as
+     a Gist or handed round as a file — nothing external may be fetched at
+     render time.
+
+     Same constraint kills the webfonts: the three families are named below so
+     a machine that has them installed uses them, but there is no @font-face
+     (the woff2 live behind the server, and @import is a verify.go error), so
+     most readers see the fallback stacks. That is the accepted trade for
+     portability — the palette, not the type, is what makes the shelf read as
+     one set.
+
+     This shelf used to carry the Prometheus brandbook (cream/peach/orange,
+     light mode). It moved to Pi-Go on 2026-08-30: the shelf is a wiki reading
+     surface viewed inside `wiki serve`, not a learner-facing Prometheus deck,
+     so it follows the wiki's own system. courses/STYLE.md still governs actual
+     course decks under courses/ — do not "align" those to this file. */
+
+  /* surfaces */
+  --bg:#0a0a12; --bg-alt:#0d0d1a; --panel:#0f0f1e; --code-bg:#0a0a14;
+  /* neon palette */
+  --cyan:#00f0ff; --magenta:#ff00aa; --purple:#b347ff;
+  --green:#00ff88; --yellow:#ffe600; --orange:#ff6a00;
+  /* foreground — no pure white anywhere */
+  --ink:#e0e0f0; --ink-dim:#8888aa; --ink-faint:#555577; --code-text:#cdd6f4;
+
+  --line:rgba(0,240,255,.12); --line-strong:rgba(0,240,255,.25);
+  --wash:rgba(0,240,255,.08);   /* the lit surface: tags, notes, chips */
+  --accent:var(--cyan); --accent-2:var(--magenta);
+  --glow:0 0 20px rgba(0,240,255,.3), 0 0 60px rgba(0,240,255,.1);
+
+  /* Sharp, not rounded: 2px for chips and controls, 4px for panels. Pills and
+     heavy rounding are off-brand in this system, which is why --pill is 2px
+     and not 999px — the name is kept so the rules below did not have to move. */
+  --radius:4px;
+  --pill:2px;
+  --nav-w:264px;
+  --font-display:'Orbitron','SF Mono',ui-monospace,monospace;
+  --font-body:'Rajdhani',system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+/* ── compatibility aliases ──────────────────────────────────────────────
+   This document was hand-built on the Prometheus shell and its own components
+   still name those tokens. Mapping them onto the Pi-Go palette here keeps
+   those rules working without rewriting them: the orange accent becomes the
+   cyan one, the peach fill becomes the cyan wash, and the white card ground
+   becomes the dark panel. */
+:root{
+  --orange:var(--cyan); --peach:var(--wash);
+  --white:var(--panel); --cream:var(--wash);
+}
+
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);line-height:1.55}
+
+/* ---- navigation ---------------------------------------------------------- */
+
+#toc{
+  position:fixed;left:0;top:0;bottom:0;width:var(--nav-w);z-index:50;
+  background:var(--white);border-right:1.5px solid var(--line);
+  overflow-y:auto;padding:1.1rem .8rem 2rem;
+}
+#toc .toc-h{
+  font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+  color:var(--ink);border-left:3px solid var(--orange);padding-left:9px;margin:.2rem 0 .8rem 4px;
+}
+.nav-item{
+  display:flex;align-items:baseline;gap:.55rem;
+  padding:.42rem .6rem;margin-bottom:2px;border-radius:var(--radius);
+  text-decoration:none;color:var(--ink-dim);font-size:.9rem;
+  border:1.5px solid transparent;transition:background .15s,border-color .15s,color .15s;
+}
+.nav-item:hover{background:var(--cream);color:var(--ink)}
+.nav-item.on{background:var(--peach);border-color:var(--orange);color:var(--ink);font-weight:600}
+.n-num{font-family:var(--mono);font-size:.76rem;color:var(--ink-faint);flex:none}
+.nav-item.on .n-num{color:var(--ink)}
+.n-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* emoji carry almost no right sidebearing, so the gap is set here, not typed
+   as a space in the markup where it visually collapses against the glyph. */
+.n-e,.c-e{margin-right:.4em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.c-e{font-weight:400}
+
+/* ---- deck ---------------------------------------------------------------- */
+
+#deck{margin-left:var(--nav-w);padding:3rem 1.5rem 5rem}
+.slide{max-width:1000px;margin:0 auto;display:none}
+.slide.active{display:block;animation:slide-in .32s ease both}
+@keyframes slide-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* staged reveal: each block fades up in sequence once its slide is active.
+   --d is assigned in JS so authored markup stays free of stagger bookkeeping. */
+.slide.active > .rise{animation:rise .5s cubic-bezier(.2,.7,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.crumb{font-family:var(--mono);font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.5rem}
+h1{font-size:2.2rem;color:var(--ink);margin-bottom:.3rem;font-family:var(--font-display);text-transform:uppercase;font-weight:900;letter-spacing:-.012em}
+.cover h1{font-size:2.4rem}
+.h-emoji{text-transform:none;font-weight:400;margin-right:.22em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.subtitle{color:var(--ink-dim);font-size:1.05rem;margin-bottom:1.5rem}
+.module{color:var(--accent);font-family:var(--mono);font-size:.95rem;margin-bottom:1.2rem;word-break:break-word}
+h2{font-size:1.3rem;color:var(--accent);margin:2rem 0 .7rem;font-family:var(--font-display);text-transform:uppercase;font-weight:900;letter-spacing:-.008em}
+h3{font-size:1.05rem;color:var(--ink);font-weight:700;margin-bottom:.4rem}
+p{color:var(--ink-dim);margin-bottom:.8rem;max-width:70ch}
+.muted{color:var(--ink-dim)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin:1rem 0}
+.card{background:var(--panel);border:1.5px solid var(--line);border-radius:var(--radius);padding:1rem}
+/* the sidebar narrows the content column, so long mono identifiers
+   (workflow.NewEmittingFunctionNode) must be allowed to wrap rather than run
+   past the card border. */
+.card h3{font-size:1rem;color:var(--accent);margin-bottom:.4rem;font-family:var(--mono);overflow-wrap:anywhere}
+.card p{font-size:.9rem;color:var(--ink-dim);margin:0}
+a.card{text-decoration:none;color:var(--ink);display:block;transition:border-color .15s}
+a.card:hover{border-color:var(--accent)}
+a.card .path{display:block;font-size:.75rem;color:var(--ink-faint);margin-top:.4rem;font-family:var(--mono)}
+.tag{display:inline-block;background:var(--peach);color:var(--ink);border:1.5px solid var(--orange);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin:.15rem .15rem 0 0;font-family:var(--mono)}
+.badge{display:inline-block;background:var(--peach);color:var(--ink);border:1.5px solid var(--orange);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin-left:.4rem;vertical-align:middle;text-transform:none;font-weight:400}
+
+/* ---- the one picture: a linear chain of steps ---------------------------- */
+/* No SVG anywhere in this document. The catalog's own governing axis is a
+   line, so a wrapping row of pills draws it without a single coordinate. */
+.chain{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin:1rem 0 1.2rem}
+.chain span{background:var(--white);border:1.5px solid var(--line);border-radius:var(--radius);
+            padding:.3rem .7rem;font-family:var(--mono);font-size:.82rem;color:var(--ink)}
+.chain span.hot{border-color:var(--orange);background:var(--peach)}
+.chain i{color:var(--orange);font-style:normal;font-weight:700}
+
+ul{margin:0 0 .8rem 1.3rem}
+li{margin-bottom:.35rem;color:var(--ink-dim)}
+code{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:.1rem .35rem;font-family:var(--mono);font-size:.85em;color:var(--accent)}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:.8rem 0}
+pre code{background:none;border:none;padding:0;color:var(--accent);display:block}
+.note{border-left:3px solid var(--accent-2);background:var(--peach);padding:.8rem 1rem;border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0;font-size:.92rem;color:var(--ink)}
+
+/* ---- chrome -------------------------------------------------------------- */
+
+#progress{position:fixed;left:0;top:0;height:3px;background:var(--orange);z-index:60;transition:width .3s ease}
+#help{position:fixed;right:14px;top:12px;z-index:60;font-size:12px;color:var(--ink-faint)}
+
+@media (prefers-reduced-motion:reduce){
+  .slide.active,.slide.active > .rise{animation:none!important}
+}
+
+/* ---- mobile: sidebar becomes a scrollable strip -------------------------- */
+
+@media (max-width:900px){
+  :root{--nav-w:0px}
+  #toc{position:static;width:auto;height:auto;border-right:0;border-bottom:1.5px solid var(--line);
+       display:flex;gap:.35rem;overflow-x:auto;padding:.6rem .8rem;white-space:nowrap}
+  #toc .toc-h{display:none}
+  .nav-item{flex:none;margin:0}
+  .n-t{max-width:42vw}
+  #deck{margin-left:0;padding:1.6rem 1rem 4rem}
+  #help{display:none}
+  h1{font-size:1.7rem}
+}
+
+/* ---- print → PDF: every module, in order --------------------------------- */
+
+@media print{
+  @page{margin:14mm}
+  #toc,#progress,#help{display:none!important}
+  #deck{margin:0;padding:0}
+  .slide{display:block!important;page-break-after:always;break-after:page;max-width:none}
+  .slide *{animation:none!important;opacity:1!important;transform:none!important}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+
+.risk{border-left:3px solid var(--orange);background:var(--white);padding:.8rem 1rem;
+      border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0;font-size:.92rem;color:var(--ink)}
+.risk strong{color:var(--orange)}
+/* tables: the shape this deck is mostly made of */
+table{width:100%;border-collapse:collapse;margin:.8rem 0;font-size:.92rem}
+th{text-align:left;font-family:var(--font-display);text-transform:uppercase;font-size:.75rem;
+   letter-spacing:.08em;color:var(--ink-faint);font-weight:700;padding:.35rem .6rem;
+   border-bottom:1.5px solid var(--line)}
+td{padding:.4rem .6rem;border-bottom:1px solid var(--line);color:var(--ink-dim);vertical-align:top}
+td:first-child{white-space:nowrap;width:1%}
+/* the wide comparison tables carry prose in the first column too, so the
+   nowrap default above would push them off the page. */
+table.wide td:first-child{white-space:normal;width:auto}
+td code{white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.wrap{overflow-x:auto}
+/* the availability marks of module 02 — text, not colour, carries the meaning:
+   orange on cream fails as body text, so the glyph does the work. */
+.ok,.part,.no{font-weight:700;white-space:nowrap}
+.ok{color:var(--accent)}
+.part{color:var(--ink)}
+.no{color:var(--orange)}
+
+/* ---- pattern topology diagrams (added 2026-09-03) -------------------------
+   Vocabulary copied verbatim from adk-go-workflows.html on this shelf (its
+   modules 05/06), not invented fresh — same node-kind strokes on the same
+   dark fill, same link/label classes, same marker shape. Scaled down: this
+   shelf's diagrams sit inline after a one-line alias, not inside a full
+   framed/titled figure, so there is no .dg-frame/.dg-ti here — figcaption
+   carries the title instead. */
+figure.pat{margin:.9rem 0 1.1rem;padding:0}
+figure.pat svg{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  width:100%;max-width:560px;height:auto;display:block}
+figure.pat figcaption{color:var(--ink-faint);font-size:.78rem;margin-top:.35rem;font-family:var(--mono)}
+.dg-lb{fill:var(--ink);font-weight:700;font-family:var(--font-body)}
+.dg-sb{fill:var(--ink-dim);font-size:9.5px;font-family:var(--mono)}
+.dg-el{fill:var(--ink-faint);font-size:9.5px;font-family:var(--mono)}
+.dg-head{fill:var(--ink-faint)}
+.dg-link{stroke:var(--ink-faint);stroke-width:1.6;fill:none}
+.dg-link-warm{stroke:var(--magenta)}
+.dg-dash{stroke-dasharray:5 4}
+.dg-b-model{fill:var(--bg-alt);stroke:var(--purple);stroke-width:1.6}
+.dg-b-out  {fill:var(--bg-alt);stroke:var(--magenta);stroke-width:1.6}
+.dg-b-tool {fill:var(--bg-alt);stroke:var(--green);stroke-width:1.6}
+.dg-b-pill {fill:var(--bg-alt);stroke:var(--cyan);stroke-width:1.6}
+.dg-b-ghost{fill:var(--bg-alt);stroke:var(--line);stroke-width:1.4;stroke-dasharray:4 3}
+.dg-b-group{fill:none;stroke:var(--line);stroke-width:1.4;stroke-dasharray:5 4}
+</style>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7.5" refY="2.6" orient="auto">
+      <path d="M0,0 L8,2.6 L0,5.2 Z" class="dg-head"/>
+    </marker>
+  </defs>
+</svg>
+
+<nav id="toc">
+  <div class="toc-h">Модулі</div>
+  <a class="nav-item" data-go="0" href="#1"><span class="n-num">00</span><span class="n-t">Огляд</span></a>
+  <a class="nav-item" data-go="1" href="#2"><span class="n-num">01</span><span class="n-t"><span class="n-e">🧭</span>вісь і дерево</span></a>
+  <a class="nav-item" data-go="2" href="#3"><span class="n-num">02</span><span class="n-t"><span class="n-e">🐹</span>що є в Go v2.2.0</span></a>
+  <a class="nav-item" data-go="3" href="#4"><span class="n-num">03</span><span class="n-t"><span class="n-e">🌱</span>A · один цикл</span></a>
+  <a class="nav-item" data-go="4" href="#5"><span class="n-num">04</span><span class="n-t"><span class="n-e">🔒</span>B1–B2 ланцюг і віяло</span></a>
+  <a class="nav-item" data-go="5" href="#6"><span class="n-num">05</span><span class="n-t"><span class="n-e">🔁</span>B3–B5 цикл, маршрут, код</span></a>
+  <a class="nav-item" data-go="6" href="#7"><span class="n-num">06</span><span class="n-t"><span class="n-e">🧠</span>C · вирішує модель</span></a>
+  <a class="nav-item" data-go="7" href="#8"><span class="n-num">07</span><span class="n-t"><span class="n-e">⚖️</span>D · якість за виклики</span></a>
+  <a class="nav-item" data-go="8" href="#9"><span class="n-num">08</span><span class="n-t"><span class="n-e">🙋</span>E · людина й тригер</span></a>
+  <a class="nav-item" data-go="9" href="#10"><span class="n-num">09</span><span class="n-t"><span class="n-e">⚠️</span>анти-патерни</span></a>
+  <a class="nav-item" data-go="10" href="#11"><span class="n-num">10</span><span class="n-t"><span class="n-e">🔄</span>що змінила 2.x</span></a>
+  <a class="nav-item" data-go="11" href="#12"><span class="n-num">11</span><span class="n-t"><span class="n-e">🗺️</span>мапа й чек-лист</span></a>
+</nav>
+
+<div id="progress"></div>
+<div id="help">← → навігація · O огляд · F повний екран</div>
+<main id="deck"></main>
+
+<template id="src">
+
+<section class="cover">
+  <h1>Каталог патернів ADK 2.x — шпаргалка</h1>
+  <div class="subtitle">16 патернів у формі Gang-of-Four · вісь «хто вирішує наступний крок» · і колонка, якої немає в джерелі: <strong>чи є це в Go v2.2.0</strong></div>
+
+  <div class="note"><strong>Як це читати.</strong> Кожен патерн тут відсортовано за одним питанням, яке визначає його рахунок: наступний крок обирає <strong>код</strong> чи <strong>модель</strong>? Що правіше на цій осі — то більше викликів моделі витрачається на те, <em>щоб вирішити</em>, замість того, <em>щоб зробити</em>. Правило руху одне: <strong>починайте зліва й рухайтеся праворуч лише тоді, коли лівий патерн виміряно провалився</strong> — не тоді, коли він виглядає простувато.</div>
+
+  <div class="chain">
+    <span class="hot">один виклик + retrieval</span><i>›</i><span>B1 ланцюг</span><i>›</i><span>B2 віяло</span><i>›</i><span>B4 маршрут</span><i>›</i><span>B3 цикл</span><i>›</i><span>A2 ReAct</span><i>›</i><span>C1 координатор</span><i>›</i><span>C2 ієрархія</span><i>›</i><span class="hot">C3 рій</span>
+  </div>
+
+  <div class="risk"><strong>Чому ця сторінка взагалі існує.</strong> У джерелі списки примітивів для кожного патерну мовчки змішують <strong>три мови</strong>: <code>workflow.Chain()</code>, <code>AddFanOut()</code>, <code>JoinNode</code>, <code>RunNode[T]()</code> — це Go; <code>sub_agents=[…]</code>, <code>output_key</code>, <code>max_iterations</code>, <code>SequentialAgent</code>, <code>LoopAgent</code> — це Python; <code>RoutedAgent</code>/<code>AgentRouter</code> — це TypeScript. Go-читач не може зрозуміти з джерела, <em>що саме з цих шістнадцяти він може збудувати сьогодні</em>. Модуль <strong>02</strong> — це та відсутня колонка, і кожен її рядок звірено з реальним модулем, а не вгадано.</div>
+
+  <div class="risk"><strong>Це датований знімок, а не довідник API.</strong> Усі твердження — <strong>станом на 08/2026</strong>. Джерело позначає себе як «Python &amp; Go v2.0.0+»; <strong>цей репозиторій пінить <code>google.golang.org/adk/v2 v2.2.0</code></strong>, і всі Go-твердження модуля 02 прочитано саме з нього (локальний <code>GOMODCACHE</code>, 30.08.2026). Твердження про <strong>Python- і TypeScript-SDK перенесені з джерела НЕПЕРЕВІРЕНИМИ</strong> й позначені окремо. Числові оцінки затримки, вартості й передбачуваності (1–5) — це <strong>редакційна думка автора джерела, а не вимірювання</strong>; бенчмарка за ними немає.</div>
+
+  <div class="grid">
+    <a class="card" data-go="1" href="#2"><h3><span class="c-e">🧭</span>01 · вісь і дерево</h3><p>Одна вісь, що передбачає рахунок, і дерево рішень, перша гілка якого — «не будуйте агента».</p><span class="path">код ↔ модель · 1–5 як думка</span></a>
+    <a class="card" data-go="2" href="#3"><h3><span class="c-e">🐹</span>02 · що є в Go v2.2.0</h3><p>16 патернів × перевірений примітив. Чого в Go немає — позначено, а не викинуто.<span class="tag">ядро</span></p><span class="path">✅ / 🟡 / ❌</span></a>
+    <a class="card" data-go="3" href="#4"><h3><span class="c-e">🌱</span>03 · A · один цикл</h3><p>A1 Single Agent і A2 ReAct: коли одного агента достатньо і коли слід ділити.</p><span class="path">A1 · A2</span></a>
+    <a class="card" data-go="4" href="#5"><h3><span class="c-e">🔒</span>04 · B1–B2</h3><p>Ланцюг і віяло — найдешевша половина каталогу. Тут же <code>JoinNode</code> як обов'язок, а не стиль.</p><span class="path">Chain · FanOut/FanIn</span></a>
+    <a class="card" data-go="5" href="#6"><h3><span class="c-e">🔁</span>05 · B3–B5</h3><p>Цикл, типізований маршрут і власний код у вузлі — з правилом, чому беззумовний цикл не збереться.</p><span class="path">Route · DynamicNode</span></a>
+    <a class="card" data-go="6" href="#7"><h3><span class="c-e">🧠</span>06 · C · вирішує модель</h3><p>Координатор, ієрархія, рій, маршрутизований агент — і чому два з чотирьох у Go недоступні.</p><span class="path">C1–C4 · Mode</span></a>
+    <a class="card" data-go="7" href="#8"><h3><span class="c-e">⚖️</span>07 · D · якість</h3><p>Критик і цикл уточнення — найкраща якість на витрачений токен у всьому каталозі.</p><span class="path">D1 · D2</span></a>
+    <a class="card" data-go="8" href="#9"><h3><span class="c-e">🙋</span>08 · E · людина й тригер</h3><p>HITL як переривання з персистентністю, гейт на дію та ambient-обгортка.</p><span class="path">E1 · E2 · E3</span></a>
+    <a class="card" data-go="9" href="#10"><h3><span class="c-e">⚠️</span>09 · анти-патерни</h3><p>Десять живих режимів відмови — і колонка, якої немає в джерелі: що з них ADK Go ловить <em>механічно</em>.</p><span class="path">validation.go · errors.go</span></a>
+    <a class="card" data-go="10" href="#11"><h3><span class="c-e">🔄</span>10 · що змінила 2.x</h3><p>Ієрархічний виконавець → граф. Вісім рядків, два з них у Go виглядають інакше, ніж каже джерело.</p><span class="path">1.x → 2.x</span></a>
+    <a class="card" data-go="11" href="#12"><h3><span class="c-e">🗺️</span>11 · мапа й чек-лист</h3><p>Який патерн у якому тижні курсу — і які три з шістнадцяти вже живуть у <code>wiki-tools/</code>.<span class="tag">🔥 бонус</span></p><span class="path">week2–week6 · pipelines</span></a>
+  </div>
+
+  <h2>Джерело і межі</h2>
+  <p class="muted"><strong>Звідки зміст.</strong> Скелет каталогу — 16 патернів, їхні «навіщо / коли брати / коли не брати», 10 анти-патернів, таблиця 1.x→2.x і дерево рішень — стислий український перепис одного джерела: артефакту «ADK Pattern Catalog», який сам позиціює себе як розширення 12-патернової таксономії Google Cloud. Порядок перекроєно під довідку: шістнадцять патернів згруповано в п'ять модулів за категоріями, дерево рішень вкладено в модуль осі, а покартові «лічильники» затрат зведено у три числові колонки однієї таблиці.</p>
+  <p class="muted"><strong>Що додано понад джерело.</strong> (1) Модуль 02 — доступність кожного патерну в Go, звірена з <code>google.golang.org/adk/v2 v2.2.0</code>. (2) Модуль 09 — колонка «ловить механічно чи лише дисципліна», зібрана з <code>workflow/validation.go</code> та <code>workflow/errors.go</code>: джерело перелічує десять відмов і жодного запобіжника, а їх у модулі одинадцять. (3) Модуль 11 — прив'язка до тижнів цього курсу й до реальних ADK-пайплайнів <code>wiki-tools/</code>.</p>
+  <p class="muted"><strong>Чого тут навмисно немає:</strong> зразків коду (це сусідні документи полиці — <code>adk-go-workflows.html</code> і <code>adk-go-2x-cheatsheet-ua.html</code>, які описують <em>API</em>; ця сторінка описує <em>вибір форми</em>); поверхні Python-API; будь-яких цифр бенчмарків; продакшн-шару — Kubernetes, Temporal, sandboxing, — це Курс 3.</p>
+  <p class="muted"><strong>Оновлення 2026-09-03: шістнадцять діаграм додано.</strong> Цей документ спершу свідомо не відтворював шістнадцять мініатюрних діаграм джерела — таблиця й так каже те саме й переживає друк. Тепер кожен патерн має власну маленьку inline-SVG діаграму топології, намальовану заново в палітрі цієї полиці (не копію діаграми джерела). Словник вузлів/стрілок — той самий, що вже встановлено в <code>adk-go-workflows.html</code> на цій полиці (класи <code>dg-b-model</code>/<code>dg-b-tool</code>/<code>dg-b-out</code>/<code>dg-b-pill</code>/<code>dg-b-ghost</code>, <code>dg-link</code>, спільний <code>&lt;marker&gt;</code>), а не вигаданий заново.</p>
+  <p class="muted"><strong>Чого немає свідомо, попри джерело:</strong> джерело в підвалі стверджує, що повний прозовий каталог лежить у <code>topics/ai/adk-2x-agent-design-patterns/</code>. <strong>Такого шляху в цьому сховищі немає</strong> — перевірено, тому твердження не відтворено.</p>
+</section>
+
+<!-- 01 вісь і дерево -->
+<section>
+  <div class="crumb">МОДУЛЬ 1 / 11</div>
+  <h1><span class="h-emoji">🧭</span> вісь і дерево</h1>
+  <div class="module">хто вирішує наступний крок · матриця вибору · дерево, перша гілка якого — «не будуйте агента»</div>
+
+  <p><strong>Майже кожен агентний патерн обмінює вартість і затримку на пристосовність.</strong> Позиція на одній горизонтальній осі — «наступний крок обирає код чи модель» — передбачає рахунок точніше, ніж будь-яка інша характеристика патерну. Що правіше, то більше викликів моделі йде на <em>вирішення</em>, а не на <em>роботу</em>.</p>
+
+  <div class="chain">
+    <span class="hot">код вирішує</span><i>›</i><span>B1 · B2 · B4 · B5</span><i>›</i><span>B3 · D1 · D2</span><i>›</i><span>E1 · E2 · E3 (людина / подія)</span><i>›</i><span>A1 · A2</span><i>›</i><span>C1 · C2</span><i>›</i><span class="hot">C3 модель вирішує</span>
+  </div>
+
+  <h2>Матриця вибору</h2>
+  <div class="risk"><strong>Читайте лічильники як бюджет, а не як оцінку якості.</strong> Значення 1–5 у трьох колонках нижче — <strong>редакційна думка автора джерела</strong>. Це не вимірювання: за ними немає ані бенчмарка, ані профілю, ані одиниці виміру. Патерн із «5» у вартості не гірший — це патерн, який ви маєте вміти обґрунтувати проти сусіднього з «4». Далі в документі цих чисел немає взагалі: одного разу сказано — і досить.</div>
+  <div class="wrap">
+  <table>
+    <tr><th>#</th><th>Патерн</th><th>Вирішує</th><th>Затримка</th><th>Токени</th><th>Передбачуваність</th><th>Коли брати</th></tr>
+    <tr><td><strong>A1</strong></td><td>Single Agent</td><td>модель</td><td>1</td><td>1</td><td>3</td><td>Багатокрокова задача, яку тягне один промпт і набір інструментів</td></tr>
+    <tr><td><strong>A2</strong></td><td>ReAct</td><td>модель</td><td>3</td><td>3</td><td>3</td><td>Середовище відповідає непередбачувано, потрібне явне перепланування</td></tr>
+    <tr><td><strong>B1</strong></td><td>Sequential Pipeline</td><td>код</td><td>1</td><td>1</td><td>5</td><td>Порядок кроків не змінюється ніколи</td></tr>
+    <tr><td><strong>B2</strong></td><td>Parallel Fan-Out / Gather</td><td>код</td><td>1</td><td>4</td><td>4</td><td>Підзадачі незалежні одна від одної</td></tr>
+    <tr><td><strong>B3</strong></td><td>Loop</td><td>код</td><td>3</td><td>3</td><td>3</td><td>Кількість повторів невідома, але тест виходу — відомий</td></tr>
+    <tr><td><strong>B4</strong></td><td>Conditional Route</td><td>код</td><td>1</td><td>1</td><td>4</td><td>Категорії запиту перелічувані</td></tr>
+    <tr><td><strong>B5</strong></td><td>Custom Logic</td><td>код</td><td>3</td><td>3</td><td>4</td><td>Статичний граф починає заважати, а не допомагати</td></tr>
+    <tr><td><strong>C1</strong></td><td>Coordinator / Dispatcher</td><td>модель</td><td>3</td><td>4</td><td>3</td><td>Запити наперед не перелічити</td></tr>
+    <tr><td><strong>C2</strong></td><td>Hierarchical Decomposition</td><td>модель</td><td>5</td><td>5</td><td>2</td><td>Потрібне багаторівневе планування</td></tr>
+    <tr><td><strong>C3</strong></td><td>Swarm</td><td>модель</td><td>5</td><td>5</td><td>1</td><td>Цінність — у самій суперечці ролей</td></tr>
+    <tr><td><strong>C4</strong></td><td>Routed Agent</td><td>код</td><td>1</td><td>1</td><td>4</td><td>Інфраструктура: failover, A/B, рівні моделей</td></tr>
+    <tr><td><strong>D1</strong></td><td>Review and Critique</td><td>код</td><td>2</td><td>2</td><td>4</td><td>Результат має пройти планку</td></tr>
+    <tr><td><strong>D2</strong></td><td>Iterative Refinement</td><td>код</td><td>4</td><td>4</td><td>3</td><td>Результат покращується з проходами й є чим його виміряти</td></tr>
+    <tr><td><strong>E1</strong></td><td>Human-in-the-Loop</td><td>людина</td><td>5</td><td>1</td><td>4</td><td>Рішення має підписати названа людина</td></tr>
+    <tr><td><strong>E2</strong></td><td>Tool Confirmation Gate</td><td>людина</td><td>4</td><td>1</td><td>4</td><td>Незворотна саме конкретна дія, а не весь план</td></tr>
+    <tr><td><strong>E3</strong></td><td>Ambient Agent</td><td>код</td><td>2</td><td>2</td><td>4</td><td>Людини в момент запуску немає взагалі</td></tr>
+  </table>
+  </div>
+
+  <h2>Дерево рішень</h2>
+  <p>Перша гілка — та, яку пропускає більшість систем. Оптимізований одиночний виклик із retrieval виграє на несподівано великій частці задач, і це єдиний варіант тут, який не коштує нічого в експлуатації.</p>
+  <ul>
+    <li><strong>Чи впорається один оптимізований виклик LLM + retrieval?</strong><br>
+      <em>так</em> → <strong>не будуйте агента. Зупиніться тут.</strong></li>
+    <li><strong>Чи відома й фіксована послідовність кроків наперед?</strong>
+      <ul>
+        <li><em>так</em> → кроки незалежні? <em>так</em> → <strong>B2</strong> віяло · <em>ні</em> → <strong>B1</strong> ланцюг
+          <ul>
+            <li>+ розгалуження → <strong>B4</strong> маршрут</li>
+            <li>+ «повторювати, доки» → <strong>B3</strong> цикл</li>
+            <li>+ керування потоком у формі коду → <strong>B5</strong> власна логіка</li>
+          </ul>
+        </li>
+        <li><em>ні</em> → категорії запитів перелічувані?
+          <ul>
+            <li><em>так</em> → <strong>C1</strong> координатор <em>(спершу спробуйте B4 — дешевше)</em></li>
+            <li><em>ні</em> → потрібне багаторівневе планування? <em>так</em> → <strong>C2</strong> ієрархія · <em>ні</em> → <strong>A2</strong> ReAct</li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li><strong>Чи мусять конфліктні точки зору сперечатися, щоб дати добру відповідь?</strong><br>
+      <em>так</em> → <strong>C3</strong> рій — <strong>найдорожче й найменш відтворюване в каталозі. Обґрунтуйте.</strong></li>
+    <li><strong>Модифікатори — накладаються на будь-що з переліченого:</strong> результат має пройти планку → <strong>D1</strong>; результат покращується з проходами → <strong>D2</strong>; рішення має схвалити людина → <strong>E1</strong>; незворотна конкретна дія → <strong>E2</strong>; failover / A-B / рівні моделей → <strong>C4</strong>.</li>
+    <li><strong>Чи взагалі є людина, яка чекає на відповідь?</strong><br>
+      <em>ні</em> → загорніть усе це в <strong>E3</strong> ambient.</li>
+  </ul>
+
+  <div class="note"><strong>Дві гілки, які варто прочитати двічі.</strong> Перша — «не будуйте агента»: вона єдина безкоштовна в експлуатації. Друга — «спершу спробуйте B4»: класифікатор плюс детермінований диспетч коштує один дешевий виклик, координатор — повний виклик моделі на кожен стрибок. Різниця між ними не в архітектурній красі, а в рахунку наприкінці місяця.</div>
+</section>
+
+<!-- 02 що є в Go -->
+<section>
+  <div class="crumb">МОДУЛЬ 2 / 11</div>
+  <h1><span class="h-emoji">🐹</span> що є в Go v2.2.0</h1>
+  <div class="module">16 патернів × перевірений примітив · ✅ є · 🟡 збирається з наявного · ❌ у Go відсутнє</div>
+
+  <p><strong>Це та колонка, якої немає в джерелі, і заради неї існує ця сторінка.</strong> Курс учить Go ADK як основний фреймворк, а списки примітивів у джерелі змішують Go, Python і TypeScript без жодної позначки. Нижче — кожен патерн проти реального модуля <code>google.golang.org/adk/v2 v2.2.0</code>, який пінить цей репозиторій.</p>
+
+  <div class="risk"><strong>Як це перевірено, і чого ця перевірка не покриває.</strong> Кожен ідентифікатор нижче прочитано з вихідників модуля в локальному <code>GOMODCACHE</code> <strong>30.08.2026</strong> — не з документації, не з джерела, не з пам'яті. Де назва з джерела виявилася Python-only, TypeScript-only, внутрішньою або просто відсутньою — так і позначено, а не викинуто мовчки. <strong>Впевнено неправильний рядок гірший за чесну прогалину</strong>, і саме тому позначки тут важливіші за самі назви. Ця перевірка <em>не</em> охоплює Python- і TypeScript-SDK: усе, що тут сказано про них, перенесено з джерела неперевіреним.</div>
+
+  <div class="wrap">
+  <table class="wide">
+    <tr><th>#</th><th>Патерн</th><th>Go v2.2.0</th><th>Перевірені примітиви</th><th>Що саме варто знати</th></tr>
+
+    <tr><td><strong>A1</strong></td><td>Single Agent</td><td class="ok">✅ є</td><td><code>llmagent.New(llmagent.Config{…})</code>, поля <code>Model</code>, <code>Instruction</code>, <code>Tools</code>, <code>SubAgents</code>, <code>OutputKey</code>, <code>Mode</code></td><td>Python-написання <code>tools=[…]</code> з джерела в Go — це поле <code>Tools []tool.Tool</code></td></tr>
+
+    <tr><td><strong>A2</strong></td><td>ReAct</td><td class="part">🟡 збирається</td><td><code>workflow.NewDynamicNode[IN,OUT]</code> + <code>workflow.RunNode[OUT]</code>, або цикл у графі з маршрутом</td><td>Примітива з назвою ReAct немає в жодній мові — це форма графа, а не тип. Крок-кап пишете ви</td></tr>
+
+    <tr><td><strong>B1</strong></td><td>Sequential Pipeline</td><td class="ok">✅ є</td><td><code>workflow.Chain(nodes…)</code>, <code>sequentialagent.New</code>, <code>llmagent.Config.OutputKey</code></td><td>Python-ське <code>output_key</code> → Go-поле <code>OutputKey string</code></td></tr>
+
+    <tr><td><strong>B2</strong></td><td>Parallel Fan-Out / Gather</td><td class="ok">✅ є</td><td><code>EdgeBuilder.AddFanOut(from, to…)</code>, <code>.AddFanIn(to, from…)</code>, <code>workflow.NewJoinNode(name)</code>, <code>workflow.NewParallelWorker(name, wrapped, maxConcurrency, cfg)</code>, <code>NodeConfig.ParallelWorker</code>, <code>workflow.WithMaxConcurrency(n)</code></td><td>Джерело подає <code>MaxConcurrency</code> як поле. <strong>Поля з такою назвою в Go немає</strong>: є опція графа <code>WithMaxConcurrency</code> й аргумент <code>NewParallelWorker</code></td></tr>
+
+    <tr><td><strong>B3</strong></td><td>Loop</td><td class="ok">✅ є</td><td>цикл у графі з маршрутом, <code>workflow.BoolRoute</code>, <code>loopagent.New</code> + <code>Config.MaxIterations uint</code>, <code>tool/exitlooptool</code></td><td><code>max_iterations</code> → <code>MaxIterations</code>. Беззумовний цикл узагалі не збереться — див. модуль 09</td></tr>
+
+    <tr><td><strong>B4</strong></td><td>Conditional Route</td><td class="ok">✅ є</td><td><code>EdgeBuilder.AddRoute(from,to,route)</code>, <code>.AddRoutes(from, map[string]Node)</code>, <code>workflow.NewEmittingFunctionNode</code>, <code>StringRoute</code> / <code>IntRoute</code> / <code>BoolRoute</code> / <code>MultiRoute[T]</code>, <code>workflow.Default</code></td><td><code>Default</code> — це <code>var Default Route</code>, тобто значення маршруту, а не поле й не рядок</td></tr>
+
+    <tr><td><strong>B5</strong></td><td>Custom Logic</td><td class="part">🟡 частково</td><td><code>workflow.NewDynamicNode[IN,OUT]</code>, тіло як <code>DynamicFn[IN,OUT]</code>, <code>workflow.RunNode[OUT]</code>, <code>WithRunID</code>, <code>WithUseSubBranch</code>, <code>NodeConfig.RetryConfig</code>, <code>NodeConfig.RerunOnResume *bool</code></td><td><strong>Типу з назвою <code>DynamicNode</code> в Go немає</strong> — конструктор повертає <code>workflow.Node</code>. Назва з джерела — концептуальна</td></tr>
+
+    <tr><td><strong>C1</strong></td><td>Coordinator / Dispatcher</td><td class="ok">✅ є</td><td><code>llmagent.Config.SubAgents []agent.Agent</code>, <code>llmagent.Mode</code> зі значеннями <code>ModeChat</code>, <code>ModeTask</code>, <code>ModeSingleTurn</code></td><td><code>finish_task</code> існує, але <strong>як внутрішній інструмент рантайму</strong> (<code>internal/workflowinternal</code>) — ви його не викликаєте</td></tr>
+
+    <tr><td><strong>C2</strong></td><td>Hierarchical Decomposition</td><td class="ok">✅ є</td><td><code>agenttool.New(agent, cfg)</code>, <code>workflow.NewWorkflowNode(name, edges)</code>, <code>workflowagent.New(Config{Edges…})</code></td><td>Вкладені графи — через <code>WorkflowNode</code>; імена підграфів мусять відрізнятися від імені батька</td></tr>
+
+    <tr><td><strong>C3</strong></td><td>Swarm</td><td class="no">❌ примітива немає</td><td>—</td><td>Рядка <code>Swarm</code> у модулі немає взагалі — джерело каже те саме. Збирається вручну з <code>NewDynamicNode</code> + спільного стану</td></tr>
+
+    <tr><td><strong>C4</strong></td><td>Routed Agent</td><td class="no">❌ у Go відсутнє</td><td>—</td><td><code>RoutedAgent</code> і <code>AgentRouter</code> <strong>у <code>adk/v2 v2.2.0</code> не існують узагалі</strong>. Джерело саме позначає їх як TypeScript v1.0.0, experimental — перенесено неперевіреним</td></tr>
+
+    <tr><td><strong>D1</strong></td><td>Review and Critique</td><td class="part">🟡 композиція</td><td><code>sequentialagent.New</code>, <code>OutputKey</code>, <code>BoolRoute</code> для гілки «на доопрацювання»</td><td>Іменованого примітива «critic» немає в жодній мові: це два вузли й один маршрут між ними</td></tr>
+
+    <tr><td><strong>D2</strong></td><td>Iterative Refinement</td><td class="ok">✅ є</td><td><code>loopagent.New</code> + <code>MaxIterations</code>, або цикл у Go-коді всередині <code>NewDynamicNode</code></td><td>Найкраще працює там, де є детермінований перевіряч — компілятор, тести, валідатор схеми</td></tr>
+
+    <tr><td><strong>E1</strong></td><td>Human-in-the-Loop</td><td class="ok">✅ є</td><td><code>workflow.ResumeOrRequestInput(ctx, emit, req)</code>, <code>session.RequestInput{InterruptID, Message, ResponseSchema, Payload}</code>, <code>NodeConfig.RerunOnResume *bool</code>, <code>workflow.NewRequestInputEvent</code>, <code>Workflow.Resume</code></td><td>У Go є окремий обмежувач: <code>ErrParallelHITLUnsupported</code> — <strong>паралельний HITL не підтримується</strong>. Джерело цього не згадує</td></tr>
+
+    <tr><td><strong>E2</strong></td><td>Tool Confirmation Gate</td><td class="part">🟡 частково</td><td><code>agent.Context.RequestConfirmation(hint string, payload any) error</code>, <code>ctx.ToolConfirmation()</code>, <code>tool.WithConfirmation(ts, requireConfirmation, provider)</code>, пакет <code>tool/toolconfirmation</code></td><td><strong><code>SecurityPlugin</code> і <code>PolicyOutcome.CONFIRM</code> у Go відсутні</strong>. Найближче — <code>plugin.Config.BeforeToolCallback</code></td></tr>
+
+    <tr><td><strong>E3</strong></td><td>Ambient Agent</td><td class="no">❌ не примітив ADK</td><td><code>server/adkrest</code>, <code>server/agentengine</code>, <code>server/adka2a</code> — транспорт, не оркестрація</td><td>Pub/Sub, Eventarc, Cloud Scheduler зі списку джерела — це <strong>GCP, а не ADK</strong>. E3 — обгортка розгортання: тілом може бути будь-який патерн A–D</td></tr>
+  </table>
+  </div>
+
+  <div class="note"><strong>Підсумок для Go-читача.</strong> З шістнадцяти патернів <strong>дев'ять</strong> мають прямі примітиви в Go v2.2.0, <strong>чотири</strong> збираються з наявного без іменованої підтримки (A2, B5, D1 — і C3 як ручна конструкція), <strong>два</strong> в Go відсутні як API (C4 — узагалі немає; C3 — немає примітива), і <strong>один</strong> взагалі не про ADK (E3 — це розгортання). Тобто основна маса каталогу Go-читачеві доступна — але саме там, де джерело найгучніше («RoutedAgent для failover»), у Go немає нічого.</div>
+</section>
+
+<!-- 03 A -->
+<section>
+  <div class="crumb">МОДУЛЬ 3 / 11</div>
+  <h1><span class="h-emoji">🌱</span> A · один цикл міркування</h1>
+  <div class="module">A1 Single Agent · A2 ReAct — категорія, з якої треба починати й у якій більшість систем мала б залишитися</div>
+
+  <h2>A1 · Single Agent</h2>
+  <p class="muted"><em>Single-Agent System · Augmented LLM · Tool-Calling Agent · вирішує модель</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="Start веде в один агент, який сам у циклі викликає інструменти, потім віддає відповідь">
+      <rect x="20" y="52" width="70" height="36" rx="18" class="dg-b-pill"/>
+      <text x="55" y="74" class="dg-lb" font-size="11.5" text-anchor="middle">Start</text>
+      <rect x="170" y="45" width="200" height="50" rx="10" class="dg-b-model"/>
+      <text x="270" y="67" class="dg-lb" font-size="12" text-anchor="middle">Agent</text>
+      <text x="270" y="83" class="dg-sb" text-anchor="middle">LlmAgent + Tools</text>
+      <path d="M 330 45 C 330 8, 210 8, 210 45" class="dg-link" marker-end="url(#arr)"/>
+      <text x="270" y="18" class="dg-el" text-anchor="middle">сам обирає інструмент і порядок</text>
+      <rect x="450" y="52" width="90" height="36" rx="18" class="dg-b-out"/>
+      <text x="495" y="74" class="dg-lb" font-size="11.5" text-anchor="middle">відповідь</text>
+      <path d="M 90 70 L 164 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 370 70 L 444 70" class="dg-link" marker-end="url(#arr)"/>
+    </svg>
+    <figcaption>один агент і один цикл: модель сама вирішує, які інструменти викликати та в якому порядку</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> виконати багатокрокову задачу однією моделлю, одним системним промптом і набором інструментів, дозволивши моделі самій обирати, які інструменти викликати й у якому порядку.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Асистент підтримки, який шукає замовлення, перевіряє доставку й пише чернетку відповіді. Більшість задач, яким «потрібен агент», потребують рівно <em>одного</em> — другий агент не купує нічого, окрім передачі, яку тепер треба дебажити.</li>
+    <li><strong>Коли не брати.</strong> Понад десяток інструментів, або промпт, у якому виросло кілька окремих секцій «якщо користувач питає про X…». Це і є сигнал ділити.</li>
+  </ul>
+
+  <h2>A2 · ReAct</h2>
+  <p class="muted"><em>Reason and Act · цикл «думка — дія — спостереження» · вирішує модель</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="агент думає, викликає tool, спостереження повертається в агента; цикл, доки умова виходу не спрацює">
+      <rect x="10" y="45" width="130" height="50" rx="10" class="dg-b-model"/>
+      <text x="75" y="67" class="dg-lb" font-size="12" text-anchor="middle">Agent</text>
+      <text x="75" y="83" class="dg-sb" text-anchor="middle">думка → дія</text>
+      <rect x="270" y="45" width="130" height="50" rx="10" class="dg-b-tool"/>
+      <text x="335" y="67" class="dg-lb" font-size="12" text-anchor="middle">Tool</text>
+      <text x="335" y="83" class="dg-sb" text-anchor="middle">DynamicNode крок</text>
+      <rect x="470" y="52" width="80" height="36" rx="18" class="dg-b-out"/>
+      <text x="510" y="74" class="dg-lb" font-size="11.5" text-anchor="middle">кінець</text>
+      <path d="M 140 66 L 264 66" class="dg-link" marker-end="url(#arr)"/>
+      <text x="200" y="58" class="dg-el" text-anchor="middle">дія</text>
+      <path d="M 400 70 L 464 70" class="dg-link" marker-end="url(#arr)"/>
+      <text x="432" y="62" class="dg-el" text-anchor="middle">умова: так</text>
+      <path d="M 300 95 C 300 128, 105 128, 75 95" class="dg-link dg-dash" marker-end="url(#arr)"/>
+      <text x="190" y="133" class="dg-el" text-anchor="middle">спостереження · умова: ні</text>
+    </svg>
+    <figcaption>агент і tool чергуються в циклі; лічильник кроків і умову виходу пише розробник, не фреймворк</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> чергувати явне міркування, виклик інструмента й розбір результату в циклі, доки не спрацює умова виходу.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Середовище відповідає непередбачувано: пошук нічого не знайшов, шлях заблоковано. ReAct робить <em>перепланування явним</em>, а слід міркувань — найкращий артефакт для дебагу в агентних системах узагалі.</li>
+    <li><strong>Коли не брати.</strong> Статичні задачі з відомим порядком кроків і будь-який шлях, критичний до затримки. Без жорсткого ліміту кроків цикл блукає.</li>
+  </ul>
+
+  <div class="risk"><strong>Go-примітка.</strong> Слова «ReAct» у ADK-модулі немає — це форма, а не тип. У Go v2.2.0 його збирають або як <code>workflow.NewDynamicNode</code>, у тілі якого ви пишете звичайний Go-цикл із <code>workflow.RunNode[OUT]</code> на кожен інструмент, або як цикл у графі, де ребро назад несе маршрут. Обидва шляхи вимагають, щоб <strong>лічильник кроків написали ви</strong>: жодна з цих конструкцій не має вбудованого кап-у.</div>
+
+  <div class="note"><strong>Перехід між A1 і A2 — не питання смаку.</strong> A1 → A2 варто робити тоді, коли ви побачили в логах, що агент <em>помиляється й не помічає цього</em>: викликав інструмент, отримав порожню відповідь і поїхав далі так, ніби все гаразд. Явне «спостереження» в ReAct існує саме для цього моменту, і його ціна — приблизно втричі більше викликів моделі на ту саму задачу.</div>
+</section>
+
+<!-- 04 B1-B2 -->
+<section>
+  <div class="crumb">МОДУЛЬ 4 / 11</div>
+  <h1><span class="h-emoji">🔒</span> B1–B2 · ланцюг і віяло</h1>
+  <div class="module">детермінована оркестрація · наступний крок обирає код · найдешевша половина каталогу</div>
+
+  <h2>B1 · Sequential Pipeline</h2>
+  <p class="muted"><em>Prompt Chaining · Chain · Sequential Orchestration · вирішує код</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="Start, extract, clean, load, готово — фіксований лінійний ланцюг вузлів">
+      <rect x="10" y="52" width="60" height="36" rx="18" class="dg-b-pill"/>
+      <text x="40" y="74" class="dg-lb" font-size="11" text-anchor="middle">Start</text>
+      <rect x="105" y="52" width="95" height="36" rx="8" class="dg-b-tool"/>
+      <text x="152" y="74" class="dg-lb" font-size="11.5" text-anchor="middle">extract</text>
+      <rect x="235" y="52" width="95" height="36" rx="8" class="dg-b-tool"/>
+      <text x="282" y="74" class="dg-lb" font-size="11.5" text-anchor="middle">clean</text>
+      <rect x="365" y="52" width="95" height="36" rx="8" class="dg-b-tool"/>
+      <text x="412" y="74" class="dg-lb" font-size="11.5" text-anchor="middle">load</text>
+      <rect x="490" y="52" width="60" height="36" rx="18" class="dg-b-out"/>
+      <text x="520" y="74" class="dg-lb" font-size="10.5" text-anchor="middle">OK</text>
+      <path d="M 70 70 L 99 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 200 70 L 229 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 330 70 L 359 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 460 70 L 484 70" class="dg-link" marker-end="url(#arr)"/>
+      <text x="280" y="112" class="dg-el" text-anchor="middle">workflow.Chain — порядок не змінюється</text>
+    </svg>
+    <figcaption>код визначає нерухомий порядок кроків, вихід кожного — вхід наступного</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> виконати спеціалізованих агентів і звичайні функції у фіксованому лінійному порядку, де вихід кожного етапу — вхід наступного.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Витягти → почистити → перевірити → завантажити. Порядок не змінюється ніколи, тож платити моделі за те, щоб вона перевідкривала його на кожному запиті, — марнотратство. Побічний виграш: кожен етап отримує маленький сфокусований промпт, а це підвищує точність етапу.</li>
+    <li><strong>Коли не брати.</strong> Коли робочий процес мусить пристосовуватись, або коли етапи незалежні — тоді B2 зробить їх одночасно.</li>
+  </ul>
+  <p><strong>Go:</strong> <code>workflow.Chain(nodes…)</code> будує ребра, <code>llmagent.Config.OutputKey</code> кладе вихід етапу в стан під іменем, яке прочитає наступний. Альтернатива без графа — <code>sequentialagent.New</code>.</p>
+
+  <h2>B2 · Parallel Fan-Out / Gather</h2>
+  <p class="muted"><em>Parallelization · Concurrent Orchestration · Scatter-Gather · вирішує код</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="Start розходиться на три незалежні гілки, JoinNode чекає на всі, потім format">
+      <rect x="10" y="52" width="60" height="36" rx="18" class="dg-b-pill"/>
+      <text x="40" y="74" class="dg-lb" font-size="11" text-anchor="middle">Start</text>
+      <rect x="130" y="10" width="110" height="30" rx="8" class="dg-b-tool"/>
+      <text x="185" y="30" class="dg-lb" font-size="11" text-anchor="middle">research A</text>
+      <rect x="130" y="55" width="110" height="30" rx="8" class="dg-b-tool"/>
+      <text x="185" y="75" class="dg-lb" font-size="11" text-anchor="middle">research B</text>
+      <rect x="130" y="100" width="110" height="30" rx="8" class="dg-b-tool"/>
+      <text x="185" y="120" class="dg-lb" font-size="11" text-anchor="middle">research C</text>
+      <rect x="330" y="52" width="100" height="36" rx="8" class="dg-b-out"/>
+      <text x="380" y="70" class="dg-lb" font-size="11" text-anchor="middle">Join</text>
+      <text x="380" y="83" class="dg-sb" text-anchor="middle">чекає всіх</text>
+      <rect x="470" y="52" width="80" height="36" rx="8" class="dg-b-tool"/>
+      <text x="510" y="74" class="dg-lb" font-size="11" text-anchor="middle">format</text>
+      <path d="M 70 66 L 100 66 L 100 25 L 124 25" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 70 70 L 124 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 70 74 L 100 74 L 100 115 L 124 115" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 240 25 L 280 25 L 280 66 L 324 66" class="dg-link-warm dg-link" marker-end="url(#arr)"/>
+      <path d="M 240 70 L 324 70" class="dg-link-warm dg-link" marker-end="url(#arr)"/>
+      <path d="M 240 115 L 280 115 L 280 74 L 324 74" class="dg-link-warm dg-link" marker-end="url(#arr)"/>
+      <path d="M 430 70 L 464 70" class="dg-link" marker-end="url(#arr)"/>
+    </svg>
+    <figcaption>fan-out виконує гілки одночасно; злиття дозволено лише через JoinNode — інакше граф не збереться</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> виконати незалежні підзадачі одночасно, потім злити їхні виходи в один узгоджений результат.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Три звернення до API, які не залежать одне від одного, не мають коштувати три послідовні round-trip-и. Варіант «голосування» — те саме питання кільком агентам — купує впевненість, якої один виклик дати не може.</li>
+    <li><strong>Коли не брати.</strong> Залежні підзадачі (це B1) і розгортання, обмежені за вартістю. Найважче тут не розпаралелити, а <strong>злити</strong>: гілки будуть суперечити одна одній, і хтось має вирішити, хто правий.</li>
+  </ul>
+
+  <div class="risk"><strong>Два запобіжники, і лише один із них механічний.</strong> (1) <strong>Ліміт паралельності — ваша дисципліна.</strong> Ставте <code>workflow.WithMaxConcurrency(n)</code> на граф (або <code>maxConcurrency</code> в <code>NewParallelWorker</code>) <em>до</em> першого fan-out: шторм із rate-limit під навантаженням — передбачувана відмова, а не несподіванка. (2) <strong>Злиття через <code>JoinNode</code> — механічний обов'язок.</strong> Валідація графа відхиляє вузол, у який входить більше однієї <em>безумовної</em> дуги, якщо це не <code>*JoinNode</code>. Тобто «зберу гілки просто в наступний вузол» у Go не збереться взагалі.</div>
+
+  <div class="note"><strong>Живий приклад у цьому репозиторії.</strong> <code>wiki-tools/internal/pipeline/selfimprove/selfimprove.go</code>: <code>AddFanOut(load, taxonomy, rdfNode, entity, trend)</code> → <code>AddFanIn(join, …)</code> → <code>merge</code>. Чотири осі аналізу сховища йдуть одночасно, зливаються через <code>JoinNode</code> і далі йдуть лінійним хвостом. Те саме в <code>wiki-tools/internal/pipeline/trend/trend.go</code>, де віяло розходиться прямо зі <code>workflow.Start</code>.</div>
+</section>
+
+<!-- 05 B3-B5 -->
+<section>
+  <div class="crumb">МОДУЛЬ 5 / 11</div>
+  <h1><span class="h-emoji">🔁</span> B3–B5 · цикл, маршрут, власний код</h1>
+  <div class="module">три способи зробити детермінований граф гнучким, не віддаючи керування моделі</div>
+
+  <h2>B3 · Loop</h2>
+  <p class="muted"><em>Repeat-Until · Polling · Monitoring Loop · вирішує код</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="крок повторюється, доки умова не стане так; тоді виходить в кінець">
+      <rect x="30" y="52" width="60" height="36" rx="18" class="dg-b-pill"/>
+      <text x="60" y="74" class="dg-lb" font-size="11" text-anchor="middle">Start</text>
+      <rect x="200" y="45" width="150" height="50" rx="10" class="dg-b-tool"/>
+      <text x="275" y="67" class="dg-lb" font-size="12" text-anchor="middle">крок</text>
+      <text x="275" y="83" class="dg-sb" text-anchor="middle">BoolRoute</text>
+      <rect x="460" y="52" width="90" height="36" rx="18" class="dg-b-out"/>
+      <text x="505" y="74" class="dg-lb" font-size="11" text-anchor="middle">кінець</text>
+      <path d="M 90 70 L 194 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 350 66 L 454 66" class="dg-link" marker-end="url(#arr)"/>
+      <text x="400" y="58" class="dg-el" text-anchor="middle">умова: так</text>
+      <path d="M 320 95 C 320 128, 230 128, 230 95" class="dg-link dg-dash" marker-end="url(#arr)"/>
+      <text x="275" y="133" class="dg-el" text-anchor="middle">умова: ще ні · MaxIterations</text>
+    </svg>
+    <figcaption>ребро назад обов'язково несе маршрут — беззумовний цикл не збереться на етапі побудови графа</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> повторювати послідовність вузлів чи агентів, доки не виконається умова завершення.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Опитувати задачу, доки вона не завершиться; крутити цикл «компіляція → виправлення», доки збірка не позеленіє. Кількість повторів на етапі проєктування невідома, а <em>тест виходу</em> — відомий.</li>
+    <li><strong>Коли не брати.</strong> Коли ви не можете написати надійну умову виходу. Якщо «готово» — це судження, а не тест, вам потрібен D2 з жорстким капом, а не відкритий цикл.</li>
+  </ul>
+  <div class="risk"><strong>Go v2.2.0 ловить половину цієї помилки за вас.</strong> Валідація графа кидає <code>ErrUnconditionalCycle</code>, якщо в циклі <strong>всі</strong> ребра безумовні: цикл дозволений тільки тоді, коли принаймні одне ребро несе <code>Route</code>. Отже «нескінченний цикл» у чистому вигляді просто не збереться. Чого перевірка <em>не</em> ловить — циклу з маршрутом, але без лічильника: <code>MaxIterations</code> ставите ви, і робити це треба <strong>разом</strong> із реальним тестом виходу, а не замість нього.</div>
+
+  <h2>B4 · Conditional Route</h2>
+  <p class="muted"><em>Routing · Triage · Dispatch · Switch · вирішує код</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="classify емітить маршрут, код відправляє вхід рівно в одну з типізованих гілок">
+      <rect x="10" y="52" width="60" height="36" rx="18" class="dg-b-pill"/>
+      <text x="40" y="74" class="dg-lb" font-size="11" text-anchor="middle">Start</text>
+      <rect x="130" y="45" width="140" height="50" rx="10" class="dg-b-tool"/>
+      <text x="200" y="67" class="dg-lb" font-size="12" text-anchor="middle">classify</text>
+      <text x="200" y="83" class="dg-sb" text-anchor="middle">EmittingFuncNode</text>
+      <rect x="410" y="8" width="120" height="30" rx="8" class="dg-b-tool"/>
+      <text x="470" y="28" class="dg-lb" font-size="11" text-anchor="middle">BUG</text>
+      <rect x="410" y="55" width="120" height="30" rx="8" class="dg-b-tool"/>
+      <text x="470" y="75" class="dg-lb" font-size="11" text-anchor="middle">SUPPORT</text>
+      <rect x="410" y="100" width="120" height="30" rx="8" class="dg-b-ghost"/>
+      <text x="470" y="120" class="dg-lb" font-size="11" text-anchor="middle">Default</text>
+      <path d="M 70 70 L 124 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 270 55 L 340 55 L 340 23 L 404 23" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 270 70 L 404 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 270 85 L 340 85 L 340 115 L 404 115" class="dg-link dg-dash" marker-end="url(#arr)"/>
+    </svg>
+    <figcaption>один класифікатор, код обирає рівно одну типізовану гілку — Default рівно одна на вузол</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> класифікувати вхід, а тоді відправити його рівно в одну з кількох типізованих гілок.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Повернення коштів, баг-репорти й питання продажу потребують різного оброблення. Якщо категорії перелічувані, один дешевий класифікатор плюс детермінований диспетч б'є координатора, який витрачає повний виклик моделі на кожен стрибок.</li>
+    <li><strong>Коли не брати.</strong> Коли категорії не перелічити або вони сильно перекриваються. Тоді це C1.</li>
+  </ul>
+  <p><strong>Go:</strong> <code>AddRoutes(from, map[string]Node)</code> для звичайного switch, <code>AddRoute(from, to, route)</code> для одного ребра. Типи маршрутів: <code>StringRoute</code>, <code>IntRoute</code>, <code>BoolRoute</code>, <code>MultiRoute[T]</code>. Вузол, що емітить маршрут, — <code>NewEmittingFunctionNode</code>.</p>
+  <div class="note"><strong>Завжди визначайте гілку <code>workflow.Default</code>.</strong> Без неї некласифікований випадок не має визначеної поведінки. Зворотний бік: <em>двох</em> Default на одному вузлі бути не може — це <code>ErrMultipleDefaultRoutes</code> на етапі збирання графа.</div>
+
+  <h2>B5 · Custom Logic</h2>
+  <p class="muted"><em>Dynamic Workflow · Programmatic Orchestration · вирішує код</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="звичайний Go-код усередині DynamicNode сам вирішує, яких дітей запустити через RunNode">
+      <rect x="10" y="52" width="60" height="36" rx="18" class="dg-b-pill"/>
+      <text x="40" y="74" class="dg-lb" font-size="11" text-anchor="middle">Start</text>
+      <rect x="140" y="18" width="290" height="104" rx="10" class="dg-b-group"/>
+      <text x="155" y="34" class="dg-el">DynamicNode — звичайний Go-код</text>
+      <rect x="165" y="70" width="100" height="32" rx="8" class="dg-b-tool"/>
+      <text x="215" y="90" class="dg-lb" font-size="11" text-anchor="middle">child A</text>
+      <rect x="300" y="70" width="100" height="32" rx="8" class="dg-b-tool"/>
+      <text x="350" y="90" class="dg-lb" font-size="11" text-anchor="middle">child B</text>
+      <path d="M 200 60 L 215 66" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 265 86 L 296 86" class="dg-link" marker-end="url(#arr)"/>
+      <text x="280" y="112" class="dg-el" text-anchor="middle">RunNode — тільки з тіла DynamicNode</text>
+      <rect x="470" y="52" width="80" height="36" rx="18" class="dg-b-out"/>
+      <text x="510" y="74" class="dg-lb" font-size="11" text-anchor="middle">кінець</text>
+      <path d="M 70 70 L 134 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 430 70 L 464 70" class="dg-link" marker-end="url(#arr)"/>
+    </svg>
+    <figcaption>граф уступає місце коду: цикли, рекурсія й обробка помилок — звичайним Go, а не ребрами</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> виразити оркестрацію звичайним програмним кодом — умовами, циклами, рекурсією, обробленням помилок — і водночас отримати від фреймворку довговічність, відновлюваність і спостережуваність.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Реальні бізнес-процеси розгалужуються так, що статичний DAG стає потворним. Динамічний вузол дозволяє написати цикл звичайним кодом і не втратити durable execution: успішні активації дітей кешуються й пропускаються при відновленні.</li>
+    <li><strong>Коли не брати.</strong> Коли статичний граф виражає це ясно. Беріть B5 тоді, коли граф уже <em>заважає</em>, а не раніше — ви втрачаєте властивість «подивився на граф — побачив потік».</li>
+  </ul>
+  <div class="risk"><strong>Go-назва не така, як у джерелі, і це має значення.</strong> Типу <code>DynamicNode</code> в Go v2.2.0 <strong>не існує</strong>: є конструктор <code>workflow.NewDynamicNode[IN,OUT](name, fn, cfg)</code>, який повертає <code>workflow.Node</code>, а тіло має тип <code>DynamicFn[IN,OUT]</code>. Дітей запускаєте через <code>workflow.RunNode[OUT](ctx, child, input, opts…)</code>, і викликати його <em>поза</em> динамічним вузлом не можна — буде <code>ErrInvalidRunNodeContext</code>. Опції, які варто знати одразу: <code>WithRunID</code> (ідемпотентне відтворення), <code>WithUseSubBranch</code> (ізоляція гілки стану).</div>
+  <div class="note"><strong>Повторний вхід — ваша відповідальність.</strong> <code>NodeConfig.RerunOnResume</code> керує тим, що станеться після відновлення: <code>&amp;true</code> перезапускає перерваний вузол <em>з початку</em>, <code>&amp;false</code> віддає відповідь наступнику як вхід, <code>nil</code> віддає рішення рушію. Для динамічних вузлів конструктор ставить <code>true</code> за замовчуванням — отже <strong>коректність залежить від того, чи ваш код безпечний до повторного відтворення</strong>. Усе, що має побічний ефект, має статися <em>після</em> відновлення, а не до переривання.</div>
+</section>
+
+<!-- 06 C -->
+<section>
+  <div class="crumb">МОДУЛЬ 6 / 11</div>
+  <h1><span class="h-emoji">🧠</span> C · наступний крок обирає модель</h1>
+  <div class="module">C1 координатор · C2 ієрархія · C3 рій · C4 маршрутизований агент — і два з них у Go недоступні</div>
+
+  <h2>C1 · Coordinator / Dispatcher</h2>
+  <p class="muted"><em>Orchestrator-Workers · Manager Agent · Handoff · Magentic · вирішує модель</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="координатор делегує в рантаймі одному з трьох під-агентів; під-агенти не бачать один одного">
+      <rect x="10" y="52" width="60" height="36" rx="18" class="dg-b-pill"/>
+      <text x="40" y="74" class="dg-lb" font-size="11" text-anchor="middle">Start</text>
+      <rect x="170" y="45" width="150" height="50" rx="10" class="dg-b-model"/>
+      <text x="245" y="67" class="dg-lb" font-size="12" text-anchor="middle">координатор</text>
+      <text x="245" y="83" class="dg-sb" text-anchor="middle">ModeTask/SingleTurn</text>
+      <rect x="440" y="8" width="110" height="30" rx="15" class="dg-b-model"/>
+      <text x="495" y="28" class="dg-lb" font-size="10.5" text-anchor="middle">sub A</text>
+      <rect x="440" y="55" width="110" height="30" rx="15" class="dg-b-model"/>
+      <text x="495" y="75" class="dg-lb" font-size="10.5" text-anchor="middle">sub B</text>
+      <rect x="440" y="100" width="110" height="30" rx="15" class="dg-b-model"/>
+      <text x="495" y="120" class="dg-lb" font-size="10.5" text-anchor="middle">sub C</text>
+      <path d="M 70 70 L 164 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 320 55 L 390 55 L 390 23 L 434 23" class="dg-link dg-dash" marker-end="url(#arr)"/>
+      <path d="M 320 70 L 434 70" class="dg-link dg-dash" marker-end="url(#arr)"/>
+      <path d="M 320 85 L 390 85 L 390 115 L 434 115" class="dg-link dg-dash" marker-end="url(#arr)"/>
+      <text x="390" y="128" class="dg-el" text-anchor="middle">обирає в рантаймі, кожен — своя гілка</text>
+    </svg>
+    <figcaption>координатор делегує в рантаймі; під-агенти не бачать один одного напряму</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> центральна LLM аналізує кожен запит, за потреби розкладає його й делегує спеціалізованим під-агентам, обраним у рантаймі.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Служба підтримки отримує запити, які неможливо перелічити наперед. Основну роботу тут роблять <em>режими агента</em>: <code>ModeTask</code> і <code>ModeSingleTurn</code> виконуються у власній ізольованій гілці сесії — саме це не дає контексту координатора вибухнути.</li>
+    <li><strong>Коли не брати.</strong> Шляхи, критичні до затримки; високочастотні потоки, чутливі до вартості; і будь-де, де спрацював би B4 — класифікатор із детермінованим диспетчем значно дешевший.</li>
+  </ul>
+  <div class="risk"><strong>Обмеження Task-режиму в Go жорсткіше, ніж каже джерело.</strong> Джерело пише, що «Task-агенти мають бути листками, а Task-режим вимкнено всередині графових workflow у Python v2.0.0». У Go v2.2.0 діє <strong>та сама заборона, механічно</strong>: <code>validateNoTaskModeGraphNodes</code> відхиляє Task-режимного <code>llmagent</code>, що з'являється <em>статичним вузлом графа</em>. Причина задокументована в самому модулі: планувальник перезаписує <code>node_input</code> останнім повідомленням користувача на кожному повторному вході, тож бриф задачі губиться. Дозволені шляхи рівно два — (1) як chat-під-агент координатора-<code>llmagent</code>, (2) динамічно через <code>workflow.RunNode</code> із функційного чи динамічного вузла.</div>
+
+  <h2>C2 · Hierarchical Decomposition</h2>
+  <p class="muted"><em>Planner-Executor · Manager-of-Managers · Deep Research · вирішує модель</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="root розкладає на менеджерів, ті — на виконавців; результати синтезуються вгору">
+      <rect x="215" y="8" width="130" height="30" rx="10" class="dg-b-model"/>
+      <text x="280" y="28" class="dg-lb" font-size="11" text-anchor="middle">root</text>
+      <rect x="80" y="55" width="130" height="30" rx="10" class="dg-b-model"/>
+      <text x="145" y="75" class="dg-lb" font-size="10.5" text-anchor="middle">manager A</text>
+      <rect x="350" y="55" width="130" height="30" rx="10" class="dg-b-model"/>
+      <text x="415" y="75" class="dg-lb" font-size="10.5" text-anchor="middle">manager B</text>
+      <rect x="80" y="100" width="130" height="28" rx="8" class="dg-b-tool"/>
+      <text x="145" y="119" class="dg-lb" font-size="10.5" text-anchor="middle">executor</text>
+      <rect x="350" y="100" width="130" height="28" rx="8" class="dg-b-tool"/>
+      <text x="415" y="119" class="dg-lb" font-size="10.5" text-anchor="middle">executor</text>
+      <path d="M 240 38 L 165 51" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 320 38 L 400 51" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 145 85 L 145 96" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 415 85 L 415 96" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 205 60 C 260 60, 260 30, 250 20" class="dg-link dg-dash dg-link-warm" marker-end="url(#arr)"/>
+      <path d="M 355 60 C 300 60, 300 30, 310 20" class="dg-link dg-dash dg-link-warm" marker-end="url(#arr)"/>
+      <text x="280" y="128" class="dg-el" text-anchor="middle">agenttool.New · синтез угору позначено пунктиром</text>
+    </svg>
+    <figcaption>дерево делегування вниз, синтез результатів угору — кожен рівень ізолює контекст нащадків</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> організувати агентів у багаторівневе дерево, де кожен рівень розкладає свою мету на під-цілі й делегує вниз, а тоді синтезує результати вгору.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> «Напиши мені конкурентний аналіз ринку зарядок для електромобілів». Жоден фіксований конвеєр цього не покриває. Ключовий примітив — <code>agenttool.New</code>: він перетворює агента на інструмент, тож батько зберігає контроль над синтезом.</li>
+    <li><strong>Коли не брати.</strong> Прості, добре визначені задачі; системи, критичні до затримки чи вартості. Якщо ви можете назвати кроки — вам потрібен B1.</li>
+  </ul>
+  <p><strong>Справжня інженерна проблема тут — керування контекстом.</strong> Без ізоляції на кожному рівні кореневий агент тоне: у нього приходить усе, що бачили нащадки. Вкладені графи в Go — <code>workflow.NewWorkflowNode(name, edges)</code>.</p>
+
+  <h2>C3 · Swarm</h2>
+  <p class="muted"><em>Group Chat Orchestration · Debate · Society of Mind · вирішує модель</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="три агенти напряму сперечаються одне з одним по мережі, координатора немає">
+      <rect x="60" y="12" width="130" height="34" rx="10" class="dg-b-model"/>
+      <text x="125" y="34" class="dg-lb" font-size="11" text-anchor="middle">агент 1</text>
+      <rect x="370" y="12" width="130" height="34" rx="10" class="dg-b-model"/>
+      <text x="435" y="34" class="dg-lb" font-size="11" text-anchor="middle">агент 2</text>
+      <rect x="215" y="96" width="130" height="34" rx="10" class="dg-b-model"/>
+      <text x="280" y="118" class="dg-lb" font-size="11" text-anchor="middle">агент 3</text>
+      <path d="M 190 30 L 370 30" class="dg-link dg-dash dg-link-warm" marker-end="url(#arr)"/>
+      <path d="M 60 40 L 245 100" class="dg-link dg-dash dg-link-warm" marker-end="url(#arr)"/>
+      <path d="M 500 40 L 315 100" class="dg-link dg-dash dg-link-warm" marker-end="url(#arr)"/>
+      <text x="280" y="70" class="dg-el" text-anchor="middle">спілкуються напряму, без координатора</text>
+    </svg>
+    <figcaption>мережа замість дерева: конкурентні погляди зіштовхуються напряму — координатора немає</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> дозволити кільком спеціалізованим агентам спілкуватися <em>між собою</em>, а не лише з координатором, щоб конкурентні погляди зійшлися на рішенні.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Дизайн продукту має задовольнити інженера, аналітика вартості й дизайнера з реально конфліктними цілями. Дерево не здатне представити суперечку, а цінність — саме в суперечці.</li>
+    <li><strong>Коли не брати.</strong> Майже завжди. Спершу спробуйте D1 — він дає більшу частину виграшу за частку ціни. Беріть рій лише після того, як <em>виміряли</em>, що двоагентної критики недостатньо.</li>
+  </ul>
+  <div class="risk"><strong>Первинного примітива для рою в ADK немає — і це стосується Go так само.</strong> Рядка <code>Swarm</code> у модулі <code>adk/v2 v2.2.0</code> немає взагалі; конструкцію збирають вручну з динамічного вузла й спільного стану як «дошки». Наслідки, які варто сказати замовнику вголос: <strong>збіжність не гарантована, а конкретний запуск майже неможливо відтворити для дебагу</strong>. Це найдорожчий і найменш відтворюваний патерн каталогу.</div>
+
+  <h2>C4 · Routed Agent</h2>
+  <p class="muted"><em>Agent Failover · Model Tiering · A-B Router · вирішує код</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="код-router обирає одного агента, і перемикається на резервного лише якщо основний упав до першої події">
+      <rect x="10" y="52" width="60" height="36" rx="18" class="dg-b-pill"/>
+      <text x="40" y="74" class="dg-lb" font-size="11" text-anchor="middle">Start</text>
+      <rect x="130" y="45" width="140" height="50" rx="10" class="dg-b-tool"/>
+      <text x="200" y="67" class="dg-lb" font-size="12" text-anchor="middle">router</text>
+      <text x="200" y="83" class="dg-sb" text-anchor="middle">ваш код</text>
+      <rect x="410" y="14" width="130" height="32" rx="10" class="dg-b-model"/>
+      <text x="475" y="34" class="dg-lb" font-size="11" text-anchor="middle">агент A</text>
+      <rect x="410" y="90" width="130" height="32" rx="10" class="dg-b-ghost"/>
+      <text x="475" y="110" class="dg-lb" font-size="11" text-anchor="middle">агент B (fallback)</text>
+      <path d="M 70 70 L 124 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 270 60 L 404 30" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 270 80 L 404 105" class="dg-link dg-dash" marker-end="url(#arr)"/>
+      <text x="340" y="118" class="dg-el" text-anchor="middle">лише якщо A впав до першої події</text>
+    </svg>
+    <figcaption>детермінований router обирає одного агента за раз; для задач це B4 або C1, не C4</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> обрати рівно одного агента на виклик явною функцією маршрутизації, яку пишете ви, з автоматичним запасним варіантом, якщо обраний агент упав.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Це інфраструктурна турбота, а не робочий процес: перемкнутися на другого провайдера при помилці, розділити трафік для A/B-тесту, відправляти прості запити дешевій моделі, а складні — дорогій.</li>
+    <li><strong>Коли не брати.</strong> Для маршрутизації <em>задач</em> — це B4 або C1.</li>
+  </ul>
+  <div class="risk"><strong>У Go цього немає — це найважливіший рядок модуля 02.</strong> <code>RoutedAgent</code> і <code>AgentRouter</code> у <code>adk/v2 v2.2.0</code> <strong>відсутні повністю</strong>. Джерело саме позначає їх як TypeScript v1.0.0, experimental, і переносить два застереження, які ми <em>не перевіряли</em>: failover спрацьовує <strong>лише якщо агент упав до того, як віддав хоч одну подію</strong> — після часткового виводу помилка йде далі без ретраю. Go-читачеві failover доведеться будувати самому: маршрут у графі плюс <code>NodeConfig.RetryConfig</code> на вузлі — не те саме, але це те, що є.</div>
+</section>
+
+<!-- 07 D -->
+<section>
+  <div class="crumb">МОДУЛЬ 7 / 11</div>
+  <h1><span class="h-emoji">⚖️</span> D · якість, куплена за додаткові виклики</h1>
+  <div class="module">D1 критик · D2 цикл уточнення — модифікатори, які накладаються на будь-який патерн з A–C</div>
+
+  <h2>D1 · Review and Critique</h2>
+  <p class="muted"><em>Evaluator-Optimizer · Maker-Checker · Reflection · LLM-as-Judge · вирішує код</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="generator видає результат, окремий critic схвалює або повертає на доопрацювання">
+      <rect x="20" y="45" width="130" height="50" rx="10" class="dg-b-model"/>
+      <text x="85" y="74" class="dg-lb" font-size="11.5" text-anchor="middle">generator</text>
+      <rect x="230" y="45" width="130" height="50" rx="10" class="dg-b-model"/>
+      <text x="295" y="67" class="dg-lb" font-size="11.5" text-anchor="middle">critic</text>
+      <text x="295" y="83" class="dg-sb" text-anchor="middle">окремий контекст</text>
+      <rect x="460" y="14" width="80" height="30" rx="15" class="dg-b-out"/>
+      <text x="500" y="34" class="dg-lb" font-size="10.5" text-anchor="middle">approve</text>
+      <path d="M 150 70 L 224 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 360 60 L 454 30" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 295 95 C 295 124, 85 124, 85 95" class="dg-link dg-dash" marker-end="url(#arr)"/>
+      <text x="190" y="136" class="dg-el" text-anchor="middle">reject — на доопрацювання</text>
+    </svg>
+    <figcaption>другий агент з іншим промптом перевіряє першого — критик у власному контексті, не в контексті генератора</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> генератор видає результат; окремий критик оцінює його за явними критеріями й схвалює, відхиляє або вимагає доопрацювання.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Це <strong>найвища якість на витрачений токен у всьому каталозі</strong>. Модель, яка перевіряє власну роботу в тому самому контексті, — слабка перевірка; другий агент з іншим промптом ловить те, що імпульс генератора проніс повз.</li>
+    <li><strong>Коли не брати.</strong> Інтерактивні шляхи, чутливі до затримки, і низькоставковий вивід, де дефект коштує менше за перевірку.</li>
+  </ul>
+  <div class="note"><strong>Дайте критикові перелічені критерії та структуровану схему вердикту.</strong> «Переглянь це» породжує підлабузництво — вартість без користі. І перевірте критика на <em>завідомо поганих</em> виходах: критик, який ніколи нічого не відхилив, — це не якість, а рядок у рахунку.</div>
+  <div class="note"><strong>Живий приклад у цьому репозиторії.</strong> <code>wiki-tools/internal/pipeline/trend/trend.go</code>: <code>threshold</code> → <code>judge</code> → <code>checker_brief</code> → <code>checker</code> → <code>propose</code>. Суддя вирішує, які кластери лишити; окремий checker <em>змагально переглядає рішення судді</em>. Показова деталь: якщо LLM не налаштовано, обидва вузли пропускаються, і пайплайн <strong>каже про це в нотатках</strong> — «judge-kept candidates are proposed without adversarial review», а не мовчить.</div>
+
+  <h2>D2 · Iterative Refinement</h2>
+  <p class="muted"><em>Reflection Loop · Self-Correction · вирішує код</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="D1 усередині циклу з лічильником ітерацій, виходить лише коли поріг якості досягнуто">
+      <rect x="30" y="10" width="410" height="112" rx="10" class="dg-b-group"/>
+      <text x="45" y="26" class="dg-el">цикл · MaxIterations</text>
+      <rect x="55" y="55" width="120" height="46" rx="10" class="dg-b-model"/>
+      <text x="115" y="82" class="dg-lb" font-size="11" text-anchor="middle">generator</text>
+      <rect x="255" y="55" width="120" height="46" rx="10" class="dg-b-model"/>
+      <text x="315" y="82" class="dg-lb" font-size="11" text-anchor="middle">critic</text>
+      <path d="M 175 78 L 249 78" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 255 95 C 255 112, 175 112, 175 95" class="dg-link dg-dash" marker-end="url(#arr)"/>
+      <rect x="470" y="52" width="80" height="36" rx="18" class="dg-b-out"/>
+      <text x="510" y="74" class="dg-lb" font-size="10.5" text-anchor="middle">поріг ОК</text>
+      <path d="M 375 65 L 464 60" class="dg-link" marker-end="url(#arr)"/>
+    </svg>
+    <figcaption>D1 у циклі: кожен прохід або покращує результат, або витрачає бюджет ітерацій — зберігайте найкращий, не останній</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> крутити цикл «згенеруй і розкритикуй», мутуючи результат у стані сесії на кожному проході, доки не досягнуто порогу якості або ліміту ітерацій.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Дебажити код, доки він не скомпілюється й не пройде тести. З <em>детермінованим</em> перевірячем — компілятором, набором тестів, валідатором схеми — це один із найнадійніших патернів якості, які взагалі існують.</li>
+    <li><strong>Коли не брати.</strong> Шляхи, чутливі до часу; розгортання з обмеженим бюджетом; і будь-що, де сигнал якості суб'єктивний і немає чим його виміряти.</li>
+  </ul>
+  <div class="risk"><strong>Уточнення вміє регресувати.</strong> Прохід 4 не гарантовано кращий за прохід 3. Зберігайте <strong>найкращий за оцінкою</strong> варіант, а не просто останній — це один рядок коду й найдешевша страховка в цьому модулі. Go: <code>loopagent.New</code> з <code>MaxIterations</code>, або звичайний <code>for</code> у тілі динамічного вузла.</div>
+
+  <div class="note"><strong>Правило переходу D1 → D2.</strong> D1 — це один прохід критики. D2 — це D1 у циклі, тобто його вартість множиться на кількість ітерацій. Переходьте лише тоді, коли у вас є <em>вимірюваний</em> сигнал якості; якщо сигнал — думка моделі, ви купуєте не якість, а дисперсію.</div>
+</section>
+
+<!-- 08 E -->
+<section>
+  <div class="crumb">МОДУЛЬ 8 / 11</div>
+  <h1><span class="h-emoji">🙋</span> E · людина й тригер</h1>
+  <div class="module">E1 HITL · E2 гейт на дію · E3 ambient — безпека, схвалення й спосіб запуску</div>
+
+  <h2>E1 · Human-in-the-Loop</h2>
+  <p class="muted"><em>HITL · Approval Gate · Escalation Checkpoint · вирішує людина</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="вузол паркується, чекає на відповідь людини, і відновлюється з неї — переживаючи перезапуск процесу">
+      <rect x="10" y="18" width="140" height="40" rx="10" class="dg-b-model"/>
+      <text x="80" y="42" class="dg-lb" font-size="11" text-anchor="middle">review node</text>
+      <rect x="200" y="18" width="150" height="40" rx="10" class="dg-b-out"/>
+      <text x="275" y="42" class="dg-lb" font-size="10.5" text-anchor="middle">паркується</text>
+      <rect x="400" y="18" width="150" height="40" rx="10" class="dg-b-ghost"/>
+      <text x="475" y="42" class="dg-lb" font-size="10.5" text-anchor="middle">людина відповідає</text>
+      <rect x="10" y="95" width="140" height="32" rx="8" class="dg-b-tool"/>
+      <text x="80" y="115" class="dg-lb" font-size="11" text-anchor="middle">next node</text>
+      <path d="M 150 38 L 194 38" class="dg-link dg-link-warm" marker-end="url(#arr)"/>
+      <path d="M 350 38 L 394 38" class="dg-link dg-dash" marker-end="url(#arr)"/>
+      <path d="M 475 58 C 475 78, 80 78, 80 62" class="dg-link dg-link-warm" marker-end="url(#arr)"/>
+      <text x="278" y="76" class="dg-el" text-anchor="middle">RerunOnResume — переживає перезапуск</text>
+      <path d="M 80 58 L 80 91" class="dg-link" marker-end="url(#arr)"/>
+    </svg>
+    <figcaption>переривання з персистентністю: вузол паркується, а не блокує потік — і переживає перезапуск процесу</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> зупинити робочий процес у визначеній контрольній точці, показати людині структурований контекст і продовжити з її відповіддю — <strong>довговічно, переживаючи перезапуск процесу</strong>.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Виплата коштів, комунікація з клієнтом, будь-що, де регулятор вимагає, щоб рішення належало названій людині. У 1.x це означало блокувальний власний інструмент; у 2.x це першокласне переривання з персистентністю.</li>
+    <li><strong>Коли не брати.</strong> Повністю автономні потоки й високочастотні низькоставкові рішення. Загейтуйте забагато — і люди почнуть штампувати, а це <strong>гірше за відсутність гейта, бо виглядає як контроль</strong>.</li>
+  </ul>
+  <p><strong>Go:</strong> <code>workflow.ResumeOrRequestInput(ctx, emit, req)</code> зводить обидва боки в один виклик — повертає відповідь людини, якщо вона вже є, інакше публікує запит і паркує вузол. Запит — це <code>session.RequestInput{InterruptID, Message, ResponseSchema, Payload}</code>.</p>
+  <div class="risk"><strong>Два застереження, і друге — тільки для Go.</strong> (1) <code>ResponseSchema</code> <strong>не примусова</strong>: відповідь людини за нею автоматично не валідується — перевіряйте нижче за потоком (перенесено з джерела). (2) У Go v2.2.0 є сентинел <code>ErrParallelHITLUnsupported</code>: <strong>паралельний HITL не підтримується</strong> — переривання в кількох одночасних гілках графа не спрацює. Джерело про це не згадує взагалі, і саме на цьому будується архітектура, яка не збереться.</div>
+
+  <h2>E2 · Tool Confirmation Gate</h2>
+  <p class="muted"><em>Action Confirmation · Guarded Tool · Policy Gate · вирішує людина</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="агент планує вільно, гейт стоїть лише на одному конкретному виклику незворотного інструмента">
+      <rect x="10" y="52" width="130" height="36" rx="10" class="dg-b-model"/>
+      <text x="75" y="74" class="dg-lb" font-size="11.5" text-anchor="middle">agent</text>
+      <rect x="215" y="45" width="120" height="50" rx="10" class="dg-b-ghost"/>
+      <text x="275" y="67" class="dg-lb" font-size="11" text-anchor="middle">confirm?</text>
+      <text x="275" y="83" class="dg-sb" text-anchor="middle">людина</text>
+      <rect x="410" y="52" width="140" height="36" rx="10" class="dg-b-tool"/>
+      <text x="480" y="74" class="dg-lb" font-size="11" text-anchor="middle">незворотний tool</text>
+      <path d="M 140 70 L 209 70" class="dg-link" marker-end="url(#arr)"/>
+      <text x="175" y="62" class="dg-el" text-anchor="middle">план</text>
+      <path d="M 335 70 L 404 70" class="dg-link dg-dash" marker-end="url(#arr)"/>
+      <text x="370" y="62" class="dg-el" text-anchor="middle">ok</text>
+    </svg>
+    <figcaption>гейт саме на одному виклику інструмента — не на всьому плані, це і є різниця з E1</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> вимагати явного схвалення людиною для <em>конкретного виклику інструмента</em>, а не в контрольній точці робочого процесу.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Агент планує й читає вільно; людини потребує лише незворотна дія — забронювати квиток, видалити бакет, провести повернення коштів. Гранулярність саме на дії, а не на плані.</li>
+    <li><strong>Коли не брати.</strong> Коли ризик у <em>плані</em>, а не в окремій дії. Це гранулярність E1.</li>
+  </ul>
+  <div class="risk"><strong>Go має механізм, але не має «політичного рушія» з джерела.</strong> Є <code>agent.Context.RequestConfirmation(hint string, payload any) error</code> і <code>ctx.ToolConfirmation()</code> для перевірки стану, плюс <code>tool.WithConfirmation(ts, requireConfirmation, provider)</code>, щоб позначити цілий toolset. А от <code>SecurityPlugin</code> і <code>PolicyOutcome.CONFIRM</code>, які джерело подає як примітиви, <strong>у Go v2.2.0 відсутні</strong>. Найближчий Go-аналог централізованого правила — <code>plugin.Config.BeforeToolCallback</code>: одне місце, куди можна винести рішення «питати чи ні», але це callback, а не рушій політик.</div>
+
+  <h2>E3 · Ambient Agent</h2>
+  <p class="muted"><em>Reactive Agent · Async Worker · Cron Agent · вирішує код</em></p>
+  <figure class="pat">
+    <svg viewBox="0 0 560 140" role="img" aria-label="подія запускає окремий екземпляр агента чи workflow, людини в момент старту немає">
+      <rect x="20" y="52" width="110" height="36" rx="18" class="dg-b-pill"/>
+      <text x="75" y="74" class="dg-lb" font-size="11" text-anchor="middle">подія</text>
+      <rect x="200" y="45" width="180" height="50" rx="10" class="dg-b-model"/>
+      <text x="290" y="67" class="dg-lb" font-size="11.5" text-anchor="middle">новий екземпляр</text>
+      <text x="290" y="83" class="dg-sb" text-anchor="middle">тілом — будь-який патерн A–D</text>
+      <rect x="440" y="52" width="110" height="36" rx="18" class="dg-b-out"/>
+      <text x="495" y="74" class="dg-lb" font-size="11" text-anchor="middle">завершено</text>
+      <path d="M 130 70 L 194 70" class="dg-link" marker-end="url(#arr)"/>
+      <path d="M 380 70 L 434 70" class="dg-link" marker-end="url(#arr)"/>
+      <text x="290" y="122" class="dg-el" text-anchor="middle">людини, яка чекає на старт, немає взагалі</text>
+    </svg>
+    <figcaption>обгортка розгортання, а не патерн оркестрації — тригер замінює хід людини, тілом лишається A–D</figcaption>
+  </figure>
+  <p><strong>Намір:</strong> виконувати агента як фоновий процес, який активується подіями, а не ходом людини.</p>
+  <ul>
+    <li><strong>Коли брати.</strong> Тікети підтримки в черзі, файл, що впав у бакет, нічний звіт. Тригер-ендпойнти беруть на себе парсинг, сесію-на-подію, паралельність і ретраї — і прибирають цілий клас помилок обв'язки.</li>
+    <li><strong>Коли не брати.</strong> Інтерактивні розмовні продукти. Це <strong>обгортка розгортання, а не патерн оркестрації</strong>: тілом може бути будь-який патерн A–D.</li>
+  </ul>
+  <div class="risk"><strong>Три наслідки, які завжди недооцінюють.</strong> (1) <strong>Ніхто не зловить погане рішення</strong> — людини в петлі немає за визначенням. (2) Сесія-на-подію означає, що пам'ять <em>між</em> подіями потребує memory-сервісу, а не стану сесії. (3) <strong>Відмова тиха, доки ви не збудуєте алертинг</strong> — і це та сама причина, з якої в цьому репозиторії діє правило: рядок підсумку, що звітує про нуль чи про збій, мусить називати причину.</div>
+  <div class="note"><strong>Go-примітка.</strong> Примітива E3 в ADK немає й бути не може: <code>Pub/Sub</code>, <code>Eventarc</code> і <code>Cloud Scheduler</code> зі списку джерела — це GCP, а не ADK. Що ADK Go справді дає — транспорт: <code>server/adkrest</code>, <code>server/agentengine</code>, <code>server/adka2a</code>. Розклад, черга й ретраї доставки — поза модулем.</div>
+</section>
+
+<!-- 09 анти-патерни -->
+<section>
+  <div class="crumb">МОДУЛЬ 9 / 11</div>
+  <h1><span class="h-emoji">⚠️</span> анти-патерни</h1>
+  <div class="module">десять живих режимів відмови · і колонка, якої немає в джерелі: що з них Go ловить механічно</div>
+
+  <p>Кожен рядок нижче — спостережений режим відмови, а не гіпотеза. <strong>Колонка «Хто ловить» — доповнення цієї сторінки:</strong> джерело перелічує десять відмов і жодного запобіжника, тоді як <code>workflow/validation.go</code> і <code>workflow/errors.go</code> в Go v2.2.0 несуть їх одинадцять. Різниця між «ловить компілятор графа» й «ловить ваша дисципліна» — це різниця між помилкою на етапі збирання й інцидентом о третій ночі.</p>
+
+  <div class="wrap">
+  <table class="wide">
+    <tr><th>Анти-патерн</th><th>Що ламається</th><th>Чим лікувати</th><th>Хто ловить (Go v2.2.0)</th></tr>
+    <tr><td><strong>Мультиагентність за замовчуванням</strong></td><td>Платите координаційну ціну за задачу, яку тягне один агент</td><td>Починайте з A1; діліть лише на виміряній відмові</td><td class="no">Тільки дисципліна</td></tr>
+    <tr><td><strong>LLM як роутер для фіксованих категорій</strong></td><td>Виклик моделі на кожен стрибок, щоб порахувати те, що switch рахує безкоштовно</td><td>B4 Conditional Route</td><td class="no">Тільки дисципліна</td></tr>
+    <tr><td><strong>Цикл без жорсткого ліміту</strong></td><td>Необмежена вартість — класичний продакшн-інцидент</td><td><code>MaxIterations</code> + реальний тест виходу</td><td class="ok">Частково механічно: <code>ErrUnconditionalCycle</code> відхиляє цикл, у якому всі ребра безумовні. Цикл із маршрутом, але без лічильника — на вас</td></tr>
+    <tr><td><strong>Вихід із циклу судить модель, детермінованої перевірки немає</strong></td><td>Крутиться вічно або зупиняється зарано, непередбачувано</td><td>Детермінований перевіряч; судження моделі — лише як tie-break</td><td class="no">Тільки дисципліна</td></tr>
+    <tr><td><strong>Розмитий критик («переглянь це»)</strong></td><td>Штампує все підряд; платите ні за що</td><td>Перелічені критерії + структурована схема вердикту</td><td class="no">Тільки дисципліна</td></tr>
+    <tr><td><strong>Рій, бо звучить солідно</strong></td><td>Найвища вартість і найнижча відтворюваність у каталозі</td><td>Спершу D1; вимірюйте, перш ніж ескалювати</td><td class="part">Непрямо: примітива немає, тож рій доводиться писати руками — це вже бар'єр</td></tr>
+    <tr><td><strong>Немає ізоляції контексту між делегуваннями</strong></td><td>Контекст батька росте без меж; якість валиться з глибиною</td><td>Режими <code>ModeTask</code>/<code>ModeSingleTurn</code>, під-гілки</td><td class="ok">Частково механічно: <code>validateNoTaskModeGraphNodes</code> не пускає Task-агента статичним вузлом графа</td></tr>
+    <tr><td><strong>Гейти схвалення всюди</strong></td><td>Втома від схвалень → штампування → ілюзія контролю</td><td>Гейтуйте лише незворотні дії (E2)</td><td class="no">Тільки дисципліна</td></tr>
+    <tr><td><strong>Fan-out без ліміту паралельності</strong></td><td>Шторми rate-limit і стрибки вартості під навантаженням</td><td><code>workflow.WithMaxConcurrency(n)</code> до першого fan-out</td><td class="part">Ліміт — дисципліна. Але <strong>злиття</strong> механічне: <code>validateFanIn</code> відхиляє &gt;1 безумовної вхідної дуги у вузол, який не є <code>*JoinNode</code></td></tr>
+    <tr><td><strong>Побічні ефекти до переривання у вузлі з повторним входом</strong></td><td>Відтворюються при відновленні — подвійні списання, подвійні листи</td><td>Робіть побічні ефекти <em>після</em> відновлення</td><td class="no">Тільки дисципліна: <code>RerunOnResume</code> лише називає режим, не рятує від нього</td></tr>
+  </table>
+  </div>
+
+  <h2>Запобіжники, про які варто знати заздалегідь</h2>
+  <p>Ці перевірки спрацьовують на етапі <code>workflow.New</code> або першої активації — тобто <strong>до</strong> того, як щось коштуватиме грошей. Знати їх наперед дешевше, ніж зустріти в логах.</p>
+  <ul>
+    <li><code>ErrUnconditionalCycle</code> — цикл, у якому жодне ребро не несе маршруту.</li>
+    <li><code>ErrMultipleDefaultRoutes</code> — два <code>Default</code>-ребра з одного вузла.</li>
+    <li><code>validateFanIn</code> — більше однієї безумовної вхідної дуги у не-<code>JoinNode</code>.</li>
+    <li><code>validateNoTaskModeGraphNodes</code> — Task-режимний агент статичним вузлом графа.</li>
+    <li><code>validateUniqueNames</code>, <code>validateSubWorkflowNames</code> — колізії імен вузлів і підграфів.</li>
+    <li><code>validateStartNodePresent</code>, <code>validateStartNodeNoIncoming</code>, <code>validateConnectivity</code> — граф без входу, вхід із вхідною дугою, недосяжні вузли.</li>
+    <li><code>ErrInvalidRunNodeContext</code> — <code>RunNode</code> викликано поза динамічним вузлом.</li>
+    <li><code>ErrParallelHITLUnsupported</code> — переривання в паралельних гілках.</li>
+    <li><code>ErrOutputAlreadyDelegated</code> — друга спроба віддати вихід дитини як вихід батька.</li>
+    <li><code>ErrInputValidation</code> — вхід вузла не пройшов схему.</li>
+    <li>Вузол, що емітить <strong>два</strong> виходи за одну активацію, зазнає невдачі — вихід рівно один.</li>
+  </ul>
+  <div class="note"><strong>Читайте цей список як карту того, що вам <em>не</em> доведеться перевіряти вручну.</strong> І як карту того, що доведеться: усе, чого тут немає — ліміти ітерацій, ліміти паралельності, якість критика, порядок побічних ефектів — не має механічного запобіжника ні в Go, ні деінде.</div>
+</section>
+
+<!-- 10 що змінила 2.x -->
+<section>
+  <div class="crumb">МОДУЛЬ 10 / 11</div>
+  <h1><span class="h-emoji">🔄</span> що змінила ADK 2.x</h1>
+  <div class="module">ієрархічний виконавець → рушій графа · «граф — це агент» · вісім рядків, два з них у Go інакші</div>
+
+  <p>Каталог довелося <em>переписувати</em>, а не перевидавати, бо рушій змінив форму: ADK перейшов від ієрархічного виконавця агентів до <strong>рушія виконання графа</strong>, де агенти, інструменти й звичайні функції — усе це вузли. Однорядковий підсумок — <em>граф є агентом</em> — і є причиною, з якої всі патерни цієї сторінки композуються один з одним.</p>
+
+  <div class="wrap">
+  <table class="wide">
+    <tr><th>Аспект</th><th>ADK 1.x</th><th>ADK 2.x</th></tr>
+    <tr><td><strong>Модель виконання</strong></td><td>Ієрархічний виконавець агентів — дерево агентів</td><td>Рушій виконання графа — агенти, інструменти й функції є вузлами</td></tr>
+    <tr><td><strong>Оркестрація</strong></td><td><code>SequentialAgent</code>, <code>ParallelAgent</code>, <code>LoopAgent</code></td><td>Граф + динамічні workflow; шаблонні агенти витіснено</td></tr>
+    <tr><td><strong>Розгалуження</strong></td><td>Власний підклас <code>BaseAgent</code>, керування потоком руками</td><td>Типізовані маршрути: <code>StringRoute</code>, <code>IntRoute</code>, <code>BoolRoute</code>, <code>MultiRoute[T]</code>, <code>Default</code></td></tr>
+    <tr><td><strong>Цикли</strong></td><td><code>LoopAgent</code> + прапорець escalate</td><td>Цикли — ребра графа, або звичайний цикл у динамічному вузлі</td></tr>
+    <tr><td><strong>Людина в петлі</strong></td><td>Власний інструмент, що блокує</td><td>Вбудоване переривання/відновлення, довговічне через перезапуск процесу</td></tr>
+    <tr><td><strong>Делегування</strong></td><td>Передача під-агенту, повернення руками</td><td>Режими агента: <code>ModeChat</code>, <code>ModeTask</code>, <code>ModeSingleTurn</code> — визначена семантика повернення й ізоляції</td></tr>
+    <tr><td><strong>Стійкість</strong></td><td>На рівні застосунку</td><td>Повузлові <code>RetryConfig</code> і <code>Timeout</code>, графове <code>WithMaxConcurrency(n)</code></td></tr>
+    <tr><td><strong>Контекст (Go)</strong></td><td><code>InvocationContext</code>, <code>ToolContext</code>, <code>CallbackContext</code></td><td>Єдиний <code>agent.Context</code> — ламка зміна</td></tr>
+  </table>
+  </div>
+
+  <h2>Два рядки, які в Go виглядають інакше, ніж каже джерело</h2>
+  <ul>
+    <li><strong>«Цикли — першокласні ребра».</strong> Формально так, але не будь-які: у Go v2.2.0 цикл легальний <em>лише якщо принаймні одне ребро в ньому несе маршрут</em>. Беззумовний цикл відхиляється як <code>ErrUnconditionalCycle</code> ще на етапі збирання графа. Ребро з <code>Default</code> при цьому рахується умовним.</li>
+    <li><strong>«Task-режим вимкнено в графових workflow у Python v2.0.0».</strong> У Go v2.2.0 діє те саме обмеження й теж механічно — <code>validateNoTaskModeGraphNodes</code>. Отже це не особливість Python-SDK, як можна прочитати джерело, а властивість планувальника, спільна для обох.</li>
+  </ul>
+
+  <div class="risk"><strong>Що звідси випливає для матеріалів курсу.</strong> Будь-який приклад, написаний під 1.x, — це не «старий стиль», а <em>інша модель виконання</em>. Найдорожча помилка при перенесенні — залишити ієрархію агентів там, де 2.x чекає граф: воно запуститься, але ізоляція контексту й відновлення працюватимуть не так, як здається з коду. Пін <code>v2.2.0</code> тут — не формальність: перевіряйте кожен приклад проти зафіксованої версії перед записом, «станом на 08/2026».</div>
+</section>
+
+<!-- 11 мапа -->
+<section>
+  <div class="crumb">МОДУЛЬ 11 / 11</div>
+  <h1><span class="h-emoji">🗺️</span> мапа й чек-лист</h1>
+  <div class="module">який патерн у якому тижні · які три з шістнадцяти вже живуть у цьому репозиторії · що перевірити перед стартом</div>
+
+  <h2>Мапа на тижні курсу</h2>
+  <p>Прив'язка нижче зроблена за фактичним вмістом матеріалів тижнів, а не за назвами тем: рахувалися згадки конкретних примітивів у <code>Lecture.md</code>/<code>Homework.md</code>/<code>FAQ.md</code> кожної частини. Матеріали курсу <strong>не змінювалися</strong> — вони читалися.</p>
+  <div class="wrap">
+  <table class="wide">
+    <tr><th>Патерни</th><th>Тиждень і частина</th><th>За чим видно</th></tr>
+    <tr><td><strong>A1 · B1</strong></td><td>week2 · Day3 «First ADK2 Agent, Workflow Graph»</td><td>Ядро частини — Runner + <code>LlmAgent</code> + один інструмент (частину свідомо спрощено як P0)</td></tr>
+    <tr><td><strong>B2 · B4 · B5</strong></td><td>week2 · Day3</td><td><code>StringRoute</code>, <code>JoinNode</code>, <code>NewDynamicNode</code>, <code>RunNode</code> — граф показано як діаграму, будувати з нуля не змушують</td></tr>
+    <tr><td><strong>E3</strong></td><td>week2 · Day4 «Agent as a Service / Deploy»</td><td>Частина позначена як опціональний бонус — рівно там, де E3 і має бути: це розгортання, а не оркестрація</td></tr>
+    <tr><td><strong>A2 · B3 · D2</strong></td><td>week4 · Day7 «ReAct Loop Internals»</td><td>Найщільніша частина курсу за цією темою: ReAct, <code>MaxIterations</code>, <code>LoopAgent</code>, <code>NewDynamicNode</code>, <code>RunNode</code></td></tr>
+    <tr><td><strong>B5 (стійкість)</strong></td><td>week4 · Day8 «Fault-Tolerant Tool Harness»</td><td><code>RetryConfig</code> — наскрізна тема частини; <code>Timeout</code> поруч</td></tr>
+    <tr><td><strong>B2 · C1 · E1</strong></td><td>week5 · Day10 «Collaboration Agents + HITL»</td><td><code>AddFanOut</code>/<code>AddFanIn</code>/<code>JoinNode</code>, режими <code>ModeTask</code>/<code>ModeSingleTurn</code>, <code>ResumeOrRequestInput</code></td></tr>
+    <tr><td><strong>стан під усім цим</strong></td><td>week5 · Day9 «Agent Memory, Event-Sourced State»</td><td>Не патерн каталогу, але передумова E1 і C1: без події-як-джерела-правди відновлення не працює</td></tr>
+    <tr><td><strong>B5 · D1 · D2</strong></td><td>week6 · Day11 «Dynamic Workflows + Multi-Critic»</td><td>Критик — центральна тема частини; поруч <code>NewDynamicNode</code>, <code>RunNode</code>, <code>Timeout</code></td></tr>
+    <tr><td><strong>D2 (самопокращення)</strong></td><td>week6 · Day12 «Self-Improving Agents, Demo Day»</td><td>Той самий цикл уточнення, але з єдиною метрикою придатності й обмеженою поверхнею змін</td></tr>
+  </table>
+  </div>
+  <div class="note"><strong>Прогалина, яку варто бачити.</strong> <strong>C2</strong> (ієрархія), <strong>C3</strong> (рій), <strong>C4</strong> (маршрутизований агент) і <strong>E2</strong> (гейт на дію) у поточних матеріалах не мають власного дому. Для C4 це навіть логічно — у Go його немає. Для E2 — ні: гейт на незворотну дію дешевший і практичніший за повний HITL, а вчать зараз лише HITL.</div>
+
+  <h2>Що з цього вже працює в цьому репозиторії</h2>
+  <p><code>wiki-tools/</code> — це не приклад із документації, а справжня Go-ADK-кодова база: кожен CLI оголошує пайплайн вузлами <code>workflow.NewFunctionNode</code>, зчепленими через <code>workflow.Chain</code>, і загорнутими в <code>workflowagent.New</code>. Із шістнадцяти патернів каталогу тут реалізовано <strong>три</strong>:</p>
+  <div class="wrap">
+  <table class="wide">
+    <tr><th>Патерн</th><th>Де</th><th>Що саме там відбувається</th></tr>
+    <tr><td><strong>B1</strong> ланцюг</td><td><code>wiki-tools/cmd/linkfix/main.go</code>, обгортка <code>internal/adkrun.Pipeline</code></td><td><code>load_renames</code> → <code>scan_and_fix</code>: два функційні вузли, зчеплені <code>workflow.Chain</code></td></tr>
+    <tr><td><strong>B2</strong> віяло</td><td><code>wiki-tools/internal/pipeline/selfimprove/selfimprove.go</code></td><td><code>AddFanOut(load, taxonomy, rdf, entity, trend)</code> → <code>AddFanIn(join, …)</code> → <code>merge</code> → <code>finalize</code></td></tr>
+    <tr><td><strong>B2</strong> віяло</td><td><code>wiki-tools/internal/pipeline/trend/trend.go</code></td><td>Віяло прямо зі <code>workflow.Start</code> у чотири скани, злиття через <code>scansDone</code></td></tr>
+    <tr><td><strong>D1</strong> критик</td><td><code>wiki-tools/internal/pipeline/trend/trend.go</code></td><td><code>judge</code> → <code>checker_brief</code> → <code>checker</code>: змагальний перегляд рішень судді, з явною нотаткою в разі пропуску</td></tr>
+  </table>
+  </div>
+  <div class="risk"><strong>І чесна половина цього твердження: тринадцяти з шістнадцяти тут немає.</strong> Ані маршрутів (<code>AddRoutes</code> не використовується ніде), ані динамічних вузлів, ані HITL, ані під-агентів, ані режимів. Це не докір коду — це <em>підтвердження тези каталогу</em>: реальна робоча система осіла на найлівішому краю осі й не мала потреби рухатися праворуч. Якщо ваша система вже там, це добра новина, а не відставання.</div>
+
+  <h2>Чек-лист перед тим, як назвати це архітектурою</h2>
+  <ul>
+    <li>Чи спробували ви <strong>один оптимізований виклик + retrieval</strong> і виміряли, що його не досить?</li>
+    <li>Чи можете ви назвати патерн ліворуч від обраного й сказати одним реченням, <em>чому саме він не підійшов</em>?</li>
+    <li>Кожен цикл має <strong>і</strong> <code>MaxIterations</code>, <strong>і</strong> детермінований тест виходу — не одне з двох?</li>
+    <li>Кожен fan-out має ліміт паралельності, а кожне злиття — <code>JoinNode</code>?</li>
+    <li>Кожен маршрут має гілку <code>Default</code>, і рівно одну?</li>
+    <li>Критик має перелічені критерії та структуровану схему вердикту — і його перевіряли на завідомо поганих виходах?</li>
+    <li>Гейти стоять на <em>незворотних діях</em>, а не всюди, де було страшно?</li>
+    <li>Побічні ефекти відбуваються <em>після</em> відновлення, а не до переривання?</li>
+    <li>Кожен примітив, який ви збираєтесь показати на екрані, звірено з <strong>пінованою</strong> версією SDK — «станом на 08/2026»?</li>
+  </ul>
+
+  <div class="risk"><strong>🔥 Бонус.</strong> Візьміть будь-який власний агент, який зараз у продакшні, і позначте його на осі модуля 01. Тоді напишіть <em>один абзац</em>: що конкретно провалилося в патерні ліворуч, які цифри це показали, і скільки коштує різниця на місяць. Якщо абзац не пишеться — ви на одну сходинку правіше, ніж треба, і це найдорожча помилка з усього каталогу. Другий рівень бонусу: візьміть <code>wiki-tools/internal/pipeline/trend/trend.go</code> і додайте <code>B4</code> — маршрут, який пропускає повз суддю кластери з очевидно достатніми доказами. Виміряйте, скільки викликів моделі це заощадило на тому самому сховищі.</div>
+
+  <h2>Джерела</h2>
+  <p class="muted"><strong>Первинні:</strong> <a href="https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system">Choose a design pattern for your agentic AI system</a> — Google Cloud Architecture Center, 12-патернова таксономія, яку джерело розширює; <a href="https://adk.dev/workflows/patterns/">adk.dev · workflow patterns</a>, <a href="https://adk.dev/graphs/">graphs</a>, <a href="https://adk.dev/graphs/dynamic/">dynamic graphs</a>, <a href="https://adk.dev/graphs/human-input/">human input</a>, <a href="https://adk.dev/workflows/collaboration/">collaboration</a>, <a href="https://adk.dev/runtime/ambient-agents/">ambient agents</a>; <a href="https://developers.googleblog.com/announcing-adk-go-20/">Announcing ADK Go 2.0</a>.</p>
+  <p class="muted"><strong>Звірено проти:</strong> <a href="https://www.anthropic.com/engineering/building-effective-agents">Building effective agents</a> — Anthropic Engineering; <a href="https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns">AI Agent Orchestration Patterns</a> — Azure Architecture Center; <a href="https://link.springer.com/book/10.1007/978-3-032-01402-3">Agentic Design Patterns</a> — Antonio Gullí, 21 патерн.</p>
+  <p class="muted"><strong>Головне джерело істини для колонки Go:</strong> вихідні тексти модуля <code>google.golang.org/adk/v2 v2.2.0</code> — версія, яку пінить <code>wiki-tools/go.mod</code> цього репозиторію. Читано локально 30.08.2026. Сусіди на цій полиці: <code>adk-go-workflows.html</code> (API графів), <code>adk-go-2x-cheatsheet-ua.html</code> (повна поверхня SDK).</p>
+</section>
+
+</template>
+
+<script>
+(function () {
+  'use strict';
+
+  // Modules are authored inside <template> so the source stays readable; lift
+  // them into the deck and let the .active class drive display + animation.
+  var deck = document.getElementById('deck');
+  var bar  = document.getElementById('progress');
+  var tpl  = document.getElementById('src');
+  var nav  = document.getElementById('toc');
+
+  Array.prototype.forEach.call(tpl.content.querySelectorAll('section'), function (s) {
+    s.classList.add('slide');
+    deck.appendChild(document.importNode(s, true));
+  });
+
+  var slides = Array.prototype.slice.call(deck.querySelectorAll('.slide'));
+  var items  = Array.prototype.slice.call(nav.querySelectorAll('.nav-item'));
+  var i = 0;
+
+  // Stagger is generated, never hand-maintained: authoring a --d on every block
+  // is exactly the bookkeeping that rots when a section is inserted mid-page.
+  slides.forEach(function (s) {
+    var d = 0;
+    Array.prototype.forEach.call(s.children, function (el) {
+      el.classList.add('rise');
+      el.style.setProperty('--d', d.toFixed(2) + 's');
+      d = Math.min(d + 0.05, 0.6);
+    });
+  });
+
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function (s, k) { s.classList.toggle('active', k === i); });
+    items.forEach(function (a, k) { a.classList.toggle('on', k === i); });
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    scrollTo(0, 0);
+    var on = items[i];
+    if (on && on.scrollIntoView) { on.scrollIntoView({block: 'nearest', inline: 'nearest'}); }
+    try { location.hash = String(i + 1); } catch (e) {}
+  }
+
+  // One handler for both the sidebar and the overview cards: anything carrying
+  // data-go is a jump target, so adding a link never means adding a listener.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-go]');
+    if (!a) return;
+    e.preventDefault();
+    show(parseInt(a.dataset.go, 10));
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); show(i + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End') { e.preventDefault(); show(slides.length - 1); }
+    else if (e.key === 'o' || e.key === 'O') { show(0); }
+    else if (e.key === 'f' || e.key === 'F') {
+      if (document.fullscreenElement) { document.exitFullscreen(); }
+      else { document.documentElement.requestFullscreen().catch(function () {}); }
+    }
+  });
+
+  // Deep links: #7 opens module 6, and editing the hash live still works.
+  addEventListener('hashchange', function () {
+    var n = parseInt((location.hash || '#1').slice(1), 10) - 1;
+    if (!isNaN(n) && n !== i) show(n);
+  });
+
+  show(parseInt((location.hash || '#1').slice(1), 10) - 1 || 0);
+})();
+</script>
+</body>

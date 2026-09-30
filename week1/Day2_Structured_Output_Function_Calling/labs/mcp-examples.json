@@ -1,0 +1,48 @@
+{
+  "mcpServers": {
+    "everything": {
+      "command": "go",
+      "args": [
+        "run",
+        "cmd/mcp/main.go"
+      ]
+    },
+    "Homebrew": {
+      "command": "/opt/homebrew/bin/brew mcp-server"
+    },
+    "chrome-devtools": {
+      "command": "bunx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ]
+    },
+    "firefox-devtools": {
+      "command": "bunx",
+      "args": [
+        "-y",
+        "@mozilla/firefox-devtools-mcp@latest"]
+    },
+    "playwright": {
+      "command": "bunx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ]
+    },
+    "tavily": {
+      "url": "https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}"
+    },
+    "exa": {
+      "url": "https://mcp.exa.ai/mcp?exaApiKey=${EXA_API_KEY}"
+    },
+    "you-search": {
+      "url": "https://api.you.com/mcp?profile=free"
+    },
+    "openrouter": {
+      "type": "remote",
+      "url": "https://mcp.openrouter.ai/mcp",
+      "enabled": true
+    }
+  }
+}

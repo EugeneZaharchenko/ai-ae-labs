@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Агентна ОС</title>
+<style>
+/* ============================================================================
+   Агентна ОС — операційна модель курсу (виконання / знання / процес команди),
+   не kernel-метафора (та йде сайдбаром, §8). Companion до
+   agentic-engineering-landscape.html. Self-contained, offline-first per
+   courses/STYLE.md. Prometheus brandbook palette, one PLUS pair (Індиго),
+   light mode only, one plashka radius. Print stylesheet = PDF companion.
+   ========================================================================== */
+:root{
+  --cream:#faf0eb;
+  --peach:#ffc8a5;
+  --orange:#e67d2d;
+  --brown:#281405;
+  --plus-dark:#1e2841;
+  --plus-light:#bed2dc;
+  --white:#ffffff;
+  --gray:#d7d7dc;
+
+  --bg:var(--cream);
+  --panel:var(--white);
+  --line:var(--gray);
+  --ink:var(--brown);
+  --ink-dim:rgba(40,20,5,.76);
+  --ink-faint:rgba(40,20,5,.5);
+
+  --radius:14px;
+  --pill:999px;
+  --maxw:1180px;
+
+  --font-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--font-body)}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+
+header.hero{padding:56px 0 40px;border-bottom:2.2px solid var(--brown)}
+.kicker{
+  font-size:13px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink);font-weight:700;margin-bottom:14px;
+  border-left:3px solid var(--orange);padding-left:10px;
+}
+h1{
+  font-family:var(--font-display);text-transform:uppercase;font-weight:900;
+  font-size:44px;line-height:1.08;margin:0 0 14px;letter-spacing:-.01em;color:var(--ink);
+}
+h1.long{font-size:34px}
+@media (max-width:700px){h1.long{font-size:clamp(22px,6vw,30px)}}
+.lede{font-size:19px;color:var(--ink-dim);max-width:820px;margin:0}
+.lede strong{color:var(--ink);font-weight:600}
+
+nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 0}
+nav.toc a{
+  display:inline-block;padding:6px 14px;border-radius:var(--pill);
+  border:1.5px solid var(--line);background:var(--panel);
+  color:var(--ink-dim);text-decoration:none;font-size:14px;font-weight:600;
+}
+nav.toc a:hover{border-color:var(--orange);color:var(--ink)}
+
+section{padding:44px 0;border-bottom:1.5px solid var(--line)}
+section:last-of-type{border-bottom:none}
+h2{
+  font-family:var(--font-display);text-transform:uppercase;font-weight:900;
+  font-size:26px;margin:0 0 6px;letter-spacing:-.005em;color:var(--ink);
+}
+h2 .n{color:var(--orange);margin-right:10px}
+.section-lede{font-size:16px;color:var(--ink-dim);max-width:760px;margin:0 0 24px}
+h3{font-size:19px;font-weight:700;margin:26px 0 10px;color:var(--ink)}
+p{margin:0 0 12px;color:var(--ink-dim)}
+strong{color:var(--ink);font-weight:600}
+a{color:var(--plus-dark)}
+code{
+  font-family:var(--font-mono);font-size:.88em;
+  background:var(--white);border:1px solid var(--line);border-radius:6px;
+  padding:1px 6px;color:var(--plus-dark);
+  overflow-wrap:anywhere;
+}
+.faint{color:var(--ink-faint)}
+ul.scoped{margin:0;padding-left:20px}
+ul.scoped li{margin-bottom:10px;font-size:15px;color:var(--ink-dim)}
+ul.scoped li strong{color:var(--ink)}
+
+.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1.5px solid var(--line);background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:640px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{
+  color:var(--ink);font-size:12.5px;letter-spacing:.05em;text-transform:uppercase;
+  font-weight:700;border-bottom:2px solid var(--orange);background:var(--cream);
+}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(255,200,165,.18)}
+
+.toggle-row{display:flex;align-items:center;gap:12px;margin:0 0 16px;flex-wrap:wrap}
+.toggle{
+  font:600 13px/1 var(--font-body);padding:9px 18px;border-radius:var(--pill);
+  border:1.5px solid var(--orange);background:var(--peach);color:var(--ink);cursor:pointer;
+}
+.toggle:hover{background:var(--orange);color:var(--white)}
+.toggle-hint{font-size:13px;color:var(--ink-faint)}
+
+.quote{
+  border-left:4px solid var(--orange);padding:16px 22px;margin:16px 0;
+  background:var(--peach);border-radius:0 var(--radius) var(--radius) 0;
+  font-size:16.5px;line-height:1.5;color:var(--ink);
+}
+.quote.small{font-size:15px}
+.quote em{font-style:italic}
+
+.figure{
+  background:var(--panel);border:1.5px solid var(--line);border-radius:var(--radius);
+  padding:22px;margin:18px 0;
+}
+.figure svg{display:block;width:100%;height:auto}
+
+.timeline{display:flex;flex-direction:column;gap:14px;margin:18px 0}
+.tl-item{
+  display:flex;gap:16px;background:var(--panel);border:1.5px solid var(--line);
+  border-radius:var(--radius);padding:16px 20px;
+}
+.tl-item .date{flex:none;width:100px;font-weight:800;color:var(--brown);font-size:14px;border-left:3px solid var(--orange);padding-left:8px}
+.tl-item .body p{margin:0;font-size:14.5px}
+.tl-item .body strong{color:var(--ink)}
+
+.cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:16px 0}
+.card{background:var(--panel);border:1.5px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.card.warn{border-left:4px solid var(--brown)}
+.card.role{border-left:4px solid var(--plus-dark)}
+.card h4{margin:0 0 8px;font-size:15.5px;color:var(--ink)}
+.card p{margin:0;font-size:14px}
+
+.sidebar{
+  background:var(--panel);border:1.5px solid var(--orange);border-radius:var(--radius);
+  padding:22px 26px;margin:18px 0;
+}
+.sidebar .tag{
+  display:inline-block;padding:4px 12px;border-radius:var(--pill);
+  background:var(--peach);border:1.5px solid var(--orange);color:var(--ink);
+  font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;
+}
+
+footer{padding:36px 0 60px;font-size:14px;color:var(--ink-faint)}
+footer a{color:var(--ink-dim)}
+
+@media (max-width:860px){
+  h1{font-size:32px}
+  .cards3{grid-template-columns:1fr}
+  .tl-item{flex-direction:column;gap:4px}
+  .tl-item .date{width:auto}
+  .wrap{padding:0 18px}
+}
+
+@media print{
+  @page{size:A4;margin:14mm}
+  html,body{background:var(--cream)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  nav.toc,.no-print{display:none!important}
+  section{break-inside:avoid-page;border-bottom:none}
+  .table-wrap,.card,.tl-item,.quote,.figure,.sidebar{break-inside:avoid-page}
+  a{color:var(--ink)!important;text-decoration:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero">
+  <div class="kicker">Тиждень 0 · Курс 1: AI Agents Engineering · станом на 09/2026</div>
+  <h1 class="long">Week 0 · Агентна ОС (курс, зібраний в одну систему)</h1>
+  <p class="lede">Той самий курс, зібраний в одну систему. Довідкова сторінка поруч із
+  <code>Lecture.md</code>, не заміна й не переказ його наративу. Джерело цієї сторінки — не
+  kernel-метафора (та йде окремим сайдбаром, §8), а <strong>операційна модель</strong>: як курс
+  змінює виконання, джерело знання й процес команди, коли агенти стають постійною частиною
+  роботи, а не чат-вікном.</p>
+  <nav class="toc no-print">
+    <a href="#framing">Що це НЕ</a>
+    <a href="#execution">Виконання</a>
+    <a href="#knowledge">Знання</a>
+    <a href="#sdlc">Замкнений цикл</a>
+    <a href="#process">Процес команди</a>
+    <a href="#mapping">Мапа на дні</a>
+    <a href="#payoff">Payoff Дня 12</a>
+    <a href="#sidebar-os">Сайдбар «ОС»</a>
+  </nav>
+</header>
+
+<section id="framing">
+  <h2><span class="n">01</span>Що таке «агентна ОС» тут — і чим вона НЕ є</h2>
+  <div class="quote">
+    «An Agentic Operating System connects knowledge, context, memory, tools, workflows, agents,
+    humans and feedback loops into one evolving engineering system.»
+    <p style="margin-top:8px;font-size:13px" class="faint"><em>agentic-os-transformation_2026_09_06.md §13</em></p>
+  </div>
+  <p>Це <strong>не</strong> ядро/планувальник/файлова система в буквальному сенсі — та рамка існує
+  (Karpathy, MemGPT, AIOS), але вона про виконання <strong>одного</strong> агента, і курс не будує
+  буквальне ядро (сайдбар §8). «Агентна ОС» тут — <strong>операційна модель організації</strong>:
+  як з'являється знання, як воно потрапляє в контекст агента, як агент виконує роботу під
+  контрактом, і як цикл розробки замикається сам на себе. Три зрушення, які курс демонструє
+  поетапно:</p>
+  <ul class="scoped">
+    <li><strong>Виконання</strong> перестає бути чатом і стає керованим пайплайном (§2).</li>
+    <li><strong>Знання</strong> перестає бути документом і стає живим графом із provenance (§3).</li>
+    <li><strong>Процес команди</strong> перестає бути «просто пиши код» і стає maker/checker-дисципліною
+    з явним власником легібельності (§5).</li>
+  </ul>
+</section>
+
+<section id="execution">
+  <h2><span class="n">02</span>Що змінюється у виконанні: pipeline, не чат-вікно</h2>
+  <p class="section-lede">Мета не в тому, щоб навчити писати агентів — мета в тому, щоб сформувати
+  світогляд інженера, для якого агент — це <strong>крок у керованому пайплайні</strong>, а не вікно,
+  куди пишуть довільний промпт (<code>agentic-os-transformation_2026_09_06.md</code> §1).</p>
+  <div class="cards3">
+    <div class="card role"><h4>Не «напиши промпт і сподівайся»</h4>
+    <p>Типізований контракт виклику (Д2), граф, що визначає, що виконується коли (Д3), сервісна
+    межа, яка відповідає за запуск (Д4).</p></div>
+    <div class="card role"><h4>Не «модель вирішує все сама»</h4>
+    <p>Retry-політика, bounded autonomy, self-correction budget (Д7–Д8).</p></div>
+    <div class="card role"><h4>Не «одна велика розмова»</h4>
+    <p>Стан, що переживає запуск, окремо від контексту одного виклику (Д9).</p></div>
+  </div>
+  <p>Це перший шар операційної моделі: агент — крок пайплайна під контрактом, спостережуваний і
+  відновлюваний, а не імпровізація в чаті.</p>
+</section>
+
+<section id="knowledge">
+  <h2><span class="n">03</span>Звідки береться знання: субстрат під пайплайном</h2>
+  <p class="section-lede">Друге зрушення — звідки агент бере те, на чому працює
+  (<code>agentic-os-transformation_2026_09_06.md</code> §11).</p>
+  <div class="figure">
+    <svg viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Пайплайн знання: від сирих джерел до агентів">
+      <defs>
+        <marker id="arr1" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#e67d2d"/></marker>
+      </defs>
+      <g font-family="-apple-system,Segoe UI,sans-serif" font-size="14" fill="#281405">
+        <rect x="120" y="10" width="660" height="54" rx="14" fill="#faf0eb" stroke="#281405" stroke-width="1.5"/>
+        <text x="450" y="33" text-anchor="middle" font-weight="700">Legacy Wiki · Документи · Репозиторії</text>
+        <text x="450" y="52" text-anchor="middle" font-size="12.5" fill="rgba(40,20,5,.7)">Операційні дані · Session Traces</text>
+
+        <line x1="450" y1="64" x2="450" y2="98" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr1)"/>
+        <rect x="220" y="100" width="460" height="46" rx="14" fill="#ffffff" stroke="#1e2841" stroke-width="1.5"/>
+        <text x="450" y="128" text-anchor="middle" font-weight="700">Knowledge Engineering Pipeline</text>
+
+        <line x1="450" y1="146" x2="450" y2="180" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr1)"/>
+        <rect x="260" y="182" width="380" height="46" rx="14" fill="#ffffff" stroke="#1e2841" stroke-width="1.5"/>
+        <text x="450" y="210" text-anchor="middle" font-weight="700">Онтологія + Provenance</text>
+
+        <line x1="450" y1="228" x2="450" y2="262" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr1)"/>
+        <rect x="230" y="264" width="440" height="46" rx="14" fill="#ffc8a5" stroke="#e67d2d" stroke-width="2.2"/>
+        <text x="450" y="292" text-anchor="middle" font-weight="700">Живий граф знань</text>
+
+        <line x1="450" y1="310" x2="450" y2="344" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr1)"/>
+        <rect x="260" y="346" width="380" height="46" rx="14" fill="#ffffff" stroke="#1e2841" stroke-width="1.5"/>
+        <text x="450" y="374" text-anchor="middle" font-weight="700">GraphRAG / Retrieval</text>
+
+        <line x1="450" y1="392" x2="450" y2="426" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr1)"/>
+        <rect x="260" y="428" width="380" height="46" rx="14" fill="#ffffff" stroke="#1e2841" stroke-width="1.5"/>
+        <text x="450" y="456" text-anchor="middle" font-weight="700">Context Engineering</text>
+
+        <line x1="450" y1="474" x2="450" y2="490" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr1)"/>
+        <text x="450" y="512" text-anchor="middle" font-weight="900" font-size="16">АГЕНТИ</text>
+      </g>
+    </svg>
+  </div>
+  <div class="quote small">
+    «We are not merely indexing a company wiki for chatbot search. We are transforming
+    organizational knowledge into a form that agents can reliably use.»
+  </div>
+  <p>Це не «більший RAG-індекс» — це те, що Д5 будує явно: <code>parse → normalize → ontology →
+  chunk → extract → resolve → index</code>, з provenance на кожному кроці. Той самий граф потім
+  живить Д6 (retrieval у контекст) і Д9 (memory/OKF — портативний формат тієї самої субстанції).</p>
+</section>
+
+<section id="sdlc">
+  <h2><span class="n">04</span>Замкнений цикл: Agentic SDLC</h2>
+  <p class="section-lede">Граф знання не закінчується на індексації — він живить весь цикл
+  розробки й отримує назад те, що цикл виробляє
+  (<code>agentic-os-transformation_2026_09_06.md</code> §12).</p>
+  <div class="figure">
+    <svg viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Замкнений цикл Agentic SDLC">
+      <defs>
+        <marker id="arr2" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#e67d2d"/></marker>
+      </defs>
+      <g font-family="-apple-system,Segoe UI,sans-serif" font-size="13.5" fill="#281405" font-weight="700">
+        <rect x="300" y="10" width="300" height="42" rx="14" fill="#ffffff" stroke="#1e2841" stroke-width="1.5"/>
+        <text x="450" y="36" text-anchor="middle">Вимоги</text>
+        <line x1="450" y1="52" x2="450" y2="80" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr2)"/>
+
+        <rect x="210" y="82" width="480" height="42" rx="14" fill="#ffffff" stroke="#1e2841" stroke-width="1.5"/>
+        <text x="450" y="108" text-anchor="middle">Агент звіряє проти організаційного знання</text>
+        <line x1="450" y1="124" x2="450" y2="152" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr2)"/>
+
+        <rect x="300" y="154" width="300" height="42" rx="14" fill="#ffffff" stroke="#1e2841" stroke-width="1.5"/>
+        <text x="450" y="180" text-anchor="middle">Архітектура / дизайн</text>
+        <line x1="450" y1="196" x2="450" y2="224" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr2)"/>
+
+        <rect x="270" y="226" width="360" height="42" rx="14" fill="#ffffff" stroke="#1e2841" stroke-width="1.5"/>
+        <text x="450" y="252" text-anchor="middle">Реалізація (multi-critic)</text>
+        <line x1="450" y1="268" x2="450" y2="296" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr2)"/>
+
+        <rect x="300" y="298" width="300" height="42" rx="14" fill="#ffffff" stroke="#1e2841" stroke-width="1.5"/>
+        <text x="450" y="324" text-anchor="middle">Тести / evals</text>
+        <line x1="450" y1="340" x2="450" y2="368" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr2)"/>
+
+        <rect x="320" y="370" width="260" height="42" rx="14" fill="#ffffff" stroke="#1e2841" stroke-width="1.5"/>
+        <text x="450" y="396" text-anchor="middle">Деплой</text>
+        <line x1="450" y1="412" x2="450" y2="440" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr2)"/>
+
+        <rect x="250" y="442" width="400" height="42" rx="14" fill="#ffffff" stroke="#1e2841" stroke-width="1.5"/>
+        <text x="450" y="468" text-anchor="middle">Observability / production-сесії</text>
+        <line x1="450" y1="484" x2="450" y2="500" stroke="#e67d2d" stroke-width="2.2" marker-end="url(#arr2)"/>
+
+        <rect x="270" y="502" width="360" height="42" rx="14" fill="#ffc8a5" stroke="#e67d2d" stroke-width="2.2"/>
+        <text x="450" y="528" text-anchor="middle">Екстракція знання → живий граф</text>
+
+        <path d="M 270 523 C 60 523, 60 100, 300 103" fill="none" stroke="#1e2841" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arr2)"/>
+        <text x="30" y="320" font-weight="700" fill="#1e2841" font-size="13" transform="rotate(-90 30 320)" text-anchor="middle">наступний цикл розробки</text>
+      </g>
+    </svg>
+  </div>
+  <p>Граф — «не просто вихід RAG-індексації, а живий організаційний стан, що використовується
+  протягом усього життєвого циклу ПЗ» (джерело). Це відкриває природний, але <strong>не
+  форсований</strong> місток до автономніших моделей розробки («dark factory») — курс цей місток
+  називає, не обіцяє його побудувати за 12 днів.</p>
+</section>
+
+<section id="process">
+  <h2><span class="n">05</span>Що змінюється в процесі команди — доказова база</h2>
+  <p class="section-lede">Обсяг коду, який виробляє агент, більше не вузьке місце — вузьке місце
+  тепер легібельне, кероване знання й дисципліноване review/rollout
+  (<code>research/knowledge_process_transformation_2026.md</code>, Частина A).</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Практика</th><th>Джерело</th><th>Дата</th><th>Що виміряно</th></tr></thead>
+    <tbody>
+      <tr><td>AGENTS.md, хто пише, важливо</td><td>Gloaguen et al. (ETH Zürich), <a href="https://arxiv.org/abs/2602.11988" target="_blank" rel="noopener">arXiv:2602.11988</a></td><td>02/2026</td><td>Контрольований бенчмарк, 138 задач: людський <code>AGENTS.md</code> <strong>+4 %</strong> успіху; згенерований LLM — <strong>−3 %</strong>, +20 % вартості inference</td></tr>
+      <tr><td>Вища частка AI-коду ↔ вища нестабільність</td><td>Google Cloud / DORA</td><td>05/2026</td><td>Вища частка AI-написаного коду корелює одночасно з вищою throughput <strong>і</strong> вищою delivery instability</td></tr>
+      <tr><td>Review — нове вузьке місце</td><td>Ry Walker; AgentConn</td><td>2026</td><td>AI-написані PR чекають на перший review в <strong>4,6×</strong> довше; main-branch success rate впав до 70,8 %</td></tr>
+      <tr><td>Comprehension debt</td><td>Addy Osmani</td><td>2026</td><td>Рев'юери, що делегують агенту, набирають на <strong>17 % нижче</strong> в тестах на розуміння коду</td></tr>
+      <tr><td>Rollout-дисципліна L1→L3</td><td>Cobus Greyling, <code>loop-engineering</code></td><td>2026</td><td>L1 report-only → L2 асистовано → L3 без нагляду; підвищення гейтоване «verifier правий тиждень поспіль»</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Ролі, а не лише код</h3>
+  <div class="cards3">
+    <div class="card role"><h4>Хто володіє AGENTS.md</h4>
+    <p>Людина, не агент — контрольований бенчмарк показує, що згенерований LLM файл вимірювано
+    шкодить. Корекція наївної практики, не повторення консенсусу.</p></div>
+    <div class="card role"><h4>Хто рев'ю agent output</h4>
+    <p>HITL — не про кількість ґейтів, а про те, хто саме тисне «approve», коли junior генерує
+    швидше, ніж senior встигає перевірити (Д10).</p></div>
+    <div class="card role"><h4>Де це в курсі</h4>
+    <p>Обидві ролі проговорено в оцінюваному матеріалі Д8/Д10, не лише в риториці.</p></div>
+  </div>
+</section>
+
+<section id="mapping">
+  <h2><span class="n">06</span>Мапа на дні курсу: пайплайн і процес, не kernel-компоненти</h2>
+  <p class="section-lede">Кожен рядок — етап пайплайна (§2–§4), який день уже будує (курс не
+  змінюється — це 3–8-хвилинний сегмент), і українська фраза для слайда там, де дослідження її
+  дало.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>День</th><th>Етап операційної моделі</th><th>Українська фраза для слайда</th></tr></thead>
+    <tbody>
+      <tr><td>Д1</td><td>Runtime-фундамент — контракт виконання: яка модель веде пайплайн</td><td class="faint"><em>без окремої фрази — спирається на §2</em></td></tr>
+      <tr><td>Д2</td><td>Runtime-фундамент — типізований контракт інструменту замість вільного промпту</td><td class="faint"><em>без окремої фрази</em></td></tr>
+      <tr><td>Д3</td><td>Runtime-фундамент — граф як явна структура виконання, не ad-hoc ланцюжок</td><td class="faint"><em>без окремої фрази</em></td></tr>
+      <tr><td>Д4</td><td>Runtime-фундамент + перший процесний сегмент — сервісна межа = хто відповідає, коли впаде</td><td>«Задеплоїти агента — 10 хвилин. Визначити, хто відповідає за нього о 3-й ночі — окрема розмова, і вона важливіша.»</td></tr>
+      <tr><td>Д5</td><td>Ingest / parse / ontology — перша половина субстрату (§3)</td><td>«Ми не індексуємо корпоративну вікі для чат-бота — ми перетворюємо організаційне знання на форму, яку агент може надійно використати.»</td></tr>
+      <tr><td>Д6</td><td>Retrieval у контекст — друга половина субстрату (§3)</td><td class="faint"><em>без окремої фрази — спирається на §3</em></td></tr>
+      <tr><td>Д7</td><td>Виконання всередині пайплайна — керований цикл, не вільний чат</td><td class="faint"><em>без окремої фрази</em></td></tr>
+      <tr><td>Д8</td><td>Виконання + fault tolerance — харнес як легібельність репозиторію для будь-якого агента</td><td>«AGENTS.md, написаний людиною, трохи допомагає. AGENTS.md, згенерований LLM, вимірювано шкодить — це не інтуїція, це контрольований бенчмарк на 138 задачах.»</td></tr>
+      <tr><td>Д9</td><td>Стан / пам'ять + OKF як портативний формат субстанції</td><td class="faint"><em>без окремої фрази — спирається на §3–§4</em></td></tr>
+      <tr><td>Д10</td><td>Approval як роль і процес, не лише ґейт у коді</td><td>«Junior тепер генерує швидше, ніж senior встигає перевірити. HITL — це про те, хто саме тисне "approve", а не скільки разів.»</td></tr>
+      <tr><td>Д11</td><td>Review-процес — maker/checker у масштабі команди</td><td>«Multi-critic у вашому workflow і multi-agent code review у вашій команді — той самий паттерн maker/checker, різний масштаб.»</td></tr>
+      <tr><td>Д12</td><td><strong>Payoff</strong> — self-improvement, розкатане L1→L3, замикає цикл §4</td><td>«Той самий паттерн, що ви щойно побудували для однієї метрики — L1 звіт → L2 асистовано → L3 без нагляду — масштабується на весь процес команди.»</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="payoff">
+  <h2><span class="n">07</span>Payoff Дня 12: пайплайн, який ви побудували, етап за етапом</h2>
+  <p class="section-lede">На Дні 12 таблиця повертається — але замість «загального опису етапу»
+  кожна клітинка заповнена власним кодом слухача з Днів 1–11.</p>
+  <div class="toggle-row no-print">
+    <button class="toggle" id="payoff-toggle">Показати «День N — ваш код»</button>
+    <span class="toggle-hint">Перемикає зміст без переписування таблиці.</span>
+  </div>
+  <div class="table-wrap"><table id="payoff-table">
+    <thead><tr><th>Етап операційної моделі</th><th id="payoff-head">Опис етапу</th></tr></thead>
+    <tbody>
+      <tr><td>Runtime-фундамент</td><td data-desc="Контракт виконання: модель, типізований інструмент, workflow-граф, сервісна межа" data-mine="Д1–Д4 — вибір моделі, типізований контракт, workflow-граф, сервісна межа">Контракт виконання: модель, типізований інструмент, workflow-граф, сервісна межа</td></tr>
+      <tr><td>Ingest / parse / ontology</td><td data-desc="Перша половина субстрату §3: сирі джерела → онтологія → provenance" data-mine="Д5 — parse → normalize → ontology → chunk → extract → resolve → index">Перша половина субстрату §3: сирі джерела → онтологія → provenance</td></tr>
+      <tr><td>Retrieval у контекст</td><td data-desc="Друга половина субстрату §3: граф → GraphRAG → Context Engineering" data-mine="Д6 — гібридний retrieval, rerank, semantic cache">Друга половина субстрату §3: граф → GraphRAG → Context Engineering</td></tr>
+      <tr><td>Виконання + fault tolerance</td><td data-desc="Керований цикл під контрактом, з відновленням після відмови" data-mine="Д7–Д8 — керований ReAct-цикл, харнес, self-correction budget">Керований цикл під контрактом, з відновленням після відмови</td></tr>
+      <tr><td>Стан / пам'ять / OKF</td><td data-desc="Стан, що переживає запуск, у портативному форматі" data-mine="Д9 — event-sourced стан, портативний формат знання">Стан, що переживає запуск, у портативному форматі</td></tr>
+      <tr><td>Approval як роль/процес</td><td data-desc="Людина в циклі — роль, а не лише ґейт у коді" data-mine="Д10 — координатор-агент, HITL">Людина в циклі — роль, а не лише ґейт у коді</td></tr>
+      <tr><td>Review-процес</td><td data-desc="Maker/checker на рівні workflow і команди" data-mine="Д11 — критик-цикл, maker/checker на рівні workflow">Maker/checker на рівні workflow і команди</td></tr>
+      <tr><td>Self-improvement, L1→L3</td><td data-desc="Bounded self-improvement, розкатка на команду, замикає §4" data-mine="Д12 — bounded self-improvement, розкатка на команду">Bounded self-improvement, розкатка на команду, замикає §4</td></tr>
+    </tbody>
+  </table></div>
+  <p style="font-size:13px;margin-top:10px" class="faint"><em>Це не риторика для маркетингу — та сама таблиця, тільки з підставленими фактами замість назв етапів загалом.</em></p>
+</section>
+
+<section id="sidebar-os">
+  <h2><span class="n">08</span>Сайдбар: чому це взагалі називають «ОС»</h2>
+  <div class="sidebar">
+    <span class="tag">Інша, вужча рамка</span>
+    <p>Окрема рамка існує з 2023 року — вона <strong>не</strong> про операційну модель команди
+    (§1–§7 вище), а про виконання <strong>одного</strong> агента: LLM = ядро/CPU, вікно контексту =
+    RAM, embeddings-сховище = диск, tool calls = syscalls.</p>
+    <ul class="scoped">
+      <li><strong>Karpathy, «LLM OS»</strong> (X, 28.09.2023) — неформальна діаграма, перша
+      формулювання.</li>
+      <li><strong>MemGPT/Letta</strong>, <a href="https://arxiv.org/abs/2310.08560" target="_blank" rel="noopener">arXiv:2310.08560</a>
+      (10/2023) — перший робочий код, звужений до пам'яті (paging).</li>
+      <li><strong>AIOS</strong>, <a href="https://arxiv.org/abs/2403.16971" target="_blank" rel="noopener">arXiv:2403.16971</a>
+      (Rutgers, COLM 2025) — перша заявка на повне ядро з named-модулями.</li>
+      <li>2026: академічна консолідація — workshop-серія <strong>AgenticOS</strong> на
+      ASPLOS/SOSP/NeurIPS 2026, вже не лише маркетинг.</li>
+    </ul>
+    <p><strong>Де ламається</strong> (<a href="https://www.knowlee.ai/blog/is-the-os-metaphor-right-for-ai-agents" target="_blank" rel="noopener">knowlee.ai</a>,
+    2026): немає чіткого поділу процес/потік, немає справжньої preemption, «пам'ять» — перевантажений
+    термін, планувальники 2026 — здебільшого FCFS-черги без підручникової теорії. Вердикт джерела:
+    «Called what we are building an 'operating system' is, at this point in 2026, more of a
+    marketing convenience than a technical claim.»</p>
+    <p><strong>Чому курс не будує цю рамку буквально:</strong> kernel-метафора описує один процес
+    виконання; курс демонструє щось більше — як змінюється виконання, джерело знання й процес
+    команди <strong>разом</strong> (§1–§7). Обидві рамки називають «агентна ОС»; це різні речі, і
+    ця сторінка використовує термін у сенсі операційної моделі, не ядра.</p>
+  </div>
+</section>
+
+<footer>
+  <p><strong>Зв'язок із картою пілярів:</strong> <a href="agentic-engineering-landscape.html">agentic-engineering-landscape.html</a>
+  показує ті самі 12 днів як дві осі — п'ять шарів agent engineering і 13 пілярів, порівняні з
+  21 індустрійним продуктом. Ця сторінка — той самий матеріал у третій проєкції: не «які
+  дисципліни викладає день», а як усі дні складаються в одну операційну модель — виконання,
+  знання й процес команди разом. Пілари — дисципліни. Агентна ОС — операційна модель, яку ці
+  дисципліни, зібрані разом, утворюють.</p>
+  <p>Станом на 09/2026. Джерела: <code>weekly-reviews/2026_09_06/agentic-os-transformation_2026_09_06.md</code>,
+  <code>research/knowledge_process_transformation_2026.md</code>, <code>TOC.md</code>,
+  <code>wiki/concepts/agent-engineering.md</code>.</p>
+</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var btn = document.getElementById("payoff-toggle");
+  var head = document.getElementById("payoff-head");
+  var cells = document.querySelectorAll("#payoff-table tbody td[data-desc]");
+  var showingMine = false;
+  if(!btn) return;
+  btn.addEventListener("click", function(){
+    showingMine = !showingMine;
+    head.textContent = showingMine ? "День N — ваш код" : "Опис етапу";
+    btn.textContent = showingMine
+      ? "Показати опис етапу"
+      : "Показати «День N — ваш код»";
+    cells.forEach(function(td){
+      td.textContent = showingMine ? td.dataset.mine : td.dataset.desc;
+    });
+  });
+})();
+</script>
+</body>
+</html>

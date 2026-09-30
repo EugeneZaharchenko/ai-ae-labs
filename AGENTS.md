@@ -1,8 +1,8 @@
-# AGENTS.md — репозиторій курсу «AI Agents Engineering» (тиждень 1)
+# AGENTS.md — репозиторій курсу «AI Agents Engineering» (тижні 1–2)
 
 Цей документ описує структуру, команди збірки та конвенції репозиторію для агентів
 і розробників. **Область дії — весь репозиторій** (це гілка лише з матеріалами
-тиждень 1).
+тижні 1–2).
 
 ---
 
@@ -34,7 +34,17 @@ task build    # go build ./...            (кореневий модуль)
 task build:all # те саме + вкладені модулі демо
 task test     # go test -race ./...
 task cover    # покриття по пакетах проти гейта 85%
+task kill:8080 # звільнити порт Web UI (:8080) від попереднього `go run ... web`
 ```
+
+`task kill:8080` існує тому, що `week1:day1:web` і `week1:day2:web` обидва
+слухають `:8080`, а перерваний `go run` часто лишає дочірній процес живим — і
+наступний запуск падає з `address already in use`. Порт можна змінити:
+`task kill:8080 PORT=9000`.
+
+> **Лише macOS і Linux** (`platforms: [darwin, linux]`). На інших платформах
+> Task відмовить із зрозумілим повідомленням замість того, щоб виконати те, що
+> там не працює: виявлення процесу спирається на `lsof`, якого Windows не має.
 
 Ті самі команди без `task`:
 
@@ -50,16 +60,17 @@ gofmt -l .          # форматуйте файли, які правите: go
 cd week1/Day1_Models_and_Frameworks_Landscape/labs/solution && go run .
 
 # Лаби з реальною моделлю потребують ключа (apps/.env або env-змінна)
-go run ./week1/Day1_Models_and_Frameworks_Landscape/labs
+go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3
 
 # Наступний день тижня: -offline бере ЛИШЕ фікстурні дані; модель усе одно потрібна
-cd week1/Day2_Structured_Output_Function_Calling/labs && go run . -offline console
+cd week2/Day4_Agent_as_Service_Deploy/labs4 && go run . -offline console
 ```
 
 ```bash
-# Демо — кожне вкладається своїм модулем, команди з його теки
+# Демо — кожне зі своєю текою команд (деякі з власним Taskfile.yml і/або go.mod)
 # 1_ai-gateway: див. demo/1_ai-gateway/README.md
-# adk-quickstart: див. demo/adk-quickstart/README.md
+# 3_adk2_patterns: cd demo/3_adk2_patterns && task --list (власний Taskfile.yml)
+# adk-quickstart: див. demo/adk-quickstart/README.md (власні Taskfile.yml і go.mod)
 ```
 
 Перед комітом мають проходити: `go build ./...`, `go test ./...` і `task build:all`.
@@ -69,17 +80,19 @@ cd week1/Day2_Structured_Output_Function_Calling/labs && go run . -offline conso
 ## 3. Структура
 
 ```
-week1/<День>/labs/          стартовий шаблон лаби + README з покроковою інструкцією
-week1/<День>/Homework.md    умова домашнього завдання, критерії оцінювання, формат здачі
+week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3/ стартовий шаблон лаби + README з покроковою інструкцією
+week2/Day4_Agent_as_Service_Deploy/labs4/ стартовий шаблон лаби + README з покроковою інструкцією
+week2/<День>/Homework.md    умова домашнього завдання, критерії оцінювання, формат здачі
 week1/<День>/labs/solution/ еталонний розв'язок (публікується вручну після дедлайну)
 internal/                   спільні helper-пакети (adkenv, fakellm, labrun)
 apps/.env-example           шаблон ключів провайдерів (копія → apps/.env)
 1_ai-gateway/               agentgateway + Jaeger/Prometheus/Grafana — локальний моніторинг (bonus-трек)
+3_adk2_patterns/            каталог патернів ADK Go v2.4.0 (16 патернів + 2 додатки) — власний Taskfile.yml
 adk-quickstart/             ADK Go v2 агент, який студенти запускають локально
 Taskfile.yml                команди репозиторію (task check, task test, task cover)
 AGENTS.md                   конвенції репозиторію для агентів і розробників
 .devcontainer/              dev container: Go + Docker + kind (див. §6)
-.agents/skills/             скіли для AI-агентів: go-senior-developer, asd-ste100 (§7)
+.agents/skills/             скіли для AI-агентів: go-senior-developer, asd-ste100, adk-go-workflow (§8)
 ```
 
 ---
@@ -92,7 +105,7 @@ AGENTS.md                   конвенції репозиторію для а�
 
 ```bash
 task cover                                  # усі пакети
-sh ./scripts/covgate.sh 85 ./week1/   # один шлях, поки пишете
+sh ./scripts/covgate.sh 85 ./week2/   # один шлях, поки пишете
 ```
 
 **Гейт на стартових матеріалах червоний — це стан, у якому їх опубліковано.**
@@ -180,6 +193,7 @@ devcontainer exec --workspace-folder . bash
 |---|---|
 | `go-senior-developer` | пишете або рецензуєте Go: ідіоми, TDD, архітектура, безпека |
 | `asd-ste100` | пишете тексти інструкцій: короткі однозначні речення (Simplified Technical English) |
+| `adk-go-workflow` | обираєте стиль (граф / dynamic / prebuilt) і патерн агентної системи або пишете/тестуєте граф ADK Go v2.4.0: маршрути, JoinNode, DynamicNode, режими агентів, HITL |
 
 Кожен скіл — тека зі `SKILL.md` (коли застосовувати + стислий огляд) і
 `references/`, `examples/` із докладними матеріалами. Посилання всередині
@@ -191,6 +205,11 @@ devcontainer exec --workspace-folder . bash
   для кожної горутини та заборона пакетів `util`/`common`/`helpers`.
 - `asd-ste100` допомагає з формулюваннями в README, Homework і описах
   інструментів — там, де важлива однозначність.
+- `adk-go-workflow` — три стилі workflow (граф / dynamic / prebuilt), вісь
+  «хто вирішує наступний крок», дерево рішень, індекс 18 патернів із посиланнями
+  на `demo/3_adk2_patterns/`, звірена з v2.4.0 шпаргалка API, запобіжники графа
+  та офлайн-тестування. Приклади в `examples/` компілюються й тестуються:
+  `go test ./.agents/skills/adk-go-workflow/examples/`.
 
 Скіли читають агенти (Claude Code, Codex, Gemini CLI тощо), які підтримують
 конвенцію `.agents/`; для людини це просто корисні довідники.

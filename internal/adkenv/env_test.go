@@ -150,6 +150,47 @@ func TestLoadDoesNotOverrideExisting(t *testing.T) {
 	t.Cleanup(func() { os.Unsetenv("ADKENV_TEST_NEW") })
 }
 
+// TestLoadSkipsEmptyValues pins the reason blank *_BASE_URL lines in apps/.env
+// must not be exported. openai-go reads OPENAI_BASE_URL with os.LookupEnv and
+// applies option.WithBaseURL even for "", which replaces its default endpoint
+// with an empty base URL; the first request then fails with
+//
+//	openai: call failed: Post "/responses": unsupported protocol scheme ""
+//
+// Leaving the key unset keeps the SDK's own default, which is what a blank line
+// in the template is documented to mean.
+func TestLoadSkipsEmptyValues(t *testing.T) {
+	root := t.TempDir()
+	appsDir := filepath.Join(root, "apps")
+	if err := os.MkdirAll(appsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "ADKENV_TEST_EMPTY=\nADKENV_TEST_BLANK=   \nADKENV_TEST_SET=value\n"
+	if err := os.WriteFile(filepath.Join(appsDir, ".env"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Guard against a stale variable from an earlier run making this vacuous.
+	for _, k := range []string{"ADKENV_TEST_EMPTY", "ADKENV_TEST_BLANK", "ADKENV_TEST_SET"} {
+		os.Unsetenv(k)
+		t.Cleanup(func() { os.Unsetenv(k) })
+	}
+
+	if err := Load(root); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	for _, k := range []string{"ADKENV_TEST_EMPTY", "ADKENV_TEST_BLANK"} {
+		if _, present := os.LookupEnv(k); present {
+			t.Errorf("%s is present in the environment, want it left unset "+
+				"(an empty value makes SDKs that branch on presence clobber their default)", k)
+		}
+	}
+	if got := os.Getenv("ADKENV_TEST_SET"); got != "value" {
+		t.Errorf("ADKENV_TEST_SET = %q, want %q", got, "value")
+	}
+}
+
 func TestKey(t *testing.T) {
 	t.Setenv("ADKENV_TEST_KEY", "  ")
 	if _, ok := Key("ADKENV_TEST_KEY"); ok {

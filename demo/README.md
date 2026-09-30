@@ -1,16 +1,19 @@
-# Collection of AI Agentic projects
+# Добірка проєктів з AI-агентів
 
-Hands-on demos accompanying the course, from platform plumbing to full agentic systems.
+Практичні демо до курсу — від інфраструктури до повноцінних агентних систем.
 
-| # | Project | Status | What it covers |
+| # | Проєкт | Стан | Що охоплює |
 |---|---------|--------|----------------|
-| 1 | [`1_ai-gateway`](1_ai-gateway/) | config-verified | agentgateway v1.4.1 + Jaeger/Prometheus/Grafana: one OpenAI-compatible entry on `:4000` routing to a keyless mock, OpenAI, Anthropic, Gemini and Ollama Cloud, with per-request USD cost |
-| — | [`adk-quickstart-sso`](adk-quickstart/) | working | Week 1 starter: ADK Go v2 agent + two typed tools, Google SSO via ADC (API-key fallback) |
+| 1 | [`1_ai-gateway`](1_ai-gateway/) | конфіг звірено | agentgateway v1.4.1 + Jaeger/Prometheus/Grafana: один OpenAI-сумісний вхід на `:4000`, за яким безключовий мок, OpenAI, Anthropic, Gemini та Ollama Cloud, із вартістю в USD на кожен запит |
+| 3 | [`3_adk2_patterns`](3_adk2_patterns/) | працює | каталог патернів ADK Go v2.4.0: 16 агентних/workflow-патернів (A1–E3) плюс граф функцій без LLM і запобіжники часу збірки; тека на кожен патерн з `main.go`, тестами й README; працює офлайн, `-live` — для реальної моделі |
+| 4 | [`4_adk_examples`](4_adk_examples/) | працює | приклади графового рушія ADK Go v2.4.0: 11 запускних прикладів (послідовний ланцюг, розгалуження/зведення, маршрутизація за рядком, числом і моделлю, HITL, динамічні вузли); 7 з 11 — без ключа й без мережі; власний `Taskfile.yml` |
+| — | [`adk-quickstart-sso`](adk-quickstart/) | працює | стартовий шаблон Тижня 1: агент ADK Go v2 + два типізовані інструменти, Google SSO через ADC (з відкатом на API-ключ) |
 
-See each subfolder's `README.md` for build and run instructions.
+Інструкції зі збірки та запуску — у `README.md` кожної підтеки.
 
-> Проєкти 2–7 з'являться за графіком курсу — див. графік у кореневому `README.md`.
+> Проєкти 2 і 5–7 з'являться за графіком курсу — див. графік у кореневому `README.md`.
 
-> `adk-quickstart-sso` is deliberately unnumbered: it is the Week 1 course
-> starter students download and run, not a stage in the 1→6 progression above.
-> Give it a number only if it earns a slot in that sequence.
+> `adk-quickstart-sso` навмисно без номера: це стартовий шаблон Тижня 1, який
+> студенти завантажують і запускають, а не етап прогресії 1→6 вище.
+> Давайте йому номер лише тоді, коли він справді заслужить місце в цій
+> послідовності.

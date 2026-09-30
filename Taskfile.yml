@@ -21,6 +21,11 @@ vars:
   # Lab package paths, so the per-day run tasks stay one line each.
   DAY1: ./week1/Day1_Models_and_Frameworks_Landscape/labs
   DAY2: ./week1/Day2_Structured_Output_Function_Calling/labs
+  DAY3: ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3
+  DAY4: ./week2/Day4_Agent_as_Service_Deploy/labs4
+  # demo/4_adk_examples — приклади графового рушія ADK (демо №4). Один var на
+  # одинадцять задач нижче, щоб шлях не повторювався й не розійшовся.
+  ADK4: ./demo/4_adk_examples
 
 tasks:
   default:
@@ -129,6 +134,25 @@ tasks:
     cmds:
       - go run {{.PKG}}
 
+  # Free the ADK Web UI port. `task week1:day1:web` and `week1:day2:web` both
+  # bind :8080, and a Ctrl-C'd `go run` leaves the child binary alive often
+  # enough that the next run dies with "address already in use". This is the
+  # escape hatch, so nobody has to remember the platform's incantation.
+  #
+  # `xargs kill`, not `kill`: this runs under Task's shell (gosh / mvdan-sh, not
+  # bash), where `kill` is an unsupported builtin that returns 2 and does
+  # nothing — so a plain `kill $pid` here reports success and changes nothing.
+  #
+  # darwin + linux only: detection is lsof, which Task refuses to run elsewhere
+  # rather than failing obscurely on a platform that has no equivalent.
+  #
+  # Override the port when something else holds 8080: task kill:8080 PORT=9000
+  kill:8080:
+    desc: 'Kill whatever is listening on :8080 (a leftover `go run ... web` server)'
+    platforms: [darwin, linux]
+    cmds:
+      - lsof -ti tcp:{{.PORT | default "8080"}} -sTCP:LISTEN | xargs kill 2>/dev/null || true
+
   # --- aggregate -----------------------------------------------------------
 
   check:
@@ -151,6 +175,19 @@ tasks:
     cmds:
       - go test -race ./week1/...
 
+  # Day-scoped test runs. `{{.DAYn}}/...` and not `{{.DAYn}}`: the trailing /...
+  # is what pulls in the day's subpackages (day 1's solution/, day 2's cmd/mcp),
+  # so a day entry point covers the same set as running go test by hand.
+  week1:day1:test:
+    desc: 'День 1: тести лаби і solution/ з -race (без ключів і без мережі)'
+    cmds:
+      - go test -race -count=1 {{.DAY1}}/...
+
+  week1:day2:test:
+    desc: 'День 2: тести лаби і cmd/mcp з -race (без ключів і без мережі)'
+    cmds:
+      - go test -race -count=1 {{.DAY2}}/...
+
   week1:run:
     desc: 'Run a week1 lab: task week1:run PKG=./week1/Day1_Models_and_Frameworks_Landscape/labs'
     requires:
@@ -160,11 +197,14 @@ tasks:
 
   # Per-day entry points. Console is the interactive launcher (`console` reads
   # stdin and answers one request); web is the ADK Web UI on :8080 plus the REST
-  # API the UI calls. Day 1 needs a provider key for the model; Day 2 also runs
-  # key-free with `task week1:day2:console:offline`.
+  # API the UI calls. Both days need a provider key for the model.
+  #
+  # The two `:web` tasks both bind :8080, so they cannot run at once — and a
+  # Ctrl-C'd one often leaves its child alive, making the next run fail with
+  # "address already in use". `task kill:8080` is the remedy.
 
   week1:day1:console:
-    desc: 'День 1: агент в інтерактивній консолі (потрібен ключ провайдера)'
+    desc: 'День 1: агент в інтерактивній консолі'
     cmds:
       - go run {{.DAY1}} console
 
@@ -174,14 +214,9 @@ tasks:
       - go run {{.DAY1}} web webui api
 
   week1:day2:console:
-    desc: 'День 2: консоль з живими курсами НБУ (потрібен ключ провайдера)'
+    desc: 'День 2: консоль з живими курсами НБУ'
     cmds:
       - go run {{.DAY2}} console
-
-  week1:day2:console:offline:
-    desc: 'День 2: консоль на фікстурних курсах — без ключа й без мережі'
-    cmds:
-      - go run {{.DAY2}} -offline console
 
   week1:day2:console:monobank:
     desc: 'День 2: консоль з курсами monobank (-provider monobank)'
@@ -197,3 +232,288 @@ tasks:
     desc: 'День 2: таблиця NBU vs monobank side-by-side (модель не потрібна)'
     cmds:
       - go run {{.DAY2}} compare
+
+  # --- week2 ---------------------------------------------------------------
+
+  week2:build:
+    desc: 'Build week2'
+    cmds:
+      - go build ./week2/...
+
+  week2:test:
+    desc: 'Test week2 (race detector)'
+    cmds:
+      - go test -race ./week2/...
+
+  week2:run:
+    desc: 'Run a week2 lab: task week2:run PKG=./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3'
+    requires:
+      vars: [PKG]
+    cmds:
+      - go run {{.PKG}}
+
+  # День 3 має два прапорці (labs3/main.go). `-mode` — як виконується запит, і
+  # два його значення: `live` (типове: реальна модель через `internal/modelcfg`,
+  # потрібен ключ) і `graph` (граф без жодного LLM-вузла: ні ключа, ні мережі).
+  # Третього значення `offline` у коді НЕМАЄ: `-mode=offline` завершується
+  # помилкою "unknown mode". Тому `:offline` тут — синонім `:graph`, названий
+  # так, як звикли матеріали курсу (пор. `week1:day2:console:offline`).
+  #
+  # `-classify` — хто обирає маршрут: `rule` (типове: чиста функція
+  # `refund.Classify`, без моделі) або `model` (той самий провайдер, що вже
+  # завантажений, називає одну з трьох гілок словом). Це окремий вимір, а не
+  # третій режим: `-classify=model` потребує провайдера, тож поєднання
+  # `-mode=graph -classify=model` код відкидає з поясненням — граф існує саме
+  # для того, щоб обійтися без ключа. Задачі `:graph-llm` — це `-mode=live
+  # -classify=model`: маршрут обирає модель, а кроки виконує граф; вони
+  # потребують ключа й не мають `:offline`-псевдоніма, бо без ключа не працюють.
+  #
+  # Дві поверхні × три режими = шість входів, плюс два граф-з-моделлю:
+  #
+  #   task week2:day3:console:live      -mode=live                      реальна модель
+  #   task week2:day3:console:graph     -mode=graph                     без LLM, без ключа
+  #   task week2:day3:console:offline   -mode=graph                     те саме, що :console:graph
+  #   task week2:day3:console:graph-llm -mode=live -classify=model      маршрут обирає модель
+  #   task week2:day3:web:live          -mode=live                      Web UI + REST
+  #   task week2:day3:web:graph         -mode=graph                     Web UI + REST, без ключа
+  #   task week2:day3:web:offline       -mode=graph                     те саме, що :web:graph
+  #   task week2:day3:web:graph-llm     -mode=live -classify=model      Web UI + REST, маршрут від моделі
+  #
+  # `:graph` і `:offline` у кожній поверхні запускають ту саму команду. Друга
+  # назва існує, бо `offline` — звичне слово в матеріалах курсу; `:offline`
+  # викликає `:graph` через `deps`, щоб дві копії команди не розійшлися.
+  #
+  # День 4 — навпаки: labs4 виставляє той самий `-mode=graph` граф Дня 3 за
+  # REST, тож сервіс стартує й відповідає БЕЗ жодного ключа (він це сам
+  # логує: "ADK service listening ... no model credentials required").
+  #
+  # `/readyz` уже є у стартовому шаблоні (labs4/service.go) і віддає `200`;
+  # `503` він віддає лише в режимі drain, який студент додає за ДЗ 4 — тому
+  # `week2:day4:health` навмисно перевіряє liveness, а не readiness.
+  #
+  # `console` читає os.Stdin, тож канонічний запит можна подати так:
+  #   echo "Мерчант A-114 просить повернення по транзакції txn-2026-07-118845" \
+  #     | task week2:day3:console:live
+  #
+  # Усі три `*:web` задачі слухають :8080, як і `week2:day4:serve`, тому
+  # одночасно вони не працюють — і Ctrl-C часто лишає дочірній процес живим.
+  # `task kill:8080` — ліки.
+
+  week2:day3:console:live:
+    desc: 'День 3: граф у консолі, режим live (-mode=live)'
+    cmds:
+      - go run {{.DAY3}} -mode=live console
+
+  week2:day3:console:graph:
+    desc: 'День 3: граф у консолі, режим graph — без LLM, ключ не потрібен (-mode=graph)'
+    cmds:
+      - go run {{.DAY3}} -mode=graph console
+
+  # `offline` — звичне слово в матеріалах курсу. Це той самий `-mode=graph`,
+  # тож задача викликає `:graph` через `deps`, а не дублює команду: два
+  # однакові `cmds` розійшлися б при першій же правці.
+  week2:day3:console:offline:
+    desc: 'День 3: граф у консолі — те саме, що :console:graph (-mode=graph)'
+    deps: [week2:day3:console:graph]
+
+  # Той самий граф, але маршрут обирає модель: `-mode=live -classify=model`.
+  # Кроки виконує граф — модель лише називає гілку словом, тож у журналі видно
+  # і рішення моделі, і те, що роботу зробив вузол. Потрібен ключ.
+  week2:day3:console:graph-llm:
+    desc: 'День 3: граф у консолі, маршрут обирає модель (-mode=live -classify=model)'
+    cmds:
+      - go run {{.DAY3}} -mode=live -classify=model console
+
+  week2:day3:web:live:
+    desc: 'День 3: Web UI http://localhost:8080/ui/ + REST API /api, режим live (-mode=live)'
+    cmds:
+      - go run {{.DAY3}} -mode=live web webui api
+
+  week2:day3:web:graph:
+    desc: 'День 3: Web UI + REST API, режим graph — без LLM, ключ не потрібен (-mode=graph)'
+    cmds:
+      - go run {{.DAY3}} -mode=graph web webui api
+
+  week2:day3:web:offline:
+    desc: 'День 3: Web UI + REST API — те саме, що :web:graph (-mode=graph)'
+    deps: [week2:day3:web:graph]
+
+  # Web UI + REST із моделлю-маршрутизатором: та сама команда, що
+  # `:web:live`, плюс `-classify=model`. Слухає :8080 — див. `task kill:8080`.
+  week2:day3:web:graph-llm:
+    desc: 'День 3: Web UI + REST API, маршрут обирає модель (-mode=live -classify=model)'
+    cmds:
+      - go run {{.DAY3}} -mode=live -classify=model web webui api
+
+  week2:day4:serve:
+    desc: 'День 4: HTTP-сервіс на http://localhost:8080 (/health, /readyz, /api/) — ключ НЕ потрібен'
+    cmds:
+      - go run {{.DAY4}}
+
+  week2:day4:health:
+    desc: 'День 4: перевірка liveness одним рядком (сервіс має вже працювати)'
+    cmds:
+      - curl -i http://localhost:{{.PORT | default "8080"}}/health
+
+  # --- demo №4: приклади графового рушія ADK у Web UI -------------------------
+  #
+  # Одинадцять прикладів графового рушія (`google.golang.org/adk/v2/workflow`
+  # + `agent/workflowagent`) із demo/4_adk_examples. Це приклади-демо, а не
+  # лабораторні: вони нічого не перевіряють, а показують примітив.
+  #
+  # Задачі цієї секції піднімають приклад як ВЕБСЕРВЕР — тими самими трьома
+  # аргументами лаунчера, що й решта демо курсу (`week1:day1:web`,
+  # `week2:day3:web:*`):
+  #
+  #   task demo:4_adk:basic:web      → http://localhost:8080/ui/  +  /api
+  #
+  # `web` піднімає сервер, `webui` віддає сторінку на /ui/, `api` відкриває
+  # REST на /api. Голих консольних задач тут немає навмисно: щоб подивитися
+  # приклад, досить відкрити Web UI. Консольні входи лишилися в
+  # demo/4_adk_examples/Taskfile.yml (`task basic`, `task run P=...`).
+  #
+  # У кожної теки є власна задача, названа за її шляхом: `routing/llm` →
+  # `demo:4_adk:routing:llm:web`. Два рівні, бо теки лежать на двох рівнях
+  # глибини (`basic/` — один сегмент, `routing/llm/` — два).
+  #
+  # Сім прикладів із одинадцяти не мають LLM-вузла взагалі, тож працюють без
+  # ключа й без мережі:
+  #
+  #   basic            послідовний ланцюжок FunctionNode
+  #   dynamic:basic    імперативна оркестрація дочірніх вузлів
+  #   dynamic:hitl     динамічний оркестратор зупиняється на ввід людини
+  #   hitl_simple      пауза/продовження на двох вузлах
+  #   hitl_rerun       повторний вхід в один вузол
+  #   routing:int      гілка за числом
+  #   routing:string   гілка за рядком
+  #
+  # Решта чотири на старті кличуть internal/modelcfg, тому потребують
+  # налаштованого провайдера — як лабораторні дня 3 (apps/.env, MODEL,
+  # DEFAULT_MODEL_PROVIDER). Web UI — лише інший вхід: модель усе одно
+  # будується на старті, до відкриття сторінки. `complex` і `routing:llm`
+  # потребують САМЕ Gemini: `complex` використовує Google Search grounding, а
+  # класифікатору `routing:llm` потрібен провайдер, який modelcfg уміє
+  # спрямувати в Gemini.
+  #
+  #   complex                  розгалуження → зведення → синтез   (Gemini)
+  #   dynamic:llm              динамічний оркестратор + LlmAgent
+  #   dynamic:use_as_output    делегування виведення дитині
+  #   routing:llm              класифікує модель                 (Gemini)
+  #
+  # Усі одинадцять перевірено наживо: /api/list-apps віддає ім'я застосунку,
+  # /ui/ повертає 200, і хід справді виконується через /api/run_sse (`basic`
+  # повертає «HELLO WEB», `routing:llm` — класифікацію й відповідь).
+  #
+  # ВАЖЛИВО: кожна задача слухає :8080, тож одночасно працює лише одна — і
+  # Ctrl-C часто лишає дочірній процес живим, після чого наступний запуск падає
+  # з "address already in use". Ліки ті самі, що й для решти `*:web`:
+  #
+  #   task kill:8080
+  #
+  # Задачі `all:web` тут НЕМАЄ навмисно: вона піднімала б одинадцять серверів
+  # на одному порту, тож десять із них одразу впали б. Прогін «усього
+  # поспіль» лишився в demo/4_adk_examples/Taskfile.yml (`task all`) — він
+  # запускає приклади консольними смоук-запусками, яких ця секція не показує.
+
+  demo:4_adk:list:
+    desc: 'Демо №4: перелік одинадцяти прикладів графового рушія'
+    dir: '{{.ADK4}}'
+    cmds:
+      - task list
+
+  demo:4_adk:web:
+    desc: 'Демо №4: Web UI для довільного прикладу: task demo:4_adk:web P=routing/llm'
+    dir: '{{.ADK4}}'
+    requires:
+      vars: [P]
+    cmds:
+      - task run P={{.P}} ARGS='web webui api'
+
+  # Збірка й перевірка всього каталогу. Тут немає задач для окремих прикладів:
+  # збірка однакова для всіх, а решта поведінки — у `dir:`-задачах нижче.
+  demo:4_adk:build:
+    desc: 'Демо №4: зібрати всі приклади (артефактів не лишає)'
+    dir: '{{.ADK4}}'
+    cmds:
+      - task build
+
+  demo:4_adk:verify:
+    desc: 'Демо №4: gofmt + vet + build на всіх прикладах'
+    dir: '{{.ADK4}}'
+    cmds:
+      - task verify
+
+  # --- demo №4: приклади — по одній задачі на кожну теку, у Web UI ------------
+  #
+  # `dir:` замість `go run ./demo/4_adk_examples/...`: задача працює з теки
+  # прикладу, тож `go run . web webui api` — це рівно та команда, що стоїть у
+  # README прикладу, і її можна скопіювати в термінал як є.
+  #
+  # Порт у всіх :8080 — див. `task kill:8080`.
+
+
+  demo:4_adk:basic:web:
+    desc: 'Демо №4 · basic: Web UI http://localhost:8080/ui/ + REST /api (без ключа)'
+    dir: '{{.ADK4}}/basic'
+    cmds:
+      - go run . web webui api
+
+  demo:4_adk:complex:web:
+    desc: 'Демо №4 · complex: Web UI + REST — потрібен Gemini (grounding)'
+    dir: '{{.ADK4}}/complex'
+    cmds:
+      - go run . web webui api
+
+  demo:4_adk:dynamic:basic:web:
+    desc: 'Демо №4 · dynamic/basic: Web UI + REST (без ключа)'
+    dir: '{{.ADK4}}/dynamic/basic'
+    cmds:
+      - go run . web webui api
+
+  demo:4_adk:dynamic:hitl:web:
+    desc: 'Демо №4 · dynamic/hitl: Web UI + REST (без ключа)'
+    dir: '{{.ADK4}}/dynamic/hitl'
+    cmds:
+      - go run . web webui api
+
+  demo:4_adk:dynamic:llm:web:
+    desc: 'Демо №4 · dynamic/llm: Web UI + REST (потрібен провайдер)'
+    dir: '{{.ADK4}}/dynamic/llm'
+    cmds:
+      - go run . web webui api
+
+  demo:4_adk:dynamic:use_as_output:web:
+    desc: 'Демо №4 · dynamic/use_as_output: Web UI + REST (потрібен провайдер)'
+    dir: '{{.ADK4}}/dynamic/use_as_output'
+    cmds:
+      - go run . web webui api
+
+  demo:4_adk:hitl_simple:web:
+    desc: 'Демо №4 · hitl_simple: Web UI + REST (без ключа)'
+    dir: '{{.ADK4}}/hitl_simple'
+    cmds:
+      - go run . web webui api
+
+  demo:4_adk:hitl_rerun:web:
+    desc: 'Демо №4 · hitl_rerun: Web UI + REST (без ключа)'
+    dir: '{{.ADK4}}/hitl_rerun'
+    cmds:
+      - go run . web webui api
+
+  demo:4_adk:routing:int:web:
+    desc: 'Демо №4 · routing/int: Web UI + REST (без ключа)'
+    dir: '{{.ADK4}}/routing/int'
+    cmds:
+      - go run . web webui api
+
+  demo:4_adk:routing:llm:web:
+    desc: 'Демо №4 · routing/llm: Web UI + REST — потрібен Gemini'
+    dir: '{{.ADK4}}/routing/llm'
+    cmds:
+      - go run . web webui api
+
+  demo:4_adk:routing:string:web:
+    desc: 'Демо №4 · routing/string: Web UI + REST (без ключа)'
+    dir: '{{.ADK4}}/routing/string'
+    cmds:
+      - go run . web webui api

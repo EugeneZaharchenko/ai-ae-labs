@@ -8,17 +8,25 @@
 //	go run . -offline console       # fixture rates, no key and no network
 //	go run . compare                # NBU vs monobank side-by-side table, no model key
 //
-// Provider selection (first match wins), loaded from apps/.env automatically:
+// Provider selection is the SAME logic as Day 1, now shared through
+// internal/modelcfg (`modelcfg.Load`), so the two days cannot disagree about
+// which model answers. Resolution order:
 //
-//	AGENTGATEWAY_BASE_URL -> openaimodel via the local agentgateway (routes
-//	                         every call through the gateway so traces, metrics
-//	                         and realized USD cost are complete)
-//	OLLAMA_BASE_URL  -> openaimodel with a custom BaseURL (self-hosted)
-//	GOOGLE_API_KEY   -> gemini
-//	OPENAI_API_KEY   -> openaimodel
+//  1. DEFAULT_MODEL_PROVIDER names the provider; model from MODEL, else
+//     <PROVIDER>_MODEL, else that provider's table default.
+//  2. MODEL alone names the model, whole — its route prefix picks the
+//     provider, and pimodels answers when there is no prefix.
+//  3. Neither is set — the provider comes from whichever credential is
+//     present, in table order: agentgateway → ollama → gemini → openai.
 //
-// ADK Go v2.4.0 has no Anthropic backend; an ANTHROPIC_API_KEY alone will not
-// run this lab, and the error says so explicitly.
+// Every refusal is loud and names the known providers; there is no silent
+// fallback. Keys come from apps/.env automatically (env vars win over the file).
+//
+// Note the table has no Anthropic row, so an ANTHROPIC_API_KEY alone still
+// leaves this lab without a provider. That is deliberate parity with Day 1, and
+// the gate is the TABLE, not the framework: pi-go/pimodels does implement
+// Anthropic, so leaving it out is this lab's choice rather than a limit of the
+// tools. Add the row if you want it.
 //
 // Verified against google.golang.org/adk/v2 v2.4.0 (released 2026-09-11,
 // requires Go 1.27) on 2026-08-26. Re-check before recording.
@@ -30,11 +38,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/cmd/launcher"
 	"google.golang.org/adk/v2/cmd/launcher/full"
 	"google.golang.org/adk/v2/tool"
+
+	"github.com/dimetron/ai-eng-course/labs/internal/modelcfg"
+	"github.com/dimetron/ai-eng-course/labs/week1/internal/mcptool"
 )
 
 func main() {
@@ -53,7 +65,9 @@ func main() {
 	noMCP := flag.Bool("no-mcp", false, "run with only the local rate tool (no mono-go-mcp toolset)")
 	flag.Parse()
 
-	LoadEnv()
+	if err := modelcfg.LoadEnv("."); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+	}
 
 	ctx := context.Background()
 
@@ -76,26 +90,40 @@ func main() {
 		fmt.Fprintf(os.Stderr, "rates: %s\n", provider.Name())
 	}
 
-	// Extra toolsets: the local rate tool is always there; the external MCP
-	// toolset is added only when its binary is resolvable. The model sees
+	// Extra tools: the local rate tool is always there; the external MCP
+	// tools are added only when they resolve at startup. The model sees
 	// exactly the tools we wired — never a "maybe" (least agency).
-	var extraToolsets []tool.Toolset
+	//
+	// The MCP toolset is expanded eagerly rather than passed as a Toolset so
+	// the web UI agent graph shows every tool. The graph draws
+	// Reveal(agent).Tools and ignores .Toolsets entirely, and MCP tool names
+	// only exist after a live tools/list call. See mcptool.ResolveToolsets.
+	//
+	// LoadEnv has already run, so MONO_TOKEN from apps/.env is in this
+	// process environment and is inherited by the MCP server subprocess.
+	var extraTools []tool.Tool
 	if !*noMCP {
-		if ts, err := MonoMCPToolset(); err != nil {
+		tools, err := mcptool.AgentTools(ctx)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "mcp: %v (continuing with the local tool only)\n", err)
 		} else {
-			extraToolsets = append(extraToolsets, ts)
-			fmt.Fprintln(os.Stderr, "mcp: mono-go-mcp toolset attached (tools/list decides what the model sees)")
+			extraTools = tools
+			fmt.Fprintf(os.Stderr, "mcp: mono-go-mcp toolset attached (%d tools: %s)\n",
+				len(tools), mcptool.Names(tools))
+			if len(mcptool.Withheld) > 0 {
+				fmt.Fprintf(os.Stderr, "mcp: withheld from the model (least agency): %s\n",
+					strings.Join(mcptool.Withheld, ", "))
+			}
 		}
 	}
 
-	m, choice, err := BuildModel(ctx)
+	m, choice, err := modelcfg.Load(ctx)
 	if err != nil {
 		log.Fatalf("model: %v", err)
 	}
 	fmt.Fprintf(os.Stderr, "model: %s (%s) — %s\n", choice.Model, choice.Provider, choice.Reason)
 
-	a, err := NewAgent(m, provider, extraToolsets...)
+	a, err := NewAgent(m, provider, extraTools...)
 	if err != nil {
 		log.Fatalf("agent: %v", err)
 	}

@@ -21,6 +21,22 @@ publish, and the documents there are generated from the week being published.
   material the course has not taught yet, which is the failure the week-by-week
   release exists to prevent. The gate refuses early runs; `-force` overrides it
   and should only be used knowingly.
+- **Publish additively: keep every earlier week exactly as the target has it.**
+  Week 1 is generated whole, because it is the root of the public history and
+  there is nothing before it. From week 2 on the target is the base and the
+  publish **only adds** the new week, its demos and its task section — shared
+  trees are merged rather than wiped, and earlier weeks are not re-derived from
+  this checkout. This is not a nicety, it is the reason the tool is safe to run
+  repeatedly: the published repository is the record of what learners already
+  cloned and legitimately carries content the monorepo does not — skills
+  authored straight on the public branch (`go-test-summary`), hand-published
+  mentor solutions, and week 1's own file layout from before the monorepo
+  reorganized `Homework.md` into `labs/`. A rebuild would delete all of it.
+  If a shipped week genuinely needs correcting, that is a separate, deliberate
+  edit to the published branch — never a side effect of opening the next week.
+  A dry run states this in one line (`additive: week2 is added to the target;
+  weeks 1–1 stay as the target has them`), and the check is `git diff
+  --name-status <main> <week-branch> -- week1` returning **empty**.
 - **Never publish the taught material.** `Lecture.md` and `slides.html` are how
   the course is delivered on the platform; the course materials contract says
   explicitly that `Lecture.md` does not go to the learner repository. The tool
@@ -60,20 +76,30 @@ checkout — required), `-remote` (default `github`), `-dry-run`, `-push`,
 
 ## What a publish writes
 
+Week 1 is generated whole; every later week is **added** to the target. The
+treatment column below is week 1's; on an additive run the shared trees are
+merged instead, and only the published week and its demos are derived from the
+source.
+
 | Part | Treatment | Why |
 |---|---|---|
 | `go.mod`, `go.sum` | copied | the module path stays `ai-eng-course/labs`, so lab instructions and imports work unchanged |
-| `internal/` | wiped + copied | shared helper packages (`adkenv`, `fakellm`, `labrun`) |
-| `scripts/covgate.sh` | wiped + copied | the coverage gate a learner runs on their own work |
-| `Taskfile.yml` | copied **and transformed** | `check` loses the coverage gate; authoring tasks are dropped; a per-week block is appended |
-| `.devcontainer/`, `.agents/`, `.githooks/`, `.gitleaks.toml`, `.gitignore`, `apps/.env-example` | copied | the environment, the agent skills, the secret-scanning hook |
-| `week1..weekN/<Day>/` | wiped + copied, **allowlisted** | each day publishes `Homework.md`, `labs/`, `guides/` and nothing else |
-| `demo/<opened demos>` | wiped + copied | only the demos whose week has opened |
+| `internal/` | wiped + copied (week 1); **merged** afterwards | shared helper packages (`adkenv`, `fakellm`, `labrun`, and `modelcfg` from week 2) |
+| `scripts/covgate.sh` | wiped + copied (week 1); **merged** afterwards | the coverage gate a learner runs on their own work |
+| `Taskfile.yml` | **transformed**, never replaced | week 1 is generated from the monorepo, with `check` losing the coverage gate and the authoring tasks dropped; from week 2 on, the target file is the base and only the new week's section is appended, together with any `vars:` it needs |
+| `.devcontainer/`, `.agents/`, `.githooks/`, `.gitleaks.toml`, `.gitignore`, `apps/.env-example` | copied; trees merged afterwards | the environment, the agent skills, the secret-scanning hook |
+| the published week's days | wiped + copied, **allowlisted** | only the week being published; each day publishes `Homework.md`, `labs/`, `guides/` and nothing else. Earlier weeks are untouched |
+| `demo/` demos opened **in this run** | wiped + copied (week 1); **merged** afterwards | a demo an earlier week already published stays as the target has it |
+| a demo's `.env.example` | copied as an explicit file | `copyTree` skips dotfiles, so the README's `cp .env.example .env` would otherwise fail |
 | `README.md`, `AGENTS.md`, `demo/README.md` | **generated** | they name this week's material; templates live in `scripts/publish-week/templates/` |
 
 The published repository is **cumulative**: week 3 carries weeks 1, 2 and 3. Each
 week's branch is built on the previous week's tip, so a learner who cloned once
 keeps pulling. Week 1 is the root of the public history.
+
+Because each week is built on the previous week's tip, the branch you publish is
+a fast-forward of the target's `main` — unless a publish was skipped. Publish the
+earlier week first rather than reaching for `-force`.
 
 ## The schedule gate
 
@@ -170,11 +196,19 @@ list in `taskfile.go`.
    cd ~/p6s/ai-ae-labs-published
    ls week3/                                    # the new days, and only them
    ls week1/Day1_*/                             # Homework.md, guides, labs — no Lecture.md
+   git diff --name-status origin/main public-week3 -- week1   # EMPTY — earlier weeks untouched
+   git diff --name-status origin/main public-week3 | grep '^D' # EMPTY — nothing deleted
    task check                                   # green
    task week3:test                              # green
+   task week3:run PKG=./week3/Day5_.../labs5    # a task the appended section defines
    gofmt -l . | head                            # empty
    git status --porcelain | head                # empty
    ```
+
+   The two `git diff` lines are the additive check. An empty first one means the
+   new week did not disturb week 1; an empty second means it deleted nothing at
+   all. A non-empty deletion list is always a defect — the target carries
+   content this checkout does not, and the publish had no business removing it.
 
 6. **Push, if asked.** The push refuses a non-fast-forward unless `-force` is
    given, which is the guard against accidentally publishing a week 3 that was
@@ -183,6 +217,15 @@ list in `taskfile.go`.
    ```bash
    task publish WEEK=3 TARGET=~/p6s/ai-ae-labs-published -- -push
    ```
+
+   **Week 1 is the one exception.** It is an orphan branch — the root of the
+   public history, with no monorepo commits in it — so against an existing
+   public `main` it is never a fast-forward and the first publish of a fresh
+   history needs an explicit `-force`. Every later week is built on the previous
+   week's tip and fast-forwards normally. If a push for week 1 or later is
+   refused as a non-fast-forward **after** the history exists, that is the guard
+   working: something is wrong with the base, and `-force` would rewrite what
+   learners already have.
 
 ## Failure modes seen in practice
 
@@ -194,6 +237,10 @@ read the test before changing the code.
 | `labs/spec` or `labs/solution` appears in the published tree | the skip is matched by suffix, but the copied tree root moved | skip lists are matched by suffix in `copyTree`; keep them that way |
 | `Lecture.md`/`slides.html` published | the day directory was copied whole | the per-day allowlist (`dayEntries`); the manifest emits one tree **per day**, not per week |
 | a hand-published mentor solution disappears | the wipe ignored `publishedUnmanaged` | `wipeDir` takes the unmanaged list; `assemble` must pass it (`TestAssemblePreservesPublishedSolution`) |
+| publishing week 3 deletes something from week 1, or `git diff main week3 -- week1` is not empty | the manifest rebuilt every shipped week instead of only the new one | only `w.N == cp.Published` enters the manifest, and shared trees use the `merge` kind (`TestAssembleAdditivePreservesTheTarget`) |
+| a skill authored on the public branch vanishes after a publish | a shared tree was wiped instead of merged | `treeKind(additive)` returns `merge` from week 2 on; `additive` comes from `week > 1` in `main.go` |
+| every week task is defined twice in the published `Taskfile.yml` | the monorepo gained an inline `# --- weekN ---` section while the tool still appended one | from week 2 on the target Taskfile is the base and only a missing section is appended (`appendWeekTasks`); a present week is a no-op |
+| `appendWeekTasks: no definition in Taskfile.yml for DAY3` | a week section references a var the monorepo does not define at top level | add it to the monorepo's `vars:` block, or to `taskScopedVars` if the task declares it itself |
 | `task check` red on a fresh clone | `cover` was left in `check` | `dropCoverFromCheck`, which fails loudly if the Taskfile moved |
 | `publish-week: no "publish" task to remove` | the Taskfile was restructured | update `authoringOnly`/`studentDrops` in `taskfile.go` |
 | mojibake in the generated README | a multi-byte rune was split by byte slicing | case-fold with `[]rune`, never `s[:1]` |

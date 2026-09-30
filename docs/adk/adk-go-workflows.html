@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADK Go — Workflow Graphs</title>
+<style>
+/* ============================================================================
+   ADK Go — single-file deck on the v2 workflow graph engine.
+
+   Same shell as adk-go-2x-cheatsheet.html and git-cheatsheet.html on purpose:
+   one file, no CDN, no webfonts, no JS libraries, opens from a USB stick with
+   no network. The design system (palette, one plashka radius, deck chrome,
+   staged reveal, hash routing, print-to-PDF, the table and .risk rules added
+   for the git deck) is copied verbatim so the shelf reads as one document set
+   rather than several that happen to share a folder.
+
+   Visual system: the Pi-Go design system (wiki-tools/internal/docsingest/
+   shell/deck.css). Closed palette — deep-space navy grounds, neon cyan as the
+   primary accent, magenta/purple/green secondaries. Moved off the Prometheus
+   brandbook on 2026-08-30 with the rest of the shelf; courses/STYLE.md still
+   governs the actual course decks under courses/.
+
+   Content: reworked from adk.dev/llms-full.txt (retrieved 2026-08-28),
+   filtered to Go — the Python/Java/Kotlin/TypeScript tabs are out of scope —
+   re-ordered by what a person reaches for, and written fresh rather than
+   transcribed. Deliberately NOT a second copy of adk-go-2x-cheatsheet.html:
+   that deck maps the SDK package by package, this one follows one subsystem
+   (the workflow graph engine) down to the source.
+
+   Every version, default and behaviour was checked against the pinned SDK,
+   google.golang.org/adk/v2 v2.2.0 (wiki-tools/go.mod), via go doc and the
+   module source; the upstream pages describe v2.0.0. Module 08 collects
+   every place the two disagree. «станом на 08/2026» — re-verify before use.
+
+   Keys: → / Space next · ← prev · O overview · F fullscreen · Home/End
+   PDF:  Cmd-P → Save as PDF (backgrounds on) — every module prints in order.
+   ========================================================================== */
+
+:root{
+  /* ── Pi-Go design system ──────────────────────────────────────────────
+     Source of truth: the "Pi-Go Design System" project on claude.ai/design,
+     mirrored for the app at internal/serve/static/theme.css. These tokens are
+     INLINED rather than linked because a shelf document must open from a USB
+     stick with no network (verify.go rule 3), and because it is published as
+     a Gist or handed round as a file — nothing external may be fetched at
+     render time.
+
+     Same constraint kills the webfonts: the three families are named below so
+     a machine that has them installed uses them, but there is no @font-face
+     (the woff2 live behind the server, and @import is a verify.go error), so
+     most readers see the fallback stacks. That is the accepted trade for
+     portability — the palette, not the type, is what makes the shelf read as
+     one set.
+
+     This shelf used to carry the Prometheus brandbook (cream/peach/orange,
+     light mode). It moved to Pi-Go on 2026-08-30: the shelf is a wiki reading
+     surface viewed inside `wiki serve`, not a learner-facing Prometheus deck,
+     so it follows the wiki's own system. courses/STYLE.md still governs actual
+     course decks under courses/ — do not "align" those to this file. */
+
+  /* surfaces */
+  --bg:#0a0a12; --bg-alt:#0d0d1a; --panel:#0f0f1e; --code-bg:#0a0a14;
+  /* neon palette */
+  --cyan:#00f0ff; --magenta:#ff00aa; --purple:#b347ff;
+  --green:#00ff88; --yellow:#ffe600; --orange:#ff6a00;
+  /* foreground — no pure white anywhere */
+  --ink:#e0e0f0; --ink-dim:#8888aa; --ink-faint:#555577; --code-text:#cdd6f4;
+
+  --line:rgba(0,240,255,.12); --line-strong:rgba(0,240,255,.25);
+  --wash:rgba(0,240,255,.08);   /* the lit surface: tags, notes, chips */
+  --accent:var(--cyan); --accent-2:var(--magenta);
+  --glow:0 0 20px rgba(0,240,255,.3), 0 0 60px rgba(0,240,255,.1);
+
+  /* Sharp, not rounded: 2px for chips and controls, 4px for panels. Pills and
+     heavy rounding are off-brand in this system, which is why --pill is 2px
+     and not 999px — the name is kept so the rules below did not have to move. */
+  --radius:4px;
+  --pill:2px;
+  --nav-w:264px;
+  --font-display:'Orbitron','SF Mono',ui-monospace,monospace;
+  --font-body:'Rajdhani',system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);line-height:1.55;
+     -webkit-font-smoothing:antialiased}
+/* The system's two signature textures: a fixed 60px grid floor behind
+   everything and a 2px scanline wash above it. Both are pointer-events:none
+   and neither animates, so they survive the reduced-motion block untouched. */
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,240,255,.03) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,240,255,.03) 1px,transparent 1px);
+  background-size:60px 60px}
+body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,
+             rgba(0,0,0,.05) 2px,rgba(0,0,0,.05) 4px)}
+::selection{background:var(--magenta);color:#000}
+
+/* ---- navigation ---------------------------------------------------------- */
+
+#toc{
+  position:fixed;left:0;top:0;bottom:0;width:var(--nav-w);z-index:50;
+  background:var(--panel);border-right:1px solid var(--line);
+  overflow-y:auto;padding:1.1rem .8rem 2rem;
+}
+#toc .toc-h{
+  font-family:var(--font-display);
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+  color:var(--cyan);border-left:2px solid var(--cyan);padding-left:9px;margin:.2rem 0 .8rem 4px;
+}
+.nav-item{
+  display:flex;align-items:baseline;gap:.55rem;
+  padding:.42rem .6rem;margin-bottom:2px;border-radius:var(--radius);
+  text-decoration:none;color:var(--ink-dim);font-size:.9rem;
+  border:1px solid transparent;transition:background .15s,border-color .15s,color .15s;
+}
+.nav-item:hover{background:var(--wash);color:var(--ink)}
+.nav-item.on{background:var(--wash);border-color:var(--line-strong);color:var(--cyan);font-weight:600}
+.n-num{font-family:var(--mono);font-size:.76rem;color:var(--ink-faint);flex:none}
+.nav-item.on .n-num{color:var(--cyan)}
+.n-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* emoji carry almost no right sidebearing, so the gap is set here, not typed
+   as a space in the markup where it visually collapses against the glyph. */
+.n-e,.c-e{margin-right:.4em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.c-e{font-weight:400}
+
+/* ---- deck ---------------------------------------------------------------- */
+
+#deck{margin-left:var(--nav-w);padding:3rem 1.5rem 5rem;position:relative;z-index:1}
+.slide{max-width:1000px;margin:0 auto;display:none}
+.slide.active{display:block;animation:slide-in .32s ease both}
+@keyframes slide-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* staged reveal: each block fades up in sequence once its slide is active.
+   --d is assigned in JS so authored markup stays free of stagger bookkeeping. */
+.slide.active > .rise{animation:rise .5s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.crumb{font-family:var(--mono);font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.5rem}
+h1{font-size:2.2rem;color:var(--cyan);margin-bottom:.3rem;font-family:var(--font-display);text-transform:uppercase;font-weight:800;letter-spacing:.5px;text-shadow:0 0 10px rgba(0,240,255,.5),0 0 30px rgba(0,240,255,.2)}
+.cover h1{font-size:2.4rem}
+.h-emoji{text-transform:none;font-weight:400;margin-right:.22em;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.subtitle{color:var(--ink-dim);font-size:1.05rem;margin-bottom:1.5rem}
+.module{color:var(--cyan);font-family:var(--mono);font-size:.95rem;margin-bottom:1.2rem;word-break:break-word}
+h2{font-size:1.3rem;color:var(--ink);margin:2rem 0 .7rem;font-family:var(--font-display);text-transform:uppercase;font-weight:800;letter-spacing:1px;padding-bottom:.3em;border-bottom:1px solid transparent;border-image:linear-gradient(90deg,var(--cyan),transparent) 1}
+h3{font-size:1.05rem;color:var(--ink);font-weight:700;margin-bottom:.4rem}
+p{color:var(--ink-dim);margin-bottom:.8rem;max-width:70ch}
+.muted{color:var(--ink-dim)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin:1rem 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:1rem}
+/* the sidebar narrows the content column vs. the old standalone pages, so long
+   mono identifiers (workflow.NewEmittingFunctionNode) must be allowed to wrap
+   rather than run past the card border. */
+.card h3{font-size:1rem;color:var(--cyan);margin-bottom:.4rem;font-family:var(--mono);overflow-wrap:anywhere}
+.card p{font-size:.9rem;color:var(--ink-dim);margin:0}
+a.card{text-decoration:none;color:var(--ink);display:block;transition:border-color .15s,box-shadow .15s,transform .15s}
+/* Hover lifts and glows — depth comes from light outside the element, never
+   from an inner shadow. */
+a.card:hover{border-color:var(--line-strong);transform:translateY(-2px);box-shadow:var(--glow)}
+a.card .path{display:block;font-size:.75rem;color:var(--ink-faint);margin-top:.4rem;font-family:var(--mono)}
+.tag{display:inline-block;background:var(--wash);color:var(--cyan);border:1px solid var(--line-strong);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin:.15rem .15rem 0 0;font-family:var(--mono)}
+.badge{display:inline-block;background:var(--wash);color:var(--cyan);border:1px solid var(--line-strong);border-radius:var(--pill);padding:.1rem .6rem;font-size:.75rem;margin-left:.4rem;vertical-align:middle;text-transform:none;font-weight:400}
+svg{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;height:auto;display:block;margin:1rem 0}
+
+/* ---- diagram vocabulary -------------------------------------------------- */
+/* One vocabulary across all modules: the learner should recognise the same
+   shapes module to module. Every edge endpoint is computed from node geometry
+   by the generator, never typed by hand.
+   Node kinds are now told apart by their neon STROKE on a shared dark fill,
+   where the Prometheus version told them apart by stroke on white — same
+   mechanism, inverted ground. */
+.dg-frame{fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:6 5}
+.dg-ti{fill:var(--ink-faint);font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.dg-lb{fill:var(--ink);font-weight:700}
+.dg-sb{fill:var(--ink-dim);font-size:11.5px}
+.dg-el{fill:var(--ink-faint);font-size:11px}
+.dg-head{fill:var(--ink-faint)}
+.dg-link{stroke:var(--ink-faint);stroke-width:1.8;fill:none}
+.dg-link-warm{stroke:var(--magenta)}
+.dg-dash{stroke-dasharray:5 5}
+
+/* node kinds — closed palette, no invented colors */
+.dg-b-model{fill:var(--bg-alt);stroke:var(--purple);stroke-width:1.8}
+.dg-b-out  {fill:var(--bg-alt);stroke:var(--magenta);stroke-width:1.8}
+.dg-b-tool {fill:var(--bg-alt);stroke:var(--green);stroke-width:1.8}
+.dg-b-pill {fill:var(--bg-alt);stroke:var(--cyan);stroke-width:1.8}
+.dg-b-ghost{fill:var(--bg-alt);stroke:var(--line);stroke-width:1.5}
+.dg-b-group{fill:none;stroke:var(--line);stroke-width:1.5}
+.dg-dot{fill:var(--cyan)}
+
+/* ---- diagram animation --------------------------------------------------- */
+/* All of it is gated on .slide.active so only the visible module animates —
+   fourteen diagrams ticking at once in a hidden section is wasted paint. */
+
+/* a dash that crawls along a path = "data is moving here" */
+.flow{stroke-dasharray:7 9;stroke-linecap:round}
+.slide.active .flow{animation:crawl 1.1s linear infinite}
+@keyframes crawl{to{stroke-dashoffset:-32}}
+
+/* a packet riding the happy path, for the one-shot request/response */
+.packet{opacity:0}
+.slide.active .packet{animation:ride var(--dur,2.6s) cubic-bezier(.5,0,.5,1) infinite}
+@keyframes ride{
+  0%{offset-distance:0%;opacity:0}
+  8%{opacity:1}
+  92%{opacity:1}
+  100%{offset-distance:100%;opacity:0}
+}
+
+/* a dot orbiting a closed cycle — the plan/act loop */
+.slide.active .orbit{animation:orbit 3.6s linear infinite}
+@keyframes orbit{to{offset-distance:100%}}
+
+/* node that pulses as the loop passes through it */
+.slide.active .beat{animation:beat 3.3s ease-in-out infinite;animation-delay:var(--bd,0s)}
+@keyframes beat{
+  0%,70%,100%{filter:none}
+  78%{filter:drop-shadow(0 0 7px rgba(0,240,255,.85))}
+  90%{filter:none}
+}
+ul{margin:0 0 .8rem 1.3rem}
+li{margin-bottom:.35rem;color:var(--ink-dim)}
+li::marker{color:var(--cyan)}
+code{background:var(--wash);border:0;border-radius:2px;padding:.1rem .35rem;font-family:var(--mono);font-size:.85em;color:var(--cyan)}
+/* A code block is the one place a DARK shadow is on-brand: it is a depressed
+   element, so it recedes instead of glowing. */
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:.8rem 0;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+pre code{background:none;border:none;padding:0;color:var(--code-text);display:block}
+.note{border-left:2px solid var(--accent-2);background:rgba(255,0,170,.06);padding:.8rem 1rem;border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0;font-size:.92rem;color:var(--ink)}
+
+/* ---- chrome -------------------------------------------------------------- */
+
+#progress{position:fixed;left:0;top:0;height:2px;background:var(--cyan);z-index:60;transition:width .3s ease;box-shadow:0 0 10px rgba(0,240,255,.6)}
+#help{position:fixed;right:14px;top:12px;z-index:60;font-size:12px;color:var(--ink-faint)}
+
+@media (prefers-reduced-motion:reduce){
+  .slide.active,.slide.active > .rise,
+  .slide.active .flow,.slide.active .packet,.slide.active .orbit,.slide.active .beat{animation:none!important}
+  .packet{opacity:1}
+}
+
+/* ---- mobile: sidebar becomes a scrollable strip -------------------------- */
+
+@media (max-width:900px){
+  :root{--nav-w:0px}
+  #toc{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);
+       display:flex;gap:.35rem;overflow-x:auto;padding:.6rem .8rem;white-space:nowrap;
+       position:relative;z-index:1}
+  #toc .toc-h{display:none}
+  .nav-item{flex:none;margin:0}
+  .n-t{max-width:42vw}
+  #deck{margin-left:0;padding:1.6rem 1rem 4rem}
+  #help{display:none}
+  h1{font-size:1.7rem}
+}
+
+/* ---- print → PDF: every module, in order --------------------------------- */
+/* The deck is dark on screen and PAPER in print. This block is not cosmetic:
+   the rules below set print-color-adjust:exact, so without it a #0a0a12 page
+   background is faithfully reproduced and every sheet comes out solid black.
+   So print re-grounds the whole document — light paper, dark ink — and keeps
+   only the accent hues, which read fine on white. The textures go entirely:
+   a scanline overlay is a screen effect and prints as grey banding. */
+@media print{
+  @page{margin:14mm}
+  :root{
+    --bg:#ffffff; --bg-alt:#ffffff; --panel:#ffffff; --code-bg:#f4f4f8;
+    --ink:#0a0a12; --ink-dim:#33333f; --ink-faint:#666677; --code-text:#0a0a12;
+    --line:#c8c8d4; --line-strong:#9a9ab0; --wash:#eef9fb;
+    --glow:none;
+  }
+  body{background:#ffffff;color:#0a0a12}
+  body::before,body::after{display:none!important}
+  h1{color:#0a0a12;text-shadow:none}
+  h2{color:#0a0a12;border-image:none;border-bottom:1px solid #c8c8d4}
+  /* Neon cyan is invisible on white, so the accent darkens to a teal that
+     still reads as "the accent colour" but survives a laser printer. */
+  .module,.card h3,code,.tag,.badge{color:#005f6b}
+  pre{box-shadow:none}
+  #progress{box-shadow:none}
+  #toc,#progress,#help{display:none!important}
+  #deck{margin:0;padding:0}
+  .slide{display:block!important;page-break-after:always;break-after:page;max-width:none}
+  .slide *{animation:none!important;opacity:1!important;transform:none!important}
+  .packet{opacity:1}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+
+/* ---- commit-graph vocabulary (this deck only) ---------------------------- */
+/* Merge, rebase, squash and cherry-pick are the four operations where a
+   picture beats a sentence, which is why the source sheet draws them too.
+   Same closed palette: a commit is a circle, a moved/new commit is warm. */
+.cg-c{fill:var(--white);stroke:var(--plus-dark);stroke-width:1.8}
+.cg-new{fill:var(--peach);stroke:var(--orange);stroke-width:1.8}
+.cg-e{stroke:var(--ink-faint);stroke-width:1.8;fill:none}
+.cg-e-warm{stroke:var(--orange);stroke-width:1.8;fill:none}
+.cg-id{fill:var(--ink);font-size:11.5px;font-weight:700;text-anchor:middle;font-family:var(--mono)}
+.cg-br{fill:var(--ink-dim);font-size:11.5px;font-family:var(--mono)}
+.cg-cap{fill:var(--ink-faint);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.risk{border-left:3px solid var(--orange);background:var(--white);padding:.8rem 1rem;
+      border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0;font-size:.92rem;color:var(--ink)}
+.risk strong{color:var(--orange)}
+/* command tables: the shape this deck is mostly made of */
+table{width:100%;border-collapse:collapse;margin:.8rem 0;font-size:.92rem}
+th{text-align:left;font-family:var(--font-display);text-transform:uppercase;font-size:.75rem;
+   letter-spacing:.08em;color:var(--ink-faint);font-weight:700;padding:.35rem .6rem;
+   border-bottom:1.5px solid var(--line)}
+td{padding:.4rem .6rem;border-bottom:1px solid var(--line);color:var(--ink-dim);vertical-align:top}
+td:first-child{white-space:nowrap;width:1%}
+td code{white-space:nowrap}
+tr:last-child td{border-bottom:0}
+</style>
+</head>
+<body>
+
+<nav id="toc">
+  <div class="toc-h">Modules</div>
+  <a class="nav-item" data-go="0" href="#1"><span class="n-num">00</span><span class="n-t">Overview</span></a>
+  <a class="nav-item" data-go="1" href="#2"><span class="n-num">01</span><span class="n-t"><span class="n-e">🚀</span>start</span></a>
+  <a class="nav-item" data-go="2" href="#3"><span class="n-num">02</span><span class="n-t"><span class="n-e">🧱</span>nodes</span></a>
+  <a class="nav-item" data-go="3" href="#4"><span class="n-num">03</span><span class="n-t"><span class="n-e">🔗</span>wiring</span></a>
+  <a class="nav-item" data-go="4" href="#5"><span class="n-num">04</span><span class="n-t"><span class="n-e">📤</span>data</span></a>
+  <a class="nav-item" data-go="5" href="#6"><span class="n-num">05</span><span class="n-t"><span class="n-e">🔀</span>routes</span></a>
+  <a class="nav-item" data-go="6" href="#7"><span class="n-num">06</span><span class="n-t"><span class="n-e">🙋</span>human</span></a>
+  <a class="nav-item" data-go="7" href="#8"><span class="n-num">07</span><span class="n-t"><span class="n-e">🧭</span>migrate</span></a>
+  <a class="nav-item" data-go="8" href="#9"><span class="n-num">08</span><span class="n-t"><span class="n-e">🔬</span>drift</span></a>
+</nav>
+
+<div id="progress"></div>
+<div id="help">← → navigate · O overview · F fullscreen</div>
+<main id="deck"></main>
+
+<template id="src">
+
+<section class="cover">
+  <h1>ADK Go — Workflow Graphs</h1>
+  <div class="subtitle">The graph engine end to end · reworked from <code>adk.dev/llms-full.txt</code>, checked line by line against the pinned SDK</div>
+  <div class="note"><strong>How this sits next to the other ADK deck.</strong> <code>adk-go-2x-cheatsheet.html</code> on this shelf is the <em>map of the SDK</em> — fourteen modules, one per package, answering “what exists and where does it live”. This deck is the opposite cut: one subsystem, the <strong>workflow graph engine</strong>, followed all the way down, answering “how do I actually wire this, and where will it bite me”. Where the cheatsheet already covers a package well (tools, memory, artifacts, skills, planners, telemetry, evaluation), go read it there — none of it is repeated here.</div>
+  <div class="grid">
+    <a class="card" data-go="1" href="#2"><h3><span class="c-e">🚀</span>01 · start</h3><p>Project shape, the pin, the launcher, and the two ways to run an agent.</p><span class="path">go.mod · cmd/launcher</span></a>
+    <a class="card" data-go="2" href="#3"><h3><span class="c-e">🧱</span>02 · nodes</h3><p>Every node constructor in the package, and the six knobs on NodeConfig.</p><span class="path">workflow.New*Node</span></a>
+    <a class="card" data-go="3" href="#4"><h3><span class="c-e">🔗</span>03 · wiring</h3><p>Start, Chain, Concat, EdgeBuilder — and the graph checks that reject a bad shape.</p><span class="path">workflow.Edge</span></a>
+    <a class="card" data-go="4" href="#5"><h3><span class="c-e">📤</span>04 · data</h3><p>How a value really crosses an edge, and when session state is the right answer instead.</p><span class="path">Event.Output · session.State</span></a>
+    <a class="card" data-go="5" href="#6"><h3><span class="c-e">🔀</span>05 · routes</h3><p>Conditional dispatch, fan-out, and the JoinNode barrier that can hang your graph.</p><span class="path">workflow.Route · JoinNode</span></a>
+    <a class="card" data-go="6" href="#7"><h3><span class="c-e">🙋</span>06 · human</h3><p>Pausing a graph for a person: RequestInput, resume, and the ID that must not be a literal.</p><span class="path">ResumeOrRequestInput</span></a>
+    <a class="card" data-go="7" href="#8"><h3><span class="c-e">🧭</span>07 · migrate</h3><p>1.x → 2.0 breakage, plus the 2.0 → 2.2 change the upstream docs do not mention.<span class="tag">v2.2.0</span></p><span class="path">session.Event</span></a>
+    <a class="card" data-go="8" href="#9"><h3><span class="c-e">🔬</span>08 · drift</h3><p>Six places adk.dev and the pinned SDK disagree, and how this repo actually writes graphs.<span class="tag">verified</span></p><span class="path">wiki-tools/</span></a>
+  </div>
+
+  <h2>Source, snapshot, and what was cut</h2>
+  <p class="muted">Content reworked from <a href="https://adk.dev/llms-full.txt">adk.dev/llms-full.txt</a> — the Go Quickstart, the four graph chapters (graphs, data handling, routes, human input), the dynamic-workflow chapter, and the ADK 2.0 migration page. Retrieved <strong>28 August 2026</strong>; treat every claim as «станом на 08/2026» and re-verify before recording.</p>
+  <p class="muted"><strong>Filtered out:</strong> the Python, Java, Kotlin and TypeScript quickstarts and every Python-only tab (the source file is majority Python — the progressive weather-bot tutorial alone is roughly two thousand lines of it). Python appears here only where a one-line contrast explains a Go design choice. Also out of scope: Google Cloud / Agent Platform deployment, the Agents CLI, A2UI, and the integration catalogue.</p>
+  <div class="risk"><strong>Verification stance.</strong> Every version, default and behaviour below was checked against <code>google.golang.org/adk/v2 <strong>v2.2.0</strong></code> — the version <code>wiki-tools/go.mod</code> pins — using <code>go doc</code> and the module source in <code>~/go/pkg/mod</code>. The upstream pages describe <strong>v2.0.0</strong>. Where the two disagree, the deck says so rather than picking a side; module 08 collects every instance.</div>
+</section>
+
+<!-- 01 start -->
+<section>
+  <div class="crumb">MODULE 1 of 8</div>
+  <h1><span class="h-emoji">🚀</span> start</h1>
+  <div class="module">go.mod · google.golang.org/adk/v2 · cmd/launcher · cmd/launcher/full</div>
+  <p>An ADK Go agent is an ordinary Go program. There is no scaffolding tool, no generated project, no framework directory layout to respect — one <code>main.go</code>, one <code>go.mod</code>, and an environment variable holding a model key is the whole of it. That is most of the argument for the Go SDK on a Kubernetes-shaped platform: what you ship is a static binary, not a runtime plus an application.</p>
+
+  <h2>The smallest thing that runs</h2>
+  <pre><code>go mod init example.com/my-agent
+go get google.golang.org/adk/v2
+go mod tidy</code></pre>
+  <p>Then a <code>main.go</code> that builds a model, builds an agent, and hands it to a launcher:</p>
+  <pre><code>model, err := gemini.NewModel(ctx, "gemini-flash-latest", &amp;genai.ClientConfig{
+    APIKey: os.Getenv("GOOGLE_API_KEY"),
+})
+
+a, err := llmagent.New(llmagent.Config{
+    Name:        "hello_time_agent",
+    Model:       model,
+    Description: "Tells the current time in a specified city.",
+    Instruction: "You are a helpful assistant that tells the current time in a city.",
+    Tools:       []tool.Tool{geminitool.GoogleSearch{}},
+})
+
+l := full.NewLauncher()
+err = l.Execute(ctx, &amp;launcher.Config{AgentLoader: agent.NewSingleLoader(a)}, os.Args[1:])</code></pre>
+
+  <h2>Two ways to run the same binary</h2>
+  <table>
+    <tr><th>Command</th><th>What you get</th></tr>
+    <tr><td><code>go run . </code></td><td>An interactive console session against the agent — the fastest loop while you are still shaping a prompt.</td></tr>
+    <tr><td><code>go run . web api webui</code></td><td>An HTTP server on <code>:8080</code> with the ADK dev chat UI. Pick the agent in the top-left, type, watch the event stream.</td></tr>
+  </table>
+  <div class="risk"><strong>The dev UI is a development tool, and the upstream docs say so in a warning box.</strong> It is unauthenticated, it exposes the full event stream including tool arguments, and it is not built to sit on a public port. It belongs on <code>localhost</code> or behind a gateway, never in a deployment manifest.</div>
+  <p class="muted">The launcher family lives under <code>cmd/launcher/</code>: <code>full</code> (everything, for development), plus <code>console</code>, <code>web</code>, <code>prod</code>, <code>universal</code> and <code>agentengine</code>. <code>full.NewLauncher()</code> is the one every upstream sample uses; a production binary usually wants a narrower one.</p>
+
+  <h2>Which Go do you actually need?</h2>
+  <p>The Quickstart's prerequisite line reads “Go 1.25 or later”. That was true of the release it describes and is no longer true of the release this repo pins:</p>
+  <table>
+    <tr><th>Where</th><th>Go directive</th></tr>
+    <tr><td><code>adk/v2@v2.0.0</code></td><td><code>go 1.25.0</code> — matches the doc.</td></tr>
+    <tr><td><code>adk/v2@v2.2.0</code></td><td><code>go 1.26.5</code> — two minors above the doc's floor.</td></tr>
+    <tr><td><code>wiki-tools/go.mod</code></td><td><code>go 1.26.6</code></td></tr>
+  </table>
+  <div class="note"><strong>Reading a go directive correctly:</strong> since Go 1.21 the <code>go</code> line in a dependency's <code>go.mod</code> is a real minimum, not documentation. A toolchain older than the line will refuse the build (or download a newer toolchain, if that is permitted) rather than compile and fail strangely later. So “Go 1.25 or later” is not a harmless rounding error at v2.2.0 — it is a build that does not start.</div>
+</section>
+
+<!-- 02 nodes -->
+<section>
+  <div class="crumb">MODULE 2 of 8</div>
+  <h1><span class="h-emoji">🧱</span> nodes</h1>
+  <div class="module">google.golang.org/adk/v2/workflow — FunctionNode · AgentNode · ToolNode · JoinNode · DynamicNode · ParallelWorker · WorkflowNode</div>
+  <p>A node is one step of a graph. The <code>workflow</code> package ships seven kinds, and they exist because the four things a step can be — your code, an LLM, a tool, or another graph — plus the two things a step can <em>do</em> to control flow — join siblings, or spawn children at runtime — do not compress further. Every constructor takes a name, the thing being wrapped, and a <code>NodeConfig</code>.</p>
+
+  <h2>Constructors, by what you are wrapping</h2>
+  <table>
+    <tr><th>Constructor</th><th>Wraps</th></tr>
+    <tr><td><code>NewFunctionNode[IN, OUT]</code></td><td>A plain Go func <code>func(agent.Context, IN) (OUT, error)</code>. The workhorse: no model call, fully deterministic, trivially unit-testable.</td></tr>
+    <tr><td><code>NewEmittingFunctionNode[IN, OUT]</code></td><td>The same, plus an <code>emit func(*session.Event) error</code> argument so the step can push intermediate events before returning. This is the constructor you need for routing and for human-in-the-loop.</td></tr>
+    <tr><td><code>NewFunctionNodeFromState[Params, OUT]</code></td><td>A func whose arguments are populated from named session-state keys instead of from the predecessor's output. Returns an error, because it has to resolve the field/key bindings up front.</td></tr>
+    <tr><td><code>NewAgentNode</code></td><td>Any <code>agent.Agent</code> — usually an <code>llmagent</code>. Also <code>NewAgentNodeTyped[In, Out]</code> and <code>NewAgentNodeWithSchemas</code>.</td></tr>
+    <tr><td><code>NewToolNode</code></td><td>A <code>tool.Tool</code>, called directly as a graph step with no model deciding to call it. <code>NewNamedToolNode</code> renames it; <code>NewToolNodeTyped</code> and <code>…WithSchemas</code> constrain it.</td></tr>
+    <tr><td><code>NewJoinNode</code></td><td>Nothing — it is a barrier. See module 05.</td></tr>
+    <tr><td><code>NewDynamicNode[IN, OUT]</code></td><td>A func that runs child nodes itself, at runtime, via <code>workflow.RunNode</code>. The escape hatch for control flow a static graph cannot express.</td></tr>
+    <tr><td><code>NewParallelWorker</code></td><td>Another node, run concurrently once per item of a list-shaped input, with an explicit <code>maxConcurrency</code>.</td></tr>
+    <tr><td><code>NewWorkflowNode</code></td><td>A whole edge list — a sub-graph used as one node of a parent graph.</td></tr>
+  </table>
+  <p class="muted">Each constructor has a <code>…WithSchema</code> / <code>…WithSchemas</code> sibling taking <code>*jsonschema.Schema</code>. Those variants return <code>(node, error)</code> where the plain ones return just the node, because resolving a schema can fail. Without a schema, the generic parameters still give you compile-time typing — the schema buys you <em>runtime</em> validation of values arriving from an untyped source.</p>
+
+  <h2>NodeConfig — six knobs, all optional</h2>
+  <table>
+    <tr><th>Field</th><th>Effect</th></tr>
+    <tr><td><code>RetryConfig *RetryConfig</code></td><td>Retry this node on failure. <code>nil</code> means no retries at all — the default is <em>not</em> “retry a few times”. <code>workflow.DefaultRetryConfig()</code> gives you a sane policy.</td></tr>
+    <tr><td><code>Timeout time.Duration</code></td><td>Bounds a single activation via <code>context.WithTimeout</code>. Zero means the node inherits only the invocation's deadline, if there is one.</td></tr>
+    <tr><td><code>RerunOnResume *bool</code></td><td>Tri-state, and it matters. See module 06.</td></tr>
+    <tr><td><code>WaitForOutput *bool</code></td><td>Parks a parent that dispatched a child via <code>RunNode</code> when the child finishes without setting an output, instead of completing it with a zero value. Honoured only on the <code>RunNode</code> path.</td></tr>
+    <tr><td><code>ParallelWorker bool</code></td><td>Run this node once per item of a list-typed input and aggregate the outputs into one event.</td></tr>
+    <tr><td><code>EmitsOwnSpan bool</code></td><td>Suppress the engine's <code>invoke_node</code> telemetry span because the wrapped thing already opens its own. Keeps the trace tree honest for agent nodes.</td></tr>
+  </table>
+  <div class="note"><strong>Why two of these are <code>*bool</code> and not <code>bool</code>.</strong> The pointer types are tri-state on purpose: <code>nil</code> means “I did not configure this, use the engine default”, and <code>&amp;false</code> means “I looked at this and I want it off”. A plain <code>bool</code> cannot tell those apart, and for resume behaviour the difference decides whether an interrupted node re-runs or is skipped.</div>
+</section>
+
+<!-- 03 wiring -->
+<section>
+  <div class="crumb">MODULE 3 of 8</div>
+  <h1><span class="h-emoji">🔗</span> wiring</h1>
+  <div class="module">workflow.Start · workflow.Edge · Chain · Concat · EdgeBuilder · workflowagent.New</div>
+  <p>A graph is a <code>[]workflow.Edge</code>, and an <code>Edge</code> is three fields: <code>From</code>, <code>To</code>, <code>Route</code>. Everything else in this module is sugar for building that slice without typing struct literals until you make a mistake.</p>
+
+  <h2>Three ways to build the slice</h2>
+  <table>
+    <tr><th>Helper</th><th>Use it when</th></tr>
+    <tr><td><code>workflow.Chain(nodes...)</code></td><td>The shape is a straight line. Returns the edges connecting each node to the next. The first element is almost always <code>workflow.Start</code>.</td></tr>
+    <tr><td><code>workflow.Concat(items...)</code></td><td>You have several edge slices — a chain plus a set of conditional edges — and want one slice. Takes <code>...any</code>, so it swallows both <code>[]Edge</code> and bare <code>Edge</code> values.</td></tr>
+    <tr><td><code>workflow.NewEdgeBuilder()</code></td><td>The shape is a real graph. Fluent: <code>Add</code>, <code>AddRoute</code>, <code>AddRoutes</code>, <code>AddFanOut</code>, <code>AddFanIn</code>, then <code>Build()</code>.</td></tr>
+  </table>
+  <p><code>workflow.Start</code> is a package-level <code>Node</code> value, not a string. Every graph must be reachable from it, and nothing may point back at it.</p>
+
+  <h2>Fan-out and fan-in, drawn</h2>
+  <svg viewBox="0 0 760 300" role="img" aria-label="fan-out from Start into three nodes, joined by a JoinNode, then a formatting step">
+    <defs>
+      <marker id="wg01" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="10" y="8" width="740" height="284" rx="12" class="dg-frame"/>
+    <text x="26" y="30" class="dg-ti">EdgeBuilder: AddFanOut → AddFanIn → Add</text>
+
+    <rect x="25" y="126" width="110" height="48" rx="10" class="dg-b-pill"/>
+    <text x="80" y="155" class="dg-lb" style="font-size:13.5px" text-anchor="middle">Start</text>
+
+    <rect x="200" y="40" width="170" height="48" rx="10" class="dg-b-model"/>
+    <text x="285" y="60" class="dg-lb" style="font-size:13px" text-anchor="middle">research_A</text>
+    <text x="285" y="77" class="dg-sb" text-anchor="middle">FunctionNode</text>
+
+    <rect x="200" y="126" width="170" height="48" rx="10" class="dg-b-model"/>
+    <text x="285" y="146" class="dg-lb" style="font-size:13px" text-anchor="middle">research_B</text>
+    <text x="285" y="163" class="dg-sb" text-anchor="middle">FunctionNode</text>
+
+    <rect x="200" y="212" width="170" height="48" rx="10" class="dg-b-model"/>
+    <text x="285" y="232" class="dg-lb" style="font-size:13px" text-anchor="middle">research_C</text>
+    <text x="285" y="249" class="dg-sb" text-anchor="middle">FunctionNode</text>
+
+    <rect x="430" y="126" width="140" height="48" rx="10" class="dg-b-out"/>
+    <text x="500" y="146" class="dg-lb" style="font-size:13px" text-anchor="middle">gather</text>
+    <text x="500" y="163" class="dg-sb" text-anchor="middle">JoinNode</text>
+
+    <rect x="620" y="126" width="115" height="48" rx="10" class="dg-b-tool"/>
+    <text x="677" y="155" class="dg-lb" style="font-size:13px" text-anchor="middle">format</text>
+
+    <path d="M 135 150 L 168 150 L 168 64 L 194 64" class="dg-link" marker-end="url(#wg01)"/>
+    <path d="M 135 150 L 194 150" class="dg-link" marker-end="url(#wg01)"/>
+    <path d="M 135 150 L 168 150 L 168 236 L 194 236" class="dg-link" marker-end="url(#wg01)"/>
+
+    <path d="M 370 64 L 400 64 L 400 150 L 424 150" class="dg-link dg-link-warm flow" marker-end="url(#wg01)"/>
+    <path d="M 370 150 L 424 150" class="dg-link dg-link-warm flow" marker-end="url(#wg01)"/>
+    <path d="M 370 236 L 400 236 L 400 150 L 424 150" class="dg-link dg-link-warm flow" marker-end="url(#wg01)"/>
+
+    <path d="M 570 150 L 614 150" class="dg-link" marker-end="url(#wg01)"/>
+    <text x="500" y="196" class="dg-el" text-anchor="middle">emits map[predecessor name]output</text>
+  </svg>
+
+  <pre><code>gather := workflow.NewJoinNode("gather")
+
+eb := workflow.NewEdgeBuilder()
+eb.AddFanOut(workflow.Start, researchA, researchB, researchC)
+eb.AddFanIn(gather, researchA, researchB, researchC)
+eb.Add(gather, format)
+
+root, err := workflowagent.New(workflowagent.Config{
+    Name:  "research_pipeline",
+    Edges: eb.Build(),
+})</code></pre>
+  <div class="note"><strong>Argument order on the fan helpers is not symmetric.</strong> <code>AddFanOut(from, to...)</code> puts the source first; <code>AddFanIn(to, from...)</code> puts the <em>destination</em> first. Both read naturally in isolation and swap silently if you skim. The compiler cannot help — every argument is a <code>Node</code>.</div>
+
+  <h2>What <code>workflowagent.New</code> gives you</h2>
+  <p>The graph is not runnable by itself. <code>workflowagent.New(Config{...})</code> wraps an edge list into a plain <code>agent.Agent</code>, which is what makes a graph composable with everything else in the SDK — you can hand it to a runner, nest it as a sub-agent, or expose it as a tool. Config is six fields:</p>
+  <pre><code>type Config struct {
+    Name                 string
+    Description          string
+    SubAgents            []agent.Agent
+    BeforeAgentCallbacks []agent.BeforeAgentCallback
+    AfterAgentCallbacks  []agent.AfterAgentCallback
+    Edges                []workflow.Edge
+}</code></pre>
+  <p class="muted">If any node wraps an <code>agent.Agent</code>, list that agent in <code>SubAgents</code> as well as wrapping it in an <code>AgentNode</code> — the node is how it runs, <code>SubAgents</code> is how the framework knows it exists.</p>
+
+  <h2>The graph is validated before it runs</h2>
+  <p>Construction fails loudly rather than producing a graph that deadlocks at request time. The errors are exported, so you can assert on them in tests:</p>
+  <table>
+    <tr><th>Error</th><th>Means</th></tr>
+    <tr><td><code>ErrNoStartNode</code></td><td>No edge leaves <code>workflow.Start</code>.</td></tr>
+    <tr><td><code>ErrNodePointsToStart</code></td><td>Something has an edge back into <code>Start</code>.</td></tr>
+    <tr><td><code>ErrNodesNotReachable</code></td><td>Orphans — nodes that no path from <code>Start</code> can reach.</td></tr>
+    <tr><td><code>ErrUnconditionalCycle</code></td><td>A cycle with no route condition on it, i.e. a loop that can never exit.</td></tr>
+    <tr><td><code>ErrMultipleDefaultRoutes</code></td><td>Two <code>workflow.Default</code> edges leaving one node.</td></tr>
+    <tr><td><code>ErrDuplicateEdge</code> · <code>ErrDuplicateNodeName</code></td><td>The same edge twice; two nodes sharing a name.</td></tr>
+    <tr><td><code>ErrSubWorkflowNameCollision</code></td><td>A nested workflow reuses a name from its parent.</td></tr>
+    <tr><td><code>ErrUnsupportedFanIn</code></td><td>Several edges converge on a node that is not a <code>JoinNode</code>. Fan-in is a <code>JoinNode</code> or it is nothing.</td></tr>
+  </table>
+</section>
+
+<!-- 04 data -->
+<section>
+  <div class="crumb">MODULE 4 of 8</div>
+  <h1><span class="h-emoji">📤</span> data</h1>
+  <div class="module">session.Event.Output · session.State · llmagent OutputKey · KeyPrefix{App,User,Temp}</div>
+  <p>There are two data-passing mechanisms in ADK Go, they belong to two different agent families, and mixing them up is the most common way a first graph goes wrong.</p>
+
+  <div class="grid">
+    <div class="card"><h3>workflow package</h3><p>Nodes hand values to their successor through <code>Event.Output</code>. A <code>FunctionNode</code> just <em>returns</em> a typed value; the engine puts it on the event and delivers it as the next node's typed input. No state keys, no template strings.</p></div>
+    <div class="card"><h3>prebuilt workflow agents</h3><p><code>sequentialagent</code>, <code>parallelagent</code> and <code>loopagent</code> have no <code>Event.Output</code> plumbing. They talk through <strong>session state</strong>: set <code>OutputKey</code> on an <code>llmagent.Config</code>, then read it back as <code>{key}</code> in a downstream agent's <code>Instruction</code>.</p></div>
+  </div>
+
+  <h2>The graph way: return a value</h2>
+  <pre><code>type CityTime struct {
+    TimeInfo string `json:"time_info"`
+    City     string `json:"city"`
+}
+
+lookup := workflow.NewFunctionNode("lookup_time",
+    func(_ agent.Context, city string) (CityTime, error) {
+        return CityTime{City: city, TimeInfo: "10:10"}, nil
+    }, workflow.NodeConfig{})
+
+report := workflow.NewFunctionNode("report",
+    func(_ agent.Context, ct CityTime) (string, error) {
+        return fmt.Sprintf("It is %s in %s.", ct.TimeInfo, ct.City), nil
+    }, workflow.NodeConfig{})
+
+// Chain wires Start → lookup → report; CityTime crosses the edge whole.
+edges := workflow.Chain(workflow.Start, lookup, report)</code></pre>
+
+  <h2>What actually happens on that edge</h2>
+  <p>The upstream data-handling chapter describes this as serialising the return value into <code>Event.Output</code> and deserialising it back into the successor's typed input. That is not what the pinned SDK does, and the difference is worth knowing:</p>
+  <div class="risk"><strong>Verified in <code>workflow/function_node.go</code> (v2.2.0):</strong> the engine first attempts a plain Go type assertion, <code>input.(IN)</code>. Only if that fails does it fall back to a JSON-schema conversion — the case that exists because a <code>ToolNode</code> hands over a <code>map[string]any</code> that the author declared as a struct. So in an ordinary <code>FunctionNode</code> → <code>FunctionNode</code> chain <strong>nothing is serialised at all</strong>. Three consequences: unexported fields survive the hop; your <code>json</code> tags are not consulted on the fast path; and a pointer you return is the same pointer the next node receives, not a copy of it.</div>
+
+  <h2>State, when you do need it</h2>
+  <p>Session state is the right tool for values a <em>tool</em>, a <em>callback</em> or an <code>Instruction</code> template has to see — none of which sit on a graph edge. The interface is three methods, and <code>Set</code> returns an error because the backing store can be remote:</p>
+  <pre><code>st := ctx.Session().State()
+err := st.Set("attempts", 0)          // Set(string, any) error
+v, err := st.Get("attempts")          // Get(string) (any, error) — ErrStateKeyNotExist if absent
+for k, v := range st.All() { … }      // iter.Seq2[string, any], order not guaranteed</code></pre>
+  <p>A key prefix chooses the value's lifetime:</p>
+  <table>
+    <tr><th>Constant</th><th>Prefix</th><th>Lives</th></tr>
+    <tr><td><code>session.KeyPrefixApp</code></td><td><code>app:</code></td><td>Across every user and session of the app.</td></tr>
+    <tr><td><code>session.KeyPrefixUser</code></td><td><code>user:</code></td><td>Across this user's sessions, within one app name.</td></tr>
+    <tr><td><code>session.KeyPrefixTemp</code></td><td><code>temp:</code></td><td>Until the current invocation ends, then discarded.</td></tr>
+    <tr><td>— none —</td><td>—</td><td>The lifetime of the session.</td></tr>
+  </table>
+  <div class="note"><strong>State is a key-value store, not a blob store.</strong> Both the upstream docs and the SDK comments say the same thing twice, which usually means somebody learned it the hard way: file contents, transcripts and binary payloads belong in artifacts or an external store, with a reference in state. A session that carries megabytes gets rewritten on every event.</div>
+</section>
+
+<!-- 05 routes -->
+<section>
+  <div class="crumb">MODULE 5 of 8</div>
+  <h1><span class="h-emoji">🔀</span> routes</h1>
+  <div class="module">Event.Routes · StringRoute · IntRoute · BoolRoute · MultiRoute[T] · Default · JoinNode</div>
+  <p>Conditional dispatch is two halves that have to agree. A node <em>emits</em> route keys on its event; an edge <em>matches</em> them. Neither half knows about the other at compile time, which is exactly why this is the part of a graph worth a test.</p>
+
+  <h2>Emitting a route</h2>
+  <p>Routing needs the emitting constructor, because you have to build the event yourself to set <code>Routes</code> on it:</p>
+  <pre><code>classify := workflow.NewEmittingFunctionNode("classify",
+    func(ctx agent.Context, msg string, emit func(*session.Event) error) (any, error) {
+        ev := session.NewEvent(ctx, ctx.InvocationID())
+        ev.Routes = []string{categoryOf(msg)}  // drives edge dispatch
+        ev.Output = msg                        // still forwarded to whichever branch wins
+        if err := emit(ev); err != nil {
+            return nil, err
+        }
+        return nil, nil // returning nil suppresses the automatic terminal event
+    }, workflow.NodeConfig{})</code></pre>
+  <p class="muted"><code>Routes</code> is a <code>[]string</code>, not a string — a node may emit several keys and light up several branches at once.</p>
+
+  <h2>Matching a route</h2>
+  <table>
+    <tr><th>Matcher</th><th>Matches</th></tr>
+    <tr><td><code>workflow.StringRoute("BUG")</code></td><td>One string key.</td></tr>
+    <tr><td><code>workflow.IntRoute(3)</code></td><td>One integer key.</td></tr>
+    <tr><td><code>workflow.BoolRoute(true)</code></td><td>A boolean key.</td></tr>
+    <tr><td><code>workflow.MultiRoute[int]{1, 2, 3}</code></td><td>Any of a set. Generic over <code>comparable</code>.</td></tr>
+    <tr><td><code>workflow.Default</code></td><td>Fires when no other route leaving the same node matched. At most one per node — a second is <code>ErrMultipleDefaultRoutes</code>.</td></tr>
+  </table>
+  <pre><code>edges := workflow.Concat(
+    workflow.Chain(workflow.Start, classify),
+    []workflow.Edge{
+        {From: classify, To: bug,       Route: workflow.StringRoute("BUG")},
+        {From: classify, To: support,   Route: workflow.StringRoute("CUSTOMER_SUPPORT")},
+        {From: classify, To: logistics, Route: workflow.Default},
+    },
+)</code></pre>
+  <div class="risk"><strong>Nothing checks that your keys line up.</strong> A node emitting <code>"BUG"</code> against an edge matching <code>"Bug"</code> compiles, builds, validates, and then quietly takes the default branch — or no branch at all. Route keys are the one place in a typed SDK where you are back to matching strings by hand, so name them from a shared <code>const</code> block and write the test.</div>
+
+  <h2>Fan-in: the JoinNode barrier</h2>
+  <p>A <code>JoinNode</code> waits for <em>every</em> upstream edge to deliver an output, then emits a single <code>map[string]any</code> keyed by predecessor node name. It is the only supported fan-in: several edges converging on any other node kind is rejected at build time with <code>ErrUnsupportedFanIn</code>.</p>
+  <div class="risk"><strong>A JoinNode with a silent predecessor hangs the graph.</strong> The barrier is unconditional — it proceeds when all upstream nodes have produced an output, and there is no timeout on the wait by default. A branch that returns early without an output leaves the join waiting forever. Two defences, and you want both: give every node feeding a join a fail-safe output on its error paths, and set <code>NodeConfig.Timeout</code> on the upstream nodes so a stuck step fails instead of stalling.</div>
+  <p class="muted">Runnable upstream examples live in the module itself — <code>examples/workflow/</code> contains <code>basic</code>, <code>routing</code>, <code>complex</code>, <code>dynamic</code>, <code>hitl_simple</code> and <code>hitl_rerun</code>. They are in your module cache already; no network needed to read them.</p>
+</section>
+
+<!-- 06 human -->
+<section>
+  <div class="crumb">MODULE 6 of 8</div>
+  <h1><span class="h-emoji">🙋</span> human</h1>
+  <div class="module">workflow.ResumeOrRequestInput · session.RequestInput · NodeConfig.RerunOnResume · ErrNodeInterrupted</div>
+  <p>Human-in-the-loop is a first-class state of the graph engine, not a tool you bolt on. A node asks for input, the engine parks it, the run ends; later a reply arrives and the run continues from the parked node. Nothing about the node's code says “I am a special HITL node” — it just calls one helper.</p>
+
+  <h2>The pause and the resume</h2>
+  <svg viewBox="0 0 760 280" role="img" aria-label="a node emits a RequestInput event, the workflow pauses, a human replies, and the node re-runs before handing output to the next step">
+    <defs>
+      <marker id="hl01" markerWidth="9" markerHeight="9" refX="8.5" refY="3" orient="auto"><path d="M0,0 L9,3 L0,6 Z" class="dg-head"/></marker>
+    </defs>
+    <rect x="10" y="8" width="740" height="264" rx="12" class="dg-frame"/>
+    <text x="26" y="30" class="dg-ti">Pause → reply → re-run</text>
+
+    <rect x="30" y="112" width="175" height="48" rx="10" class="dg-b-model"/>
+    <text x="117" y="132" class="dg-lb" style="font-size:13px" text-anchor="middle">review node</text>
+    <text x="117" y="149" class="dg-sb" text-anchor="middle">EmittingFunctionNode</text>
+
+    <rect x="250" y="112" width="200" height="48" rx="10" class="dg-b-out"/>
+    <text x="350" y="132" class="dg-lb" style="font-size:13px" text-anchor="middle">Event.RequestedInput</text>
+    <text x="350" y="149" class="dg-sb" text-anchor="middle">ErrNodeInterrupted</text>
+
+    <rect x="500" y="112" width="150" height="48" rx="10" class="dg-b-ghost"/>
+    <text x="575" y="141" class="dg-lb" style="font-size:13px" text-anchor="middle">human reply</text>
+
+    <rect x="30" y="204" width="175" height="48" rx="10" class="dg-b-tool"/>
+    <text x="117" y="233" class="dg-lb" style="font-size:13px" text-anchor="middle">next node</text>
+
+    <path d="M 205 136 L 244 136" class="dg-link dg-link-warm" marker-end="url(#hl01)"/>
+    <path d="M 450 136 L 494 136" class="dg-link dg-dash" marker-end="url(#hl01)"/>
+    <path d="M 575 112 L 575 62 L 117 62 L 117 106" class="dg-link dg-link-warm flow" marker-end="url(#hl01)"/>
+    <text x="346" y="54" class="dg-el" text-anchor="middle">RerunOnResume: &amp;true — the node body runs again from the top</text>
+    <path d="M 117 160 L 117 198" class="dg-link" marker-end="url(#hl01)"/>
+    <text x="128" y="184" class="dg-el">Event.Output</text>
+  </svg>
+
+  <pre><code>rerun := true
+
+review := workflow.NewEmittingFunctionNode[[]Item, string]("review",
+    func(ctx agent.Context, items []Item, emit func(*session.Event) error) (string, error) {
+        reply, err := workflow.ResumeOrRequestInput(ctx, emit, session.RequestInput{
+            // InterruptID left empty on purpose — see below.
+            Message: "Which of these do you want to keep?",
+            Payload: items,
+        })
+        if err != nil {
+            return "", err // first pass: ErrNodeInterrupted, the run pauses here
+        }
+        feedback, _ := reply.(string)
+        return feedback, nil
+    },
+    workflow.NodeConfig{RerunOnResume: &amp;rerun},
+)</code></pre>
+  <p><code>ResumeOrRequestInput</code> does both halves. On the first pass it emits the request event and returns <code>ErrNodeInterrupted</code>; on the pass after a reply it returns the reply payload. The node body cannot tell which pass it is in and does not need to.</p>
+
+  <h2>RerunOnResume decides where the reply lands</h2>
+  <table>
+    <tr><th>Value</th><th>On resume</th></tr>
+    <tr><td><code>&amp;true</code></td><td><strong>Re-entry.</strong> The node body runs again from the top and <code>ResumeOrRequestInput</code> returns the reply. Required for any node using that helper.</td></tr>
+    <tr><td><code>&amp;false</code></td><td><strong>Hand-off.</strong> The reply is routed straight to the node's successor as its input; the interrupted node does not run again.</td></tr>
+    <tr><td><code>nil</code></td><td>Defer to the engine, which currently means hand-off. So the default is the mode that <em>breaks</em> <code>ResumeOrRequestInput</code>.</td></tr>
+  </table>
+
+  <h2>RequestInput, all four fields</h2>
+  <pre><code>type RequestInput struct {
+    InterruptID    string             `json:"interruptId"`
+    Message        string             `json:"message,omitempty"`
+    ResponseSchema *jsonschema.Schema `json:"responseSchema,omitempty"`
+    Payload        any                `json:"payload,omitempty"`
+}</code></pre>
+  <div class="risk"><strong>Do not hardcode <code>InterruptID</code>, even though the upstream samples do.</strong> The SDK's own doc comment says to leave it empty and let the engine mint a UUID, or to build one from a readable prefix plus a UUID. The reason is concrete: ADK clients — the dev UI included — track answered requests by this ID and will not re-prompt for one already resolved earlier in the session. A fixed literal like <code>"enter_number"</code> works the first time and then silently shows no input box on the second run in the same session.</div>
+  <div class="note"><strong>The reply <em>is</em> validated, contrary to the Go note upstream.</strong> <code>adk.dev</code> tells Go readers that ADK Go does not parse or validate the structure of a human's reply, and its Go field list omits <code>ResponseSchema</code> entirely. At v2.2.0 the field exists, <code>workflow/resume.go</code> validates the payload against it, and a mismatch surfaces as <code>ErrInvalidResumeResponse</code> with the node left waiting rather than failed — so a bad reply is recoverable, not fatal.</div>
+  <p class="muted">Related errors worth knowing: <code>ErrNothingToResume</code> (no waiting node matched the responses you supplied) and <code>ErrNodeWaitingForOutput</code>, which wraps <code>ErrNodeInterrupted</code> so existing <code>errors.Is</code> checks keep treating it as a pause. There is also a separate, LLM-level mechanism — tool confirmation — for “ask before running this tool”; that one lives inside an <code>llmagent</code> rather than in the graph.</p>
+</section>
+
+<!-- 07 migrate -->
+<section>
+  <div class="crumb">MODULE 7 of 8</div>
+  <h1><span class="h-emoji">🧭</span> migrate</h1>
+  <div class="module">google.golang.org/adk → /v2 · session.NewEvent · the Event struct</div>
+  <p>ADK Go 2.0 replaced a hierarchical agent executor with the graph engine, and the breakage falls out of that one change: if agents are now nodes scheduled by an engine, then anything that used to take execution into its own hands no longer can.</p>
+
+  <h2>1.x → 2.0, the four things that break</h2>
+  <table>
+    <tr><th>Change</th><th>What to do</th></tr>
+    <tr><td><strong>Module path</strong> — <code>google.golang.org/adk</code> became <code>google.golang.org/adk/v2</code>.</td><td><code>go get google.golang.org/adk/v2</code> and rewrite every import. Mechanical, and the compiler finds all of them.</td></tr>
+    <tr><td><strong>Custom <code>Run</code> overrides are ignored.</strong> The graph engine owns scheduling and event emission; a custom agent type that bypassed those is not an error, it is silently skipped.</td><td>Move the logic into <code>BeforeAgentCallback</code> / <code>AfterAgentCallback</code>. This is the migration item most likely to pass CI and fail in production, because nothing tells you it happened.</td></tr>
+    <tr><td><strong><code>session.NewEvent</code> takes a context.</strong> <code>NewEvent(invocationID)</code> and the interim <code>NewEventWithContext</code> are both gone.</td><td><code>session.NewEvent(ctx, ctx.InvocationID())</code>. Thread the context you already have; do not manufacture a <code>context.Background()</code> mid-chain. Event ID and timestamp now come from the <code>platform</code> package, so a clock or UUID provider on the context makes events deterministic — which is what makes replay possible.</td></tr>
+    <tr><td><strong>Five new <code>Event</code> fields</strong> — <code>IsolationScope</code>, <code>Routes</code>, <code>RequestedInput</code>, <code>Output</code>, <code>NodeInfo</code>.</td><td>Only matters if you wrote a custom <code>session.Service</code> over a rigid schema. If yours stores events as JSON blobs, nothing to do. If it stores columns, add them — an insert that drops these silently loses routing and pause state.</td></tr>
+  </table>
+  <p class="muted">Staying on 1.x is still supported: <code>go get google.golang.org/adk@v1</code>.</p>
+
+  <h2>2.0 → 2.2: the change the migration page does not mention</h2>
+  <p>The upstream migration table documents the five new fields with their serialised names, and states that <code>Routes</code>, <code>RequestedInput</code> and <code>Output</code> carry <strong>no JSON tag</strong> — so they serialise under their exact Go field names. That was accurate: at v2.0.0 the <code>Event</code> struct is almost entirely untagged. It is no longer accurate at v2.2.0.</p>
+  <table>
+    <tr><th>Field</th><th>v2.0.0 wire name</th><th>v2.2.0 wire name</th></tr>
+    <tr><td><code>Routes</code></td><td><code>Routes</code></td><td><code>routes</code>, omitted when empty</td></tr>
+    <tr><td><code>RequestedInput</code></td><td><code>RequestedInput</code></td><td><code>requestedInput</code>, omitted when nil</td></tr>
+    <tr><td><code>Output</code></td><td><code>Output</code></td><td><code>output</code>, omitted when empty</td></tr>
+    <tr><td><code>ID</code> · <code>Timestamp</code> · <code>InvocationID</code> · <code>Branch</code> · <code>Author</code> · <code>Actions</code> · <code>LongRunningToolIDs</code></td><td>Go field names</td><td>camelCase JSON tags</td></tr>
+  </table>
+  <div class="risk"><strong>Which direction actually breaks.</strong> Reading is fine: Go's JSON decoder matches field names case-insensitively, so a v2.0.0 blob still loads into a v2.2.0 <code>Event</code>. Writing is not: a v2.2.0 process emits <code>"routes"</code> where its predecessor emitted <code>"Routes"</code>, and omits the key entirely when the value is empty. Anything downstream that pinned on the capitalised names — which is precisely the audience the migration note was written for, since it told them to expect exactly those names — breaks on upgrade with no warning from either side.</div>
+  <p class="muted">Two smaller notes from the same struct: <code>Event.UnmarshalJSON</code> is custom, with a retry path for numeric timestamps written by adk-python, and it normalises an all-zero <code>NodeInfo</code> back to <code>nil</code> so the “nil means not from a workflow” invariant survives a round-trip through the Python runtime.</p>
+</section>
+
+<!-- 08 drift -->
+<section>
+  <div class="crumb">MODULE 8 of 8</div>
+  <h1><span class="h-emoji">🔬</span> drift</h1>
+  <div class="module">adk.dev (08/2026) vs google.golang.org/adk/v2 v2.2.0 · vs wiki-tools/</div>
+  <p>Everything above was checked against the module in <code>~/go/pkg/mod</code> rather than trusted from the page. Six claims did not survive. None of them is a mistake by the doc's authors — the pages describe v2.0.0 and are honest about it. They are stale, which for a fast-moving SDK is the same problem wearing a nicer coat, and is exactly why this repo puts «станом на» on every pin.</p>
+
+  <h2>Where adk.dev and the pinned SDK disagree</h2>
+  <table>
+    <tr><th>Claim on adk.dev</th><th>What v2.2.0 does</th></tr>
+    <tr><td>“Go 1.25 or later.”</td><td><code>go 1.26.5</code> in the module's own <code>go.mod</code>. Below that the build refuses to start. <em>(v2.0.0 said 1.25.0, so the doc was right once.)</em></td></tr>
+    <tr><td><code>Routes</code>, <code>RequestedInput</code> and <code>Output</code> have no JSON tag and serialise under their Go field names.</td><td>All three carry lowercase <code>omitempty</code> tags. True at v2.0.0, false now; module 07 has the direction of breakage.</td></tr>
+    <tr><td>The framework serialises a node's return value into <code>Event.Output</code> and deserialises it into the successor's typed input.</td><td>Direct type assertion first, JSON-schema conversion only as a fallback. On the fast path nothing is serialised, so <code>json</code> tags are not consulted and pointers stay shared.</td></tr>
+    <tr><td>“ADK Go does not automatically parse or validate the structure of the human's reply payload.”</td><td><code>RequestInput.ResponseSchema</code> exists and <code>workflow/resume.go</code> validates against it, failing with <code>ErrInvalidResumeResponse</code>.</td></tr>
+    <tr><td>The Go field list for <code>RequestInput</code> is <code>InterruptID</code>, <code>Message</code>, <code>Payload</code>.</td><td>Four fields — <code>ResponseSchema</code> is missing from the list, though the Python half of the same page documents <code>response_schema</code>.</td></tr>
+    <tr><td>Sample HITL nodes hardcode <code>InterruptID: "enter_number"</code>.</td><td>The SDK's doc comment explicitly warns against a fixed literal: clients that already resolved that ID will not re-prompt. Prefer empty (engine mints a UUID).</td></tr>
+  </table>
+
+  <h2>Where this repo diverges from the upstream idiom</h2>
+  <p>Every CLI in <code>wiki-tools/</code> is an ADK Go v2 workflow agent, so the comparison is real code against real code rather than doc against doc. Two differences stand out.</p>
+  <div class="grid">
+    <div class="card"><h3>closures, not typed edges</h3><p>Upstream teaches typed node hand-off — <code>CityTime</code> in, <code>string</code> out. This repo's pipelines are uniformly <code>func(ctx agent.Context, _ string) (string, error)</code> and share real data through Go closure variables captured from the enclosing function; the returned string is a human-readable progress line, not the payload.</p></div>
+    <div class="card"><h3>a thin, shared harness</h3><p><code>internal/adkrun</code> collapses the wiring to three calls — <code>NodeConfig()</code> (retries on by default, which the SDK default is not), <code>Pipeline()</code> (prepends <code>workflow.Start</code> and chains), <code>Graph()</code> (takes a built edge list). CLIs never touch <code>workflowagent.Config</code> directly.</p></div>
+  </div>
+  <div class="note"><strong>Is the closure style wrong?</strong> No, but it is a trade, and it is worth stating out loud when teaching from this code. It buys brevity and lets a node return a progress string that the runner prints for free. It gives up the things the typed path exists for: schema validation at the boundary, a node that can be re-run in isolation from its recorded input, and outputs that a future replay or persistence layer could reconstruct. A pipeline whose steps must be individually retryable wants the typed edges; a pipeline that is really a script with retry and telemetry attached does not.</div>
+  <div class="risk"><strong>One stale pin found in passing.</strong> <code>wiki-tools/internal/adkrun/adkrun.go</code> opens with “Verified against google.golang.org/adk/v2 v2.0.0 (станом на 07/2026)”, while <code>wiki-tools/go.mod</code> now pins <code>v2.2.0</code>. The code still compiles and the APIs it uses are unchanged, so this is a documentation drift rather than a bug — but it is the same class of staleness this whole module is about, one directory away.</div>
+
+  <h2>How to re-run this check</h2>
+  <pre><code># what is actually pinned
+grep adk/v2 wiki-tools/go.mod
+
+# the real signatures, from the pinned module
+go doc -C wiki-tools google.golang.org/adk/v2/workflow
+go doc -C wiki-tools google.golang.org/adk/v2/session.Event
+
+# the runnable upstream samples, already on disk
+ls ~/go/pkg/mod/google.golang.org/adk/v2@v2.2.0/examples/workflow/</code></pre>
+  <p class="muted">Do this again before anything here is recorded or taught. The two decks on this shelf describe an SDK that moved two minor versions in the month between them.</p>
+</section>
+
+</template>
+
+
+<script>
+(function () {
+  'use strict';
+
+  // Modules are authored inside <template> so the source stays readable; lift
+  // them into the deck and let the .active class drive display + animation.
+  var deck = document.getElementById('deck');
+  var bar  = document.getElementById('progress');
+  var tpl  = document.getElementById('src');
+  var nav  = document.getElementById('toc');
+
+  Array.prototype.forEach.call(tpl.content.querySelectorAll('section'), function (s) {
+    s.classList.add('slide');
+    deck.appendChild(document.importNode(s, true));
+  });
+
+  var slides = Array.prototype.slice.call(deck.querySelectorAll('.slide'));
+  var items  = Array.prototype.slice.call(nav.querySelectorAll('.nav-item'));
+  var i = 0;
+
+  // Stagger is generated, never hand-maintained: authoring a --d on every block
+  // is exactly the bookkeeping that rots when a section is inserted mid-page.
+  slides.forEach(function (s) {
+    var d = 0;
+    Array.prototype.forEach.call(s.children, function (el) {
+      el.classList.add('rise');
+      el.style.setProperty('--d', d.toFixed(2) + 's');
+      d = Math.min(d + 0.05, 0.6);
+    });
+  });
+
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function (s, k) { s.classList.toggle('active', k === i); });
+    items.forEach(function (a, k) { a.classList.toggle('on', k === i); });
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    scrollTo(0, 0);
+    var on = items[i];
+    if (on && on.scrollIntoView) { on.scrollIntoView({block: 'nearest', inline: 'nearest'}); }
+    try { location.hash = String(i + 1); } catch (e) {}
+  }
+
+  // One handler for both the sidebar and the overview cards: anything carrying
+  // data-go is a jump target, so adding a link never means adding a listener.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-go]');
+    if (!a) return;
+    e.preventDefault();
+    show(parseInt(a.dataset.go, 10));
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); show(i + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End') { e.preventDefault(); show(slides.length - 1); }
+    else if (e.key === 'o' || e.key === 'O') { show(0); }
+    else if (e.key === 'f' || e.key === 'F') {
+      if (document.fullscreenElement) { document.exitFullscreen(); }
+      else { document.documentElement.requestFullscreen().catch(function () {}); }
+    }
+  });
+
+  // Deep links: #7 opens module 6, and editing the hash live still works.
+  addEventListener('hashchange', function () {
+    var n = parseInt((location.hash || '#1').slice(1), 10) - 1;
+    if (!isNaN(n) && n !== i) show(n);
+  });
+
+  show(parseInt((location.hash || '#1').slice(1), 10) - 1 || 0);
+})();
+</script>
+</body>
+</html>
