@@ -41,8 +41,8 @@ func TestConvert(t *testing.T) {
 			if got.AsOf != "2026-07-29" {
 				t.Errorf("AsOf = %q, want %q", got.AsOf, "2026-07-29")
 			}
-			if got.Source == "" {
-				t.Error("Source is empty; provenance must always be populated")
+			if got.Source.Name == "" {
+				t.Error("Source.Name is empty; provenance must always be populated")
 			}
 		})
 	}
@@ -320,10 +320,10 @@ func TestConvertMonobankPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Convert() error = %v", err)
 	}
-	if got.Source != "monobank" {
-		t.Errorf("Source = %q, want monobank", got.Source)
+	if got.Source.Name != "monobank" {
+		t.Errorf("Source.Name = %q, want monobank", got.Source.Name)
 	}
-	if got.Source == "nbu" {
+	if got.Source.Name == "nbu" {
 		t.Error("NBU provenance must not leak into a monobank answer")
 	}
 }

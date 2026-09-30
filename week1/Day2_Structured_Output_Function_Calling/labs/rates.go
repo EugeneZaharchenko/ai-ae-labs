@@ -47,17 +47,38 @@ type RateInput struct {
 	Target string `json:"target" jsonschema:"ISO 4217 code of the target currency, e.g. UAH"`
 }
 
+// SourceKind shows where the rate came from: live API, cache, or offline fixture.
+type SourceKind string
+
+const (
+	SourceKindAPI   SourceKind = "api"
+	SourceKindCache SourceKind = "cache"
+	SourceKindMock  SourceKind = "mock"
+)
+
+// RateSource tells which provider answered and how (live vs fixture).
+type RateSource struct {
+	Name string     `json:"name" jsonschema:"Provider name, e.g. nbu, monobank, or fixture"`
+	Kind SourceKind `json:"kind" jsonschema:"Data origin: api, cache, or mock"`
+}
+
+// HistoricalPoint is one rate value for a given date.
+type HistoricalPoint struct {
+	Date   string     `json:"date"   jsonschema:"Observation date, YYYY-MM-DD"`
+	Rate   float64    `json:"rate"   jsonschema:"Exchange rate on this date"`
+	Source RateSource `json:"source" jsonschema:"Where this observation came from"`
+}
+
 // RateOutput is the tool's output contract.
-//
-// Source is deliberately included: an agent answer that cannot say where a
-// number came from is not auditable, and provenance is a week 3 theme that
-// starts here.
+// Added Source as a struct (not just a string) and History slice for the nesting requirement.
+// NBU and monobank only give today's rate, so History always has one element for now.
 type RateOutput struct {
-	Base   string  `json:"base"`
-	Target string  `json:"target"`
-	Rate   float64 `json:"rate" jsonschema:"How many units of target one unit of base buys"`
-	AsOf   string  `json:"as_of" jsonschema:"Rate date, YYYY-MM-DD"`
-	Source string  `json:"source" jsonschema:"Provenance of the rate, e.g. nbu or fixture"`
+	Base    string            `json:"base"`
+	Target  string            `json:"target"`
+	Rate    float64           `json:"rate"    jsonschema:"How many units of target one unit of base buys"`
+	AsOf    string            `json:"as_of"   jsonschema:"Rate date, YYYY-MM-DD"`
+	Source  RateSource        `json:"source"  jsonschema:"Where this rate came from"`
+	History []HistoricalPoint `json:"history" jsonschema:"Rate history; today's providers return one entry"`
 }
 
 // Provider fetches rates against UAH, which is the axis the National Bank of
@@ -115,13 +136,26 @@ func Convert(ctx context.Context, p Provider, in RateInput) (RateOutput, error) 
 		return RateOutput{}, err
 	}
 
+	rate := baseUAH / targetUAH
+	src := RateSource{Name: p.Name(), Kind: sourceKind(p.Name())}
 	return RateOutput{
 		Base:   base,
 		Target: target,
-		Rate:   baseUAH / targetUAH,
+		Rate:   rate,
 		AsOf:   asOf,
-		Source: p.Name(),
+		Source: src,
+		History: []HistoricalPoint{
+			{Date: asOf, Rate: rate, Source: src},
+		},
 	}, nil
+}
+
+// sourceKind returns "mock" for the fixture provider, "api" for everything else.
+func sourceKind(name string) SourceKind {
+	if name == "fixture" {
+		return SourceKindMock
+	}
+	return SourceKindAPI
 }
 
 // rateToUAH resolves one currency's UAH value, treating UAH as the unit.
