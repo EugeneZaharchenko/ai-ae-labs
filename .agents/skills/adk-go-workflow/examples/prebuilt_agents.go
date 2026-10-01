@@ -1,4 +1,4 @@
-// The three prebuilt workflow agents of ADK Go v2.4.0:
+// The three prebuilt workflow agents of ADK Go v2.5.0:
 // sequentialagent, parallelagent and loopagent.
 //
 // These are the "prebuilt" workflow style — the third of the three ways ADK
@@ -11,7 +11,7 @@
 // three. It is NOT `agent/workflowagent` (singular), which adapts a
 // workflow.Workflow graph into an agent.Agent.
 //
-// Verified against v2.4.0: all three run offline with a rule-based model.
+// Verified against v2.5.0: all three run offline with a rule-based model.
 package examples
 
 import (

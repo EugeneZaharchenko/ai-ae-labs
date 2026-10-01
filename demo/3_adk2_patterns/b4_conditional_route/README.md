@@ -30,7 +30,7 @@ go run . console
 ⚙️  triage ⇒ bug_desk: ticket filed for engineering
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Примітив | Роль у демо |
 |---|---|
@@ -60,4 +60,4 @@ go run . console
 - `TestTwoDefaultsRejected` — запобіжник, який ловить сама валідація графа.
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`

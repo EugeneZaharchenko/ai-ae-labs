@@ -2,7 +2,7 @@
 // coordinator deciding for them, until they all agree or a hard round cap
 // stops them.
 //
-// ADK Go v2.4.0 has NO swarm primitive. This is the hand-built version the
+// ADK Go v2.5.0 has NO swarm primitive. This is the hand-built version the
 // catalog describes: one dynamic node (plain Go loop) + a blackboard + RunNode
 // for each role's turn.
 //

@@ -34,7 +34,7 @@ go run . web api webui       # Web UI на http://localhost:8080/ui/
              stop: cap of 3 iterations; kept best, not last → best #2 (75): …
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Примітив | Роль у демо |
 |---|---|
@@ -71,4 +71,4 @@ go run . web api webui       # Web UI на http://localhost:8080/ui/
   регресію звичайною функцією замість моделі.
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`

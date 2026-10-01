@@ -1,6 +1,6 @@
-# ADK Go v2.4.0 — Workflow API Cheat Sheet
+# ADK Go v2.5.0 — Workflow API Cheat Sheet
 
-Every identifier below was read from `google.golang.org/adk/v2@v2.4.0` source
+Every identifier below was read from `google.golang.org/adk/v2@v2.5.0` source
 (станом на 09/2026). If you use a different version, re-check before you copy.
 
 ## Imports
@@ -121,7 +121,7 @@ node := workflow.NewDynamicNode("orchestrate",
 | `llmagent.ModeTask` | Multi-turn task sub-agent. Forbidden as a static graph node. |
 | `agenttool.New(agent, *agenttool.Config)` | Agent as a tool. Args `{"request": string}` unless the agent has an `InputSchema`. `Config{SkipSummarization}`. |
 | `functiontool.New(functiontool.Config{Name, Description}, handler)` | `handler func(agent.Context, TArgs) (TResults, error)`; schema is inferred from the Go types. |
-| `loopagent.New`, `sequentialagent.New`, `parallelagent.New` | Prebuilt workflow agents (the third style). Still present and working in v2.4.0 despite the docs calling template workflows "superseded". See below. |
+| `loopagent.New`, `sequentialagent.New`, `parallelagent.New` | Prebuilt workflow agents (the third style). Still present and working in v2.5.0 despite the docs calling template workflows "superseded". See below. |
 
 ## Prebuilt workflow agents
 
@@ -150,7 +150,7 @@ loop, err := loopagent.New(loopagent.Config{
 | `parallelagent` | Sub-agents concurrently, each in an isolated branch. | Waits for all branches. **No fan-in.** |
 | `loopagent` | The whole sub-agent list, repeatedly. | `MaxIterations uint`; also stops on any sub-agent's `Escalate`. |
 
-`loopagent` specifics, read from the v2.4.0 source:
+`loopagent` specifics, read from the v2.5.0 source:
 
 - `MaxIterations: 0` **loops forever** (until an escalation). It is not "skip".
 - The cap is checked *after* a full pass, so `MaxIterations: 3` runs the list

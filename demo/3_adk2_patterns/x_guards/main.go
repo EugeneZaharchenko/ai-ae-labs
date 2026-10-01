@@ -159,7 +159,7 @@ func (c guardCase) caught(err error) bool {
 	return strings.Contains(err.Error(), c.Contains)
 }
 
-// uncaught are anti-patterns with no mechanical guard in ADK Go v2.4.0.
+// uncaught are anti-patterns with no mechanical guard in ADK Go v2.5.0.
 var uncaught = []string{
 	"loop WITH a route but without an iteration cap → set a counter / MaxIterations yourself",
 	"fan-out without a concurrency limit → workflow.WithMaxConcurrency(n) / NewParallelWorker(…, maxConcurrency, …)",
@@ -206,7 +206,7 @@ func firstLine(err error) string {
 
 // build returns the CORRECT counterpart: fan-out merged through a JoinNode.
 //
-// Note on the concurrency cap: workflowagent.New (v2.4.0) calls workflow.New
+// Note on the concurrency cap: workflowagent.New (v2.5.0) calls workflow.New
 // with no options, so workflow.WithMaxConcurrency cannot reach a graph built
 // through it. The cap is checked on a bare workflow.New below; inside a
 // workflowagent, bound fan-out with NewParallelWorker's maxConcurrency.
