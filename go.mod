@@ -3,6 +3,7 @@ module github.com/dimetron/ai-eng-course/labs
 go 1.27.1
 
 require (
+	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20261001154531-3cf4290db2fe
 	github.com/dimetron/pi-go v0.2.7
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
@@ -46,6 +47,7 @@ require (
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
 	github.com/tidwall/gjson v1.19.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect

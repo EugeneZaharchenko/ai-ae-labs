@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADK агент — AG-UI чат</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #262b36;
+    --fg: #e6e9ef; --muted: #9aa3b2; --user: #2563eb;
+    --tool: #7c3aed; --err: #dc2626; --ok: #16a34a;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f5f6f8; --panel:#fff; --line:#e2e5ea; --fg:#111827; --muted:#6b7280; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg); min-height: 100vh;
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center; padding: 20px;
+  }
+  main { width: 100%; max-width: 780px; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  h1 { font-size: 17px; margin: 0; font-weight: 650; }
+  header .meta { color: var(--muted); font-size: 12.5px; }
+  #transcript {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px; min-height: 320px; max-height: 62vh; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .row { display: flex; }
+  .row.user { justify-content: flex-end; }
+  .bubble { max-width: 86%; padding: 9px 13px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .user .bubble { background: var(--user); color: #fff; border-bottom-right-radius: 3px; }
+  .agent .bubble { background: transparent; border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+  .agent .bubble:empty::after { content: "…"; color: var(--muted); }
+  .card { border: 1px solid var(--tool); border-radius: 10px; padding: 10px 12px; max-width: 86%; background: color-mix(in srgb, var(--tool) 9%, transparent); }
+  .card h3 { margin: 0 0 7px; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--tool); }
+  .card dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13.5px; }
+  .card dt { color: var(--muted); }
+  .card dd { margin: 0; overflow-wrap: anywhere; }
+  .sys { color: var(--muted); font-size: 13px; font-style: italic; }
+  .sys.error { color: var(--err); font-style: normal; }
+  form { display: flex; gap: 9px; }
+  input[type=text] {
+    flex: 1; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--fg); font: inherit;
+  }
+  input[type=text]:focus { outline: 2px solid var(--user); outline-offset: 1px; }
+  button {
+    padding: 11px 18px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--user); color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  .hint { color: var(--muted); font-size: 12.5px; }
+  code { background: color-mix(in srgb, var(--fg) 10%, transparent); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>ADK агент у браузері</h1>
+    <span class="meta">AG-UI → <code>/agui</code> → ADK <code>/api/run_sse</code></span>
+  </header>
+
+  <div id="transcript" role="log" aria-live="polite">
+    <p class="sys">Напишіть запит — сторінка відправить його як AG-UI <code>RunAgentInput</code>
+      і покаже події, які поверне агент.</p>
+  </div>
+
+  <form id="composer" autocomplete="off">
+    <input id="input" type="text" placeholder="напр. Мерчант A-114 просить повернення по транзакції txn-2026-07-118845" aria-label="Повідомлення">
+    <button id="send" type="submit">Надіслати</button>
+  </form>
+  <p class="hint">Одна вкладка — один <code>threadId</code>; кожне повідомлення це новий <code>runId</code>.</p>
+</main>
+
+<script>
+const transcript = document.getElementById('transcript');
+const form = document.getElementById('composer');
+const input = document.getElementById('input');
+const send = document.getElementById('send');
+
+// One thread per page load: the bridge maps threadId onto an ADK session, so a
+// reload starts a fresh conversation while the old one stays on the server.
+const threadId = 'web-' + Math.random().toString(36).slice(2, 10);
+let runSeq = 0;
+let busy = false;
+
+function add(cls, tag) {
+  const row = document.createElement('div');
+  row.className = 'row ' + cls;
+  const el = document.createElement(tag || 'div');
+  el.className = 'bubble';
+  row.appendChild(el);
+  transcript.appendChild(row);
+  transcript.scrollTop = transcript.scrollHeight;
+  return el;
+}
+
+function system(text, isError) {
+  const p = document.createElement('p');
+  p.className = 'sys' + (isError ? ' error' : '');
+  p.textContent = text;
+  transcript.appendChild(p);
+  transcript.scrollTop = transcript.scrollHeight;
+}
+
+// Structured output from the agent becomes a card, not a blob of JSON. This is
+// the display-only generative-UI idea: the agent decides what to send, and the
+// page decides how to draw it.
+function renderCard(toolName, argsJSON) {
+  let data;
+  try { data = JSON.parse(argsJSON); } catch { return null; }
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) return null;
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  const h = document.createElement('h3');
+  h.textContent = toolName;
+  card.appendChild(h);
+
+  const dl = document.createElement('dl');
+  for (const [k, v] of Object.entries(data)) {
+    const dt = document.createElement('dt');
+    dt.textContent = k.replace(/_/g, ' ');
+    const dd = document.createElement('dd');
+    dd.textContent = (v && typeof v === 'object') ? JSON.stringify(v) : String(v);
+    dl.append(dt, dd);
+  }
+  card.appendChild(dl);
+  transcript.appendChild(card);
+  transcript.scrollTop = transcript.scrollHeight;
+  return card;
+}
+
+function setBusy(on) {
+  busy = on;
+  send.disabled = on;
+  send.textContent = on ? '…' : 'Надіслати';
+}
+
+// The AG-UI event handler. Only the events this page draws are listed; an
+// unknown type is ignored on purpose, so a newer agent stays compatible.
+function handleEvent(ev, ctx) {
+  switch (ev.type) {
+    case 'TEXT_MESSAGE_START':
+      ctx.bubble = add('agent');
+      break;
+
+    case 'TEXT_MESSAGE_CONTENT':
+      if (!ctx.bubble) ctx.bubble = add('agent');
+      ctx.bubble.textContent += ev.delta;
+      transcript.scrollTop = transcript.scrollHeight;
+      break;
+
+    case 'TEXT_MESSAGE_END':
+      if (ctx.bubble && !ctx.bubble.textContent.trim()) ctx.bubble.textContent = '(порожня відповідь)';
+      break;
+
+    case 'TOOL_CALL_START':
+      ctx.tool = { name: ev.toolCallName, args: '' };
+      break;
+
+    case 'TOOL_CALL_ARGS':
+      if (ctx.tool) ctx.tool.args += ev.delta;
+      break;
+
+    case 'TOOL_CALL_END':
+      if (ctx.tool) {
+        if (!renderCard(ctx.tool.name, ctx.tool.args)) {
+          system('агент викликав ' + ctx.tool.name + ': ' + ctx.tool.args);
+        }
+        ctx.tool = null;
+      }
+      break;
+
+    case 'RUN_ERROR':
+      system('Помилка агента: ' + ev.message, true);
+      break;
+  }
+}
+
+// Parses an SSE byte stream. `event:` lines are ignored — AG-UI carries the type
+// inside the JSON `type` field, so the data line is the whole story.
+async function readSSE(response, onEvent) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let cut;
+    while ((cut = buffer.indexOf('\n\n')) >= 0) {
+      const frame = buffer.slice(0, cut);
+      buffer = buffer.slice(cut + 2);
+      const data = frame.split('\n')
+        .filter(l => l.startsWith('data:'))
+        .map(l => l.slice(5).trim())
+        .join('\n');
+      if (!data) continue;
+      let ev;
+      try { ev = JSON.parse(data); } catch { continue; }
+      onEvent(ev);
+    }
+  }
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (busy) return;
+  const text = input.value.trim();
+  if (!text) return;
+
+  const bubble = add('user');
+  bubble.textContent = text;
+  input.value = '';
+  setBusy(true);
+
+  try {
+    const response = await fetch('/agui', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        threadId,
+        runId: 'run-' + (++runSeq),
+        messages: [{ id: 'user-' + runSeq, role: 'user', content: text }],
+      }),
+    });
+
+    if (!response.ok) {
+      system('Міст повернув HTTP ' + response.status + ': ' + (await response.text()).trim(), true);
+      return;
+    }
+    // One context object for the whole stream. It MUST outlive the individual
+    // events: the state it carries (the open bubble, the tool call being
+    // assembled) is exactly what makes an event stream readable. Passing a fresh
+    // object per event silently drops every tool call and leaves an empty bubble
+    // behind — the bug this line fixes.
+    const ctx = {};
+    await readSSE(response, (ev) => handleEvent(ev, ctx));
+  } catch (err) {
+    system('Не вдалося отримати відповідь: ' + err.message, true);
+  } finally {
+    setBusy(false);
+    input.focus();
+  }
+});
+
+input.focus();
+</script>
+</body>
+</html>
