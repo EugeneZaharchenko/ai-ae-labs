@@ -1,0 +1,36 @@
+# Dockerfile.dockerignore — build context filter for demo/agui_web.
+#
+# Docker picks this up automatically because it sits next to the Dockerfile and
+# is named <Dockerfile>.dockerignore; building with an explicit -f is what
+# activates it.
+#
+# The context is the repository root, which holds .git, scratch checkouts under
+# tmp/, and apps/.env with real provider credentials. This image needs none of
+# it: the agent is a local function graph, so no key ever enters the build.
+#
+# One syntax rule, learned the hard way on demo/6_adk_telegram_bot: a negated
+# DIRECTORY pattern re-admits everything under it, because a leading `**` matches
+# at every depth and a parent's own entry governs its children. `!demo/` would
+# admit every demo in the tree, so the exact directory is named instead.
+
+# Exclude everything, then re-admit only what the two binaries import.
+**
+!go.mod
+!go.sum
+
+!internal/
+!week2/internal/refund/
+!week2/Day4_Agent_as_Service_Deploy/labs4/
+!demo/agui_web/
+
+# Defence in depth for the file that must never reach a layer, a build cache or
+# a registry. apps/.env is already git-ignored and excluded above; this line
+# means a future `!apps/` cannot quietly undo that.
+**/.env
+**/.env.*
+
+# Not compiled, not needed to build the binaries, so the context stays the source
+# that actually ships. main_test.go is included deliberately: this demo has no
+# tests yet, and the pattern is here so adding one does not enlarge the context.
+**/*_test.go
+**/README.md
