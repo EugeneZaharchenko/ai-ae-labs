@@ -28,8 +28,8 @@
 // Anthropic, so leaving it out is this lab's choice rather than a limit of the
 // tools. Add the row if you want it.
 //
-// Verified against google.golang.org/adk/v2 v2.4.0 (released 2026-09-11,
-// requires Go 1.27) on 2026-08-26. Re-check before recording.
+// Verified against google.golang.org/adk/v2 v2.5.0 (released 2026-09-30,
+// requires Go 1.27) on 2026-10-01. Re-check before recording.
 package main
 
 import (

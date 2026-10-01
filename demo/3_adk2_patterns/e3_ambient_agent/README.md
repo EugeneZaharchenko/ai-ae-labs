@@ -33,7 +33,7 @@ go run . web api webui       # Web UI на http://localhost:8080/ui/
 summary: 4 events, 3 ok, 1 failed (T-3: empty ticket body)
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Примітив | Роль у демо |
 |---|---|
@@ -66,4 +66,4 @@ GCP, а не ADK. ADK Go дає лише транспорт (`server/adkrest`, `
 - `TestDemoCancelled` — перервана черга звітує про необроблені події, а не мовчить.
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`

@@ -6,7 +6,7 @@
 // self-correction paths deterministic, so a lab can assert "the agent called
 // get_rate with these arguments" instead of eyeballing a transcript.
 //
-// It implements model.LLM against ADK Go v2.4.0:
+// It implements model.LLM against ADK Go v2.5.0:
 //
 //	Name() string
 //	GenerateContent(ctx, *model.LLMRequest, stream bool) iter.Seq2[*model.LLMResponse, error]

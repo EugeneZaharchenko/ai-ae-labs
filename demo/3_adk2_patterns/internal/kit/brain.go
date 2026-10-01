@@ -7,7 +7,7 @@
 // the reader types. A Brain looks at the request and decides, so the same
 // agent answers any input deterministically and without a key.
 //
-// Verified against google.golang.org/adk/v2 v2.4.0 (станом на 09/2026).
+// Verified against google.golang.org/adk/v2 v2.5.0 (станом на 09/2026).
 package kit
 
 import (

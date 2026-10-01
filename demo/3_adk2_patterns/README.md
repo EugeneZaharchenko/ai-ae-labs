@@ -105,4 +105,4 @@ sh ./scripts/covgate.sh 85 demo/3_adk2_patterns
 - [.agents/skills/adk-go-workflow/](../../.agents/skills/adk-go-workflow/) — скіл для AI-агентів з довідкою по цих патернах
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0` · Go 1.27.1
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0` · Go 1.27.1

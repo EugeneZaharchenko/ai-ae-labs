@@ -1,6 +1,6 @@
 # Практичне завдання 4 — Агент виходить у мережу: HTTP-сервіс і бінарник `FROM scratch`
 
-> **Станом на 09/2026:** learner-модуль використовує `google.golang.org/adk/v2 v2.4.0`, `go 1.27.1` і Docker builder `golang:1.27.1`. REST-контракт — `POST /api/run_sse`, camelCase `appName` / `userId` / `sessionId` / `newMessage`; перевіряється реальними HTTP-тестами у `service_test.go`. Перед записом звірте пін і потрібні API, не підмінюйте версію на `@latest`.
+> **Станом на 09/2026:** learner-модуль використовує `google.golang.org/adk/v2 v2.5.0`, `go 1.27.1` і Docker builder `golang:1.27.1`. REST-контракт — `POST /api/run_sse`, camelCase `appName` / `userId` / `sessionId` / `newMessage`; перевіряється реальними HTTP-тестами у `service_test.go`. Перед записом звірте пін і потрібні API, не підмінюйте версію на `@latest`.
 
 ## Легенда
 
@@ -85,9 +85,9 @@ go test -race ./week2/...
 docker build --platform linux/amd64 -f week2/Day4_Agent_as_Service_Deploy/labs4/Dockerfile -t ai-ae-lab4:week2 .
 ```
 
-`v2.4.0` — це пін курсу **станом на 09/2026** (звірено 13.09.2026 проти `go.mod`). Не пишіть `@latest`: між вашою збіркою і збіркою перевіряючого може вийти нова мінорна версія, і тоді «в мене працює» перестане бути аргументом. Якщо викладач оголосив новіший пін — беріть його, але так само явним числом.
+`v2.5.0` — це пін курсу **станом на 09/2026** (звірено 01.10.2026 проти `go.mod`). Не пишіть `@latest`: між вашою збіркою і збіркою перевіряючого може вийти нова мінорна версія, і тоді «в мене працює» перестане бути аргументом. Якщо викладач оголосив новіший пін — беріть його, але так само явним числом.
 
-Стартовий шаблон: [week2/Day4_Agent_as_Service_Deploy/labs4/main.go](https://github.com/dimetron/ai-ae-labs/blob/main/week2/Day4_Agent_as_Service_Deploy/labs4/main.go) · Еталонний приклад: [`sources/github/adk-go/examples/rest/`](https://github.com/google/adk-go/blob/v2.4.0/examples/rest/main.go) · Контракт маршрутів: [`server/adkrest`](https://github.com/google/adk-go/blob/v2.4.0/server/adkrest/internal/routers/runtime.go).
+Стартовий шаблон: [week2/Day4_Agent_as_Service_Deploy/labs4/main.go](https://github.com/dimetron/ai-ae-labs/blob/main/week2/Day4_Agent_as_Service_Deploy/labs4/main.go) · Еталонний приклад: [`sources/github/adk-go/examples/rest/`](https://github.com/google/adk-go/blob/v2.5.0/examples/rest/main.go) · Контракт маршрутів: [`server/adkrest`](https://github.com/google/adk-go/blob/v2.5.0/server/adkrest/internal/routers/runtime.go).
 
 **Опційне продовження, без зміни балів:** [ADK Go на GCP Cloud Run](CLOUD_RUN.md). Той самий Dockerfile, authenticated invocation, `PORT`, 8-секундний drain; GCP billing потрібен. Локальний шлях залишається достатнім.
 

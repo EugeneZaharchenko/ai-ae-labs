@@ -150,7 +150,7 @@ They may disagree. Reply with one line "VERDICT: <buy | skip | need more data> â
 		Add(mergeNode, verdict).
 		Build()
 
-	// workflowagent.Config has no concurrency option in v2.4.0, so the graph
+	// workflowagent.Config has no concurrency option in v2.5.0, so the graph
 	// is built with workflow.New and wrapped in a plain agent: Workflow.Run
 	// already has the agent.Config.Run signature.
 	w, err := workflow.New("research_fanout", edges, workflow.WithMaxConcurrency(limit))

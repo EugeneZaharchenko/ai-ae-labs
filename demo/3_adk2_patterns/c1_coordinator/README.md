@@ -32,7 +32,7 @@ go run . web api webui                       # Web UI на http://localhost:8080
 🤖 coordinator: Handled by billing_agent: Refund of the duplicate charge opened as case BIL-7.
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Примітив | Роль у демо |
 |---|---|
@@ -68,4 +68,4 @@ go run . web api webui                       # Web UI на http://localhost:8080
   буде — там рішення ухвалює модель.
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`

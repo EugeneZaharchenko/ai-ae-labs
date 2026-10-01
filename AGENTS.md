@@ -11,7 +11,7 @@
 Репозиторій з кодом курсу **AI Agents Engineering** (Prometheus): стартові шаблони
 лабораторних робіт, умови домашніх завдань і демо-проєкти.
 
-**Стек:** Go 1.27.1 · `google.golang.org/adk/v2 v2.4.0` (ADK вимагає Go ≥ 1.26.6) · станом на 09/2026.
+**Стек:** Go 1.27.1 · `google.golang.org/adk/v2 v2.5.0` (ADK вимагає Go ≥ 1.26.6) · станом на 10/2026.
 
 Репозиторій містить **2 вкладених Go-модулі** — це важливо, бо `go build ./...`
 з кореня не покриває демо:
@@ -87,7 +87,7 @@ week1/<День>/labs/solution/ еталонний розв'язок (публі
 internal/                   спільні helper-пакети (adkenv, fakellm, labrun)
 apps/.env-example           шаблон ключів провайдерів (копія → apps/.env)
 1_ai-gateway/               agentgateway + Jaeger/Prometheus/Grafana — локальний моніторинг (bonus-трек)
-3_adk2_patterns/            каталог патернів ADK Go v2.4.0 (16 патернів + 2 додатки) — власний Taskfile.yml
+3_adk2_patterns/            каталог патернів ADK Go v2.5.0 (16 патернів + 2 додатки) — власний Taskfile.yml
 adk-quickstart/             ADK Go v2 агент, який студенти запускають локально
 Taskfile.yml                команди репозиторію (task check, task test, task cover)
 AGENTS.md                   конвенції репозиторію для агентів і розробників
@@ -193,7 +193,7 @@ devcontainer exec --workspace-folder . bash
 |---|---|
 | `go-senior-developer` | пишете або рецензуєте Go: ідіоми, TDD, архітектура, безпека |
 | `asd-ste100` | пишете тексти інструкцій: короткі однозначні речення (Simplified Technical English) |
-| `adk-go-workflow` | обираєте стиль (граф / dynamic / prebuilt) і патерн агентної системи або пишете/тестуєте граф ADK Go v2.4.0: маршрути, JoinNode, DynamicNode, режими агентів, HITL |
+| `adk-go-workflow` | обираєте стиль (граф / dynamic / prebuilt) і патерн агентної системи або пишете/тестуєте граф ADK Go v2.5.0: маршрути, JoinNode, DynamicNode, режими агентів, HITL |
 
 Кожен скіл — тека зі `SKILL.md` (коли застосовувати + стислий огляд) і
 `references/`, `examples/` із докладними матеріалами. Посилання всередині
@@ -207,7 +207,7 @@ devcontainer exec --workspace-folder . bash
   інструментів — там, де важлива однозначність.
 - `adk-go-workflow` — три стилі workflow (граф / dynamic / prebuilt), вісь
   «хто вирішує наступний крок», дерево рішень, індекс 18 патернів із посиланнями
-  на `demo/3_adk2_patterns/`, звірена з v2.4.0 шпаргалка API, запобіжники графа
+  на `demo/3_adk2_patterns/`, звірена з v2.5.0 шпаргалка API, запобіжники графа
   та офлайн-тестування. Приклади в `examples/` компілюються й тестуються:
   `go test ./.agents/skills/adk-go-workflow/examples/`.
 

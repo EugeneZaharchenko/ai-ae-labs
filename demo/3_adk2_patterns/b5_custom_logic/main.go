@@ -119,7 +119,7 @@ func checkout(pricer workflow.Node) workflow.DynamicFn[string, summary] {
 // reason names why a child failed. A skipped line that does not say why is
 // a silent failure with extra steps.
 //
-// In v2.4.0 RunNode does NOT keep the child's error chain: errors.Is(err,
+// In v2.5.0 RunNode does NOT keep the child's error chain: errors.Is(err,
 // errUnknownSKU) is false; only workflow.ErrNodeFailed survives, and the
 // child's message is flattened into the text after "dynamic child failed: ".
 func reason(err error) string {

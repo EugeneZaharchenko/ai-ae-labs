@@ -8,7 +8,7 @@
 // agent path — instruction, tool declaration, tool dispatch, final answer —
 // assertable offline and deterministically.
 //
-// Verified against google.golang.org/adk/v2 v2.4.0 (станом на 09/2026).
+// Verified against google.golang.org/adk/v2 v2.5.0 (станом на 09/2026).
 package labrun
 
 import (

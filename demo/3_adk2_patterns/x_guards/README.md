@@ -34,7 +34,7 @@ not caught by any validator — your discipline:
    · loop WITH a route but without an iteration cap → …
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Запобіжник | Анти-патерн | Як це виглядає в Go |
 |---|---|---|
@@ -67,10 +67,10 @@ not caught by any validator — your discipline:
 - `uncaught` — список того, що валідатор **не** ловить: цикл із маршрутом, але
   без лічильника; fan-out без ліміту; розмитий критик; побічний ефект до паузи
   HITL.
-- `build` — `workflowagent.New` у v2.4.0 викликає `workflow.New` **без опцій**,
+- `build` — `workflowagent.New` у v2.5.0 викликає `workflow.New` **без опцій**,
   тож `workflow.WithMaxConcurrency(n)` не дістається до графа, зібраного через
   нього. Усередині `workflowagent` обмежуйте паралельність через
   `workflow.NewParallelWorker(name, node, maxConcurrency, cfg)`.
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`

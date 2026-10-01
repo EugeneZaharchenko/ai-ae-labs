@@ -3,7 +3,7 @@
 Один і той самий сценарій проганяється на кількох моделях, і на виході — **таблиця
 вимірів**, а не думка про те, хто кращий.
 
-> Перевірено проти `google.golang.org/adk/v2 v2.4.0`, Go 1.27 (ADK вимагає ≥1.26.6) — **станом на 09/2026**.
+> Перевірено проти `google.golang.org/adk/v2 v2.5.0`, Go 1.27 (ADK вимагає ≥1.26.6) — **станом на 09/2026**.
 > Ставки, контекстні вікна й назви моделей у `catalog.json` — **плейсхолдери**:
 > звіряйте з прайс-листами провайдерів на дату свого прогону.
 
@@ -74,7 +74,7 @@ input/output tokens, prompt/context growth.»**
 прайс неповний. Дата доїжджає до кожного рядка таблиці — колонка `станом на`.
 
 **«Explain … Practical Example of Go model providers (Ollama, Gemini, Codex OpenAI).»**
-`BuildModel` покриває всі три бекенди ADK Go v2.4.0: `gemini`, `openaimodel` і Ollama
+`BuildModel` покриває всі три бекенди ADK Go v2.5.0: `gemini`, `openaimodel` і Ollama
 через `openaimodel.ClientConfig.BaseURL`. Anthropic-бекенда в ADK Go **немає** —
 `TestBuildModelFailsLoudly` фіксує це як читабельну помилку, а не як 401 на першому запиті.
 

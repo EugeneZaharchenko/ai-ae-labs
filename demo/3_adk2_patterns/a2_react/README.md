@@ -35,7 +35,7 @@ go run . web api webui                          # Web UI на http://localhost:8
 ⚙️  react ⇒ {"answer":"ADK Go 2.0 was announced in 2026 …","steps":3}
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Примітив | Роль у демо |
 |---|---|
@@ -66,4 +66,4 @@ go run . web api webui                          # Web UI на http://localhost:8
   спостереження, і цикл іде далі — тест `protocol break` це перевіряє.
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`

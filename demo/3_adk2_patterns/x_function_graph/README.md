@@ -44,7 +44,7 @@ go run . console                            # формат вводу: order <id
 ⚙️  ship ⇒ shipped: order 1001 (3x keyboard) after 3 reserve attempt(s)
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Примітив | Роль у демо |
 |---|---|
@@ -80,4 +80,4 @@ go run . console                            # формат вводу: order <id
   з повідомленням про очікуваний формат (`TestBadInputFailsTheRun`).
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`
