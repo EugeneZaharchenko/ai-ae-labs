@@ -2,7 +2,7 @@
 // call (model tiering), with failover to the other tier if the chosen agent
 // fails before producing anything.
 //
-// ADK Go v2.4.0 has no RoutedAgent / AgentRouter (those are TypeScript, per
+// ADK Go v2.5.0 has no RoutedAgent / AgentRouter (those are TypeScript, per
 // the catalog's source). This is the Go construction: a dynamic node holds the
 // routing rule and the failover in plain Go, and runs the agents with RunNode.
 //

@@ -5,9 +5,9 @@ description: Use when designing, writing, reviewing or testing ADK Go 2.x (googl
 
 # ADK Go Workflow Patterns
 
-Operational guide for building agent systems on **ADK Go v2.4.0**
+Operational guide for building agent systems on **ADK Go v2.5.0**
 (`google.golang.org/adk/v2`, станом на 09/2026). Every API name here was read
-from the v2.4.0 module source, not from Python or TypeScript docs. The runnable
+from the v2.5.0 module source, not from Python or TypeScript docs. The runnable
 catalog lives in [`demo/3_adk2_patterns/`](../../../demo/3_adk2_patterns/):
 one folder per pattern, each with `main.go`, `main_test.go` and `README.md`.
 
@@ -42,12 +42,12 @@ any of them through `RunNode`. Mix them per level.
 **On "superseded".** The ADK docs say that from 2.0, template workflows are
 superseded by graph-based and dynamic workflows — for Python and Go. That is a
 direction of travel, not a removal: the Go prebuilt agents are present and
-working in v2.4.0. Prefer a graph when you need routing, fan-in, retries or
+working in v2.5.0. Prefer a graph when you need routing, fan-in, retries or
 HITL; the prebuilt three carry none of that.
 
-### Prebuilt workflow agents (Go v2.4.0)
+### Prebuilt workflow agents (Go v2.5.0)
 
-All three verified to run offline in v2.4.0. Each takes
+All three verified to run offline in v2.5.0. Each takes
 `Config{AgentConfig: agent.Config{Name, SubAgents}}`.
 
 | Constructor | Behaviour | Go caveats |
@@ -93,7 +93,7 @@ left was measured to fail — not when it looks too simple.
    failover / A-B / model tiers → **C4**.
 5. Is anyone waiting for the answer? No → wrap it all in **E3** ambient.
 
-## Pattern Index (Go v2.4.0)
+## Pattern Index (Go v2.5.0)
 
 ✅ primitive exists · 🟡 compose from primitives · ❌ no Go API — build by hand
 
@@ -127,7 +127,7 @@ The catalog has **no prebuilt-style demo** at all: `sequentialagent`,
 are the same three shapes built as graphs. Read B1/B3 for the graph form and
 this table for when the prebuilt form is enough.
 
-Names that do **not** exist in Go v2.4.0: `RoutedAgent`, `AgentRouter`,
+Names that do **not** exist in Go v2.5.0: `RoutedAgent`, `AgentRouter`,
 `SecurityPlugin`, `PolicyOutcome`, a `DynamicNode` *type* (only the
 `NewDynamicNode` constructor), a `MaxConcurrency` *field* (it is the
 `workflow.WithMaxConcurrency(n)` option of `workflow.New`).

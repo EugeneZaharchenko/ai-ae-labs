@@ -140,4 +140,4 @@ README не записуйте.
 
 ---
 
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0` · Go 1.27.1
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0` · Go 1.27.1

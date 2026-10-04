@@ -1,4 +1,4 @@
-# ADK Go v2.4.0 — Guards and Gotchas
+# ADK Go v2.5.0 — Guards and Gotchas
 
 Two lists: what the framework catches for you, and what it does not.
 

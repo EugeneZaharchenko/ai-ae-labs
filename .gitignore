@@ -24,5 +24,18 @@ tmp/
 week2/*/labs3/labs3
 week2/*/labs4/labs4
 
+# The same trap once more, for the demo tree: `go build ./demo/6_adk_telegram_bot`
+# from the root drops a 73 MB Mach-O named after the package. Leading slash on
+# the first line, so it matches the file at the root and not the directory that
+# holds the demo. The second line is the in-place build.
+/6_adk_telegram_bot
+demo/6_adk_telegram_bot/6_adk_telegram_bot
+
+# And once more for the AG-UI bridge, whose package dir is `demo/agui_web` but
+# whose binary is named `agui_web` — `go build ./...` from the root drops a
+# 10 MB Mach-O at the root under that name.
+/agui_web
+demo/agui_web/agui_web
+
 # macOS/VS Code droppings.
 .DS_Store

@@ -39,7 +39,7 @@ go run . web api webui                              # Web UI на http://localho
 ⚙️  send_back ⇒ sent back to the writer, failed C3: …
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Примітив | Роль у демо |
 |---|---|
@@ -76,4 +76,4 @@ go run . web api webui                              # Web UI на http://localho
   використовує її; у режимі `-live` той самий список іде в `Instruction`.
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`

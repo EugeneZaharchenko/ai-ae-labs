@@ -32,7 +32,7 @@ go run . web api webui                     # Web UI на http://localhost:8080/u
 🤖 verdict: VERDICT: buy — strong reviews outweigh the price; …
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Примітив | Роль у демо |
 |---|---|
@@ -42,7 +42,7 @@ go run . web api webui                     # Web UI на http://localhost:8080/u
 | `workflow.New(name, edges, workflow.WithMaxConcurrency(n))` | ліміт одночасних гілок (`maxConcurrency = 2`) |
 | `agent.New(agent.Config{Run: w.Run})` | обгортка графа в агента — див. нижче |
 
-**Чому не `workflowagent.New`.** У v2.4.0 `workflowagent.Config` не має поля для
+**Чому не `workflowagent.New`.** У v2.5.0 `workflowagent.Config` не має поля для
 ліміту паралельності: `WithMaxConcurrency` — це опція `workflow.New`. Тому граф
 збирається через `workflow.New(…, WithMaxConcurrency(2))`, а `Workflow.Run` вже
 має сигнатуру `agent.Config.Run`. Ціна: така обгортка не відновлює HITL-паузи
@@ -74,4 +74,4 @@ wrapped, maxConcurrency, cfg)`.
   недетермінований, а текст для моделі має бути стабільним.
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`

@@ -34,7 +34,7 @@ go run . web api webui                      # Web UI на http://localhost:8080/
 🤖 storage_agent: Bucket prod-logs deleted.
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Примітив | Роль у демо |
 |---|---|
@@ -45,7 +45,7 @@ go run . web api webui                      # Web UI на http://localhost:8080/
 | `agent.Context.RequestConfirmation(hint, payload)` / `ToolConfirmation()` | ручний варіант усередині інструмента (див. `examples/toolconfirmation` в ADK) |
 
 **Чого в Go немає.** `SecurityPlugin` і `PolicyOutcome.CONFIRM`, які джерело
-подає як примітиви, у Go v2.4.0 відсутні. Найближчий аналог централізованого
+подає як примітиви, у Go v2.5.0 відсутні. Найближчий аналог централізованого
 правила — `llmagent.Config.BeforeToolCallbacks` (або `plugin.Config.BeforeToolCallback`):
 одне місце для рішення «питати чи ні», але це callback, а не рушій політик.
 
@@ -68,4 +68,4 @@ go run . web api webui                      # Web UI на http://localhost:8080/
   «запарковано без людини», не-prod без питання, невідомий бакет.
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`

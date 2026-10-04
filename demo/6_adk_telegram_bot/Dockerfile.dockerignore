@@ -1,0 +1,46 @@
+# Dockerfile.dockerignore — build context filter for demo/6_adk_telegram_bot.
+#
+# Docker picks this up automatically because it sits next to the Dockerfile and
+# is named <Dockerfile>.dockerignore (BuildKit 1.6+, stable since Docker 25;
+# verified here on Docker 29.4.0 / buildx 0.33.0). It does NOT replace a
+# root-level .dockerignore — building with an explicit -f is what activates it.
+#
+# The context is the repository root, which holds .git, scratch checkouts under
+# tmp/, and apps/.env with real provider and bot credentials. None of it is
+# reachable from the packages this binary imports.
+#
+# One rule about the syntax cost real debugging time, so it is written down here:
+#
+#   A negated DIRECTORY pattern re-admits everything under it. A leading `**`
+#   matches at every depth, and a parent's own entry governs its children, so
+#   `!demo/` does not admit one folder — it admits every demo in the tree.
+#   Name the exact directory instead, as below.
+#
+# Verified: the resulting context is go.mod, go.sum, the three internal packages
+# and demo/6_adk_telegram_bot — and apps/.env is not among them.
+
+# Exclude everything, then re-admit only what the build needs. An allowlist is
+# the safe direction: a file added later is out by default, rather than silently
+# shipped into a layer.
+**
+!go.mod
+!go.sum
+
+# The three internal packages the bot imports. A prefix entry re-admits its
+# subtree, which is what is wanted here.
+!internal/adkenv/
+!internal/labrun/
+!internal/modelcfg/
+
+!demo/6_adk_telegram_bot/
+
+# Defence in depth for the one file that must never reach a layer, a build cache
+# or a registry. apps/.env is already git-ignored and already excluded by the
+# rules above; this line means a future `!apps/` cannot quietly undo that.
+**/.env
+**/.env.*
+
+# Not compiled, and not needed to build the binary, so the context stays the
+# source that actually ships.
+**/*_test.go
+**/README.md

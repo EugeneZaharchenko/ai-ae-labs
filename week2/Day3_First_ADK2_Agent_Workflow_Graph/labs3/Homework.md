@@ -1,6 +1,6 @@
 # Практичне завдання 3 — Агент стає графом: вузли, ребра, тести
 
-> **Станом на 09/2026 (перед використанням потрібно перевірити):** пін `google.golang.org/adk/v2` = v2.4.0, Go 1.27 — брати з `go.mod` лабораторії, не `@latest`. Сигнатури `workflow.NewFunctionNode`, `workflow.NewToolNodeTyped`, `workflow.Chain`, `agent.NewStrictContextMock` **звірено дослівно з модулем v2.4.0 13.09.2026** — точні рядки й файли в `references.md` (внутрішній докладний звіт звірки, не публікується).
+> **Станом на 09/2026 (перед використанням потрібно перевірити):** пін `google.golang.org/adk/v2` = v2.5.0, Go 1.27 — брати з `go.mod` лабораторії, не `@latest`. Сигнатури `workflow.NewFunctionNode`, `workflow.NewToolNodeTyped`, `workflow.Chain`, `agent.NewStrictContextMock` **звірено дослівно з модулем v2.5.0 01.10.2026** — точні рядки й файли в `references.md` (внутрішній докладний звіт звірки, не публікується).
 
 > **Одна пастка компіляції, яку варто знати заздалегідь.** `workflow.NewFunctionNode` повертає **одне** значення, а `workflow.NewToolNodeTyped` — **два** (`*ToolNode, error`). Це друга за частотою причина «не збирається» в цьому ДЗ.
 
@@ -92,7 +92,7 @@ go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 -mode=graph
 
 GitHub-репозиторій з кодом, тестами та README; `go build ./...` і `go test ./...` мають проходити; посилання на репозиторій — у форму здачі. Якщо репозиторій закритий — додайте акаунт ментора в collaborators (акаунт указано в інструкції до курсу на платформі).
 
-Робоча основа й режими запуску: [README](README.md). Для власного форку збережіть кореневі `go.mod`/`go.sum`, `internal/` та `week2/internal/`; один `main.go` не є окремим модулем. Еталонні API-приклади: [workflow/basic](https://github.com/google/adk-go/blob/v2.4.0/examples/workflow/basic/main.go), [workflow/routing/string](https://github.com/google/adk-go/blob/v2.4.0/examples/workflow/routing/string/main.go).
+Робоча основа й режими запуску: [README](README.md). Для власного форку збережіть кореневі `go.mod`/`go.sum`, `internal/` та `week2/internal/`; один `main.go` не є окремим модулем. Еталонні API-приклади: [workflow/basic](https://github.com/google/adk-go/blob/v2.5.0/examples/workflow/basic/main.go), [workflow/routing/string](https://github.com/google/adk-go/blob/v2.5.0/examples/workflow/routing/string/main.go).
 
 ## Дедлайн
 

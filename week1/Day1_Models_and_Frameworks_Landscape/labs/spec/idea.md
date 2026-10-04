@@ -3,7 +3,7 @@ part: week1/Day1_Models_and_Frameworks_Landscape/
 lab: week1/Day1_Models_and_Frameworks_Landscape/labs/
 artifact: Cross-Model Benchmark Harness
 status: idea
-adk: google.golang.org/adk/v2 v2.4.0 (модуль лаб: Go 1.27; сам ADK вимагає ≥1.26.6) — звірено 2026-09-15
+adk: google.golang.org/adk/v2 v2.5.0 (модуль лаб: Go 1.27; сам ADK вимагає ≥1.26.6) — звірено 2026-10-01
 research: research/course-weeks/week1-part1-models-and-frameworks-landscape.md
 ---
 

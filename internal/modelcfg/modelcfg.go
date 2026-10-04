@@ -27,7 +27,7 @@
 // What does not: reading apps/.env. That is application bootstrap, not a
 // property of a provider, so callers do it explicitly with LoadEnv before Load.
 //
-// Verified against google.golang.org/adk/v2 v2.4.0 and pi-go v0.2.3 (09/2026).
+// Verified against google.golang.org/adk/v2 v2.5.0 and pi-go v0.2.7 (10/2026).
 package modelcfg
 
 import (

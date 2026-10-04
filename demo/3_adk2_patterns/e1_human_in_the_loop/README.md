@@ -28,7 +28,7 @@ go run . web api webui
 ⚙️  execute_payout ⇒ payout of 1200 EUR to A-114 sent
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Примітив | Роль у демо |
 |---|---|
@@ -63,4 +63,4 @@ go run . web api webui
 - Паралельний HITL у Go не підтримується: `workflow.ErrParallelHITLUnsupported`.
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`

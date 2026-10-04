@@ -1,4 +1,4 @@
-// Package examples holds minimal ADK Go v2.4.0 workflow snippets for the
+// Package examples holds minimal ADK Go v2.5.0 workflow snippets for the
 // adk-go-workflow skill. Full runnable versions: demo/3_adk2_patterns/.
 package examples
 

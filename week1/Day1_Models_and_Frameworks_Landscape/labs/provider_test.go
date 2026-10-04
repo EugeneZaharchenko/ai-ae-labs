@@ -232,7 +232,7 @@ func TestChooseModelPrecedence(t *testing.T) {
 		{
 			name: "an unknown provider is a loud error, not a silent fallback",
 			env:  map[string]string{"DEFAULT_MODEL_PROVIDER": "anthropic"},
-			// anthropic має зміни, але ADK Go v2.4.0 не має бекенда Anthropic,
+			// anthropic має зміни, але ADK Go v2.5.0 не має бекенда Anthropic,
 			// тож краще сказати це на старті, ніж падати пізніше.
 			wantErr:     true,
 			wantErrText: "невідомий провайдер",
@@ -337,7 +337,7 @@ func TestQualifyGatewayModel(t *testing.T) {
 // TestAgentGatewayRoutesResolveThroughPimodels pins that every table row is a
 // name pimodels itself recognises, and pins HOW it resolves it.
 //
-// The contract, verified against pi-go v0.2.3: an `agentgateway/...` name
+// The contract, verified against pi-go v0.2.7: an `agentgateway/...` name
 // resolves to provider "agentgateway" with the rest of the name — including any
 // vendor segment — left intact as the model. The gateway does the routing; the
 // client must forward the layered name rather than strip it. Getting this wrong

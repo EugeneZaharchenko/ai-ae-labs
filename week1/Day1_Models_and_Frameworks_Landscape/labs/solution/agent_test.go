@@ -280,7 +280,7 @@ func TestConfiguredFollowsEnvironment(t *testing.T) {
 }
 
 // TestBuildModelFailsLoudly — обидві відмови мають бути читабельними: у
-// ADK Go v2.4.0 немає бекенда Anthropic, і немає магії «якось запуститись»
+// ADK Go v2.5.0 немає бекенда Anthropic, і немає магії «якось запуститись»
 // без ключа.
 func TestBuildModelFailsLoudly(t *testing.T) {
 	clearProviderEnv(t)

@@ -31,7 +31,7 @@ go run . web api webui                          # Web UI на http://localhost:8
 🤖 notify: Order confirmed. Details: {…}
 ```
 
-## Go-примітиви (ADK Go v2.4.0)
+## Go-примітиви (ADK Go v2.5.0)
 
 | Примітив | Роль у демо |
 |---|---|
@@ -57,7 +57,7 @@ execution.
 
 - Обробка помилок — звичайний Go: невалідний рядок пропускається, замовлення
   йде далі; якщо не лишилось жодного рядка — вузол повертає помилку.
-- Кожен пропущений рядок каже **чому** (`reason`). Нюанс v2.4.0: `RunNode` не
+- Кожен пропущений рядок каже **чому** (`reason`). Нюанс v2.5.0: `RunNode` не
   зберігає ланцюг помилки дитини — `errors.Is(err, errUnknownSKU)` дає `false`,
   зберігається лише `workflow.ErrNodeFailed`, а текст помилки дитини вклеєно в
   повідомлення.
@@ -68,4 +68,4 @@ execution.
   `workflow.ErrInvalidRunNodeContext`.
 
 ---
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.4.0`
+Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0`

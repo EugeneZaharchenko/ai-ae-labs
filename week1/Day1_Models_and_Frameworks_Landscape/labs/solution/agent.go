@@ -11,7 +11,7 @@ package main
 // почне ходити через кілька моделей або через workflow-граф; колбеки живуть
 // на рівні агента й переживають це.
 //
-// Перевірено проти google.golang.org/adk/v2 v2.4.0 (станом на 09/2026).
+// Перевірено проти google.golang.org/adk/v2 v2.5.0 (станом на 09/2026).
 
 import (
 	"context"
@@ -38,7 +38,7 @@ import (
 // правильна поведінка — виміряти одну й сказати про це вголос, а не впасти.
 var ErrProviderNotConfigured = errors.New("provider not configured")
 
-// ErrUnsupportedProvider — провайдера немає серед бекендів ADK Go v2.4.0.
+// ErrUnsupportedProvider — провайдера немає серед бекендів ADK Go v2.5.0.
 var ErrUnsupportedProvider = errors.New("unsupported provider")
 
 // envVar повертає змінну оточення, наявність якої вмикає провайдера.
@@ -53,10 +53,10 @@ func envVar(provider string) (string, error) {
 	case "agentgateway":
 		return "AGENTGATEWAY_BASE_URL", nil
 	default:
-		// ADK Go v2.4.0 має рівно три модельні пакети: gemini, openaimodel,
+		// ADK Go v2.5.0 має рівно три модельні пакети: gemini, openaimodel,
 		// apigee. Бекенда Anthropic немає — і це обмеження фреймворка, а не
 		// недогляд лабораторної.
-		return "", fmt.Errorf("%w: %q (ADK Go v2.4.0 ships gemini, openaimodel, apigee)",
+		return "", fmt.Errorf("%w: %q (ADK Go v2.5.0 ships gemini, openaimodel, apigee)",
 			ErrUnsupportedProvider, provider)
 	}
 }
