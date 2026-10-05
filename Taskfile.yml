@@ -23,6 +23,8 @@ vars:
   DAY2: ./week1/Day2_Structured_Output_Function_Calling/labs
   DAY3: ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3
   DAY4: ./week2/Day4_Agent_as_Service_Deploy/labs4
+  DAY5: ./week3/Day5_Lossless_PDF_Parsing_Chunking/labs5
+  DAY6: ./week3/Day6_Reranking_Semantic_Cache_Maturity_Ladder/labs6
   # День 4 у контейнері: тег, ім'я контейнера і платформа. Задачі нижче ділять
   # ці змінні, щоб `docker stop` не промахнувся повз ім'я, яке змінили лише в
   # одному місці. `DOCKER_PLATFORM` така сама, як у README лаби: `linux/amd64`
@@ -507,6 +509,93 @@ tasks:
     cmds:
       - docker rm -f {{.DAY4_CONTAINER}} >/dev/null 2>&1 || true
       - echo 'container {{.DAY4_CONTAINER}} removed'
+
+  # --- week3 ---------------------------------------------------------------
+  #
+  # Обидві лаби тижня 3 — графи без LLM: ключ і .env не потрібні. Задачі
+  # запускаються з теки лаби (`dir:`), бо шляхи `testdata/...` у лабах відносні:
+  # labs5 читає шлях документа з консолі, labs6 — корпус testdata/chunks.json.
+  #
+  #   task week3:day5:md                 тестовий документ .md через увесь граф
+  #   task week3:day5:pdf                той самий документ як PDF → docling-mcp (потрібен uv)
+  #   task week3:day6:console:lab5       ДЗ 6 на чанках, які зберегло ваше ДЗ 5
+  #
+  # `console` читає os.Stdin, тож :md і :pdf подають шлях через echo й
+  # завершуються на EOF. Усі `*:web` слухають :8080 — ліки `task kill:8080`.
+
+  week3:build:
+    desc: 'Build week3'
+    cmds:
+      - go build ./week3/...
+
+  week3:test:
+    desc: 'Test week3 (race detector)'
+    cmds:
+      - go test -race ./week3/...
+
+  week3:run:
+    desc: 'Run a week3 lab: task week3:run PKG=./week3/Day5_Lossless_PDF_Parsing_Chunking/labs5'
+    requires:
+      vars: [PKG]
+    cmds:
+      - go run {{.PKG}}
+
+  week3:day5:test:
+    desc: 'День 5: тести лаби й internal/* з -race (без Python, docling і мережі)'
+    cmds:
+      - go test -race -count=1 {{.DAY5}}/...
+
+  week3:day5:console:
+    desc: 'День 5: ingestion-граф у консолі — введіть шлях, напр. testdata/ledgerworks_soc2.md'
+    dir: '{{.DAY5}}'
+    cmds:
+      - go run . console
+
+  week3:day5:md:
+    desc: 'День 5: прогнати testdata/ledgerworks_soc2.md через граф (ранній win)'
+    dir: '{{.DAY5}}'
+    cmds:
+      - echo testdata/ledgerworks_soc2.md | go run . console
+
+  week3:day5:pdf:
+    desc: 'День 5: прогнати testdata/ledgerworks_soc2.pdf через docling-mcp (потрібен uv; перший запуск — довгий)'
+    dir: '{{.DAY5}}'
+    cmds:
+      - echo testdata/ledgerworks_soc2.pdf | go run . console
+
+  week3:day5:web:
+    desc: 'День 5: Web UI http://localhost:8080/ui/ + REST /api (без ключа)'
+    dir: '{{.DAY5}}'
+    cmds:
+      - go run . web webui api
+
+  week3:day5:docling:e2e:
+    desc: 'День 5: opt-in тест справжнього docling-mcp на тестовому PDF (потрібен uv)'
+    cmds:
+      - DOCLING_E2E=1 go test -count=1 -run TestRealServer -v {{.DAY5}}/internal/docling
+
+  week3:day6:test:
+    desc: 'День 6: тести лаби й internal/corpus з -race (без ключів і без мережі)'
+    cmds:
+      - go test -race -count=1 {{.DAY6}}/...
+
+  week3:day6:console:
+    desc: 'День 6: retrieval-граф у консолі на testdata/chunks.json (запит: Що таке тариф T-2?)'
+    dir: '{{.DAY6}}'
+    cmds:
+      - go run . console
+
+  week3:day6:console:lab5:
+    desc: 'День 6: консоль на чанках з ДЗ 5 (CHUNKS=labs5/testdata/chunks.json або свій шлях)'
+    dir: '{{.DAY6}}'
+    cmds:
+      - CHUNKS={{.CHUNKS | default "../../Day5_Lossless_PDF_Parsing_Chunking/labs5/testdata/chunks.json"}} go run . console
+
+  week3:day6:web:
+    desc: 'День 6: Web UI http://localhost:8080/ui/ + REST /api (без ключа)'
+    dir: '{{.DAY6}}'
+    cmds:
+      - go run . web webui api
 
   # --- demo №4: приклади графового рушія ADK у Web UI -------------------------
   #
