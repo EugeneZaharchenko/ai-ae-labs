@@ -21,7 +21,7 @@ import (
 // classify — workflow.NewEmittingFunctionNode з маршрутами single-hop /
 // multi-hop / global / metadata-filter; збір гілок — workflow.NewJoinNode.
 // Еталон fan-out + JoinNode:
-// https://github.com/google/adk-go/blob/v2.4.0/examples/workflow/complex/main.go
+// https://github.com/google/adk-go/blob/v2.5.0/examples/workflow/complex/main.go
 func newGraph(r *retriever) (agent.Agent, error) {
 	// Без retry: вузли локальні, повтор не змінить результат.
 	cfg := workflow.NodeConfig{}
