@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -36,8 +37,9 @@ const topK = 5
 // обслуговує кілька запитів одночасно.
 //
 // TODO(студент): семантичний кеш. Зараз ключ — нормалізований рядок запиту
-// (точний hit). Перейдіть на схожість (ембединги або власна евристика) —
-// перефразований запит має влучати. Ключ має ізолювати tenant, версію
+// (точний hit). Перейдіть на схожість: r.emb.Embed + embed.Cosine проти
+// збережених векторів запитів — перефразований запит має влучати, а запит
+// про T-1 не має отримати відповідь про T-2. Ключ має ізолювати tenant, версію
 // корпусу й TTL (Homework п.4).
 type answerCache struct {
 	mu sync.Mutex
@@ -76,14 +78,25 @@ func chunksPath(env string) string {
 	return defaultChunks
 }
 
-// retriever тримає корпус і кеш; його методи — вузли графа.
+// embedder перетворює тексти на вектори — по одному на текст, у тому ж порядку.
+//
+// Реалізація — internal/embed: за замовчуванням чистий Go (детермінований
+// стаб, без мережі), Ollama — якщо задано OLLAMA_EMBED_MODEL
+// (https://docs.ollama.com/capabilities/embeddings). Там же embed.Cosine і
+// embed.Rerank. Стаб — лише для wiring і тестів: пороги калібруйте на Ollama.
+type embedder interface {
+	Embed(ctx context.Context, texts []string) ([][]float32, error)
+}
+
+// retriever тримає корпус, кеш і embedder; його методи — вузли графа.
 type retriever struct {
 	chunks []corpus.Chunk
 	cache  answerCache
+	emb    embedder
 }
 
-func newRetriever(chunks []corpus.Chunk) *retriever {
-	return &retriever{chunks: chunks}
+func newRetriever(chunks []corpus.Chunk, emb embedder) *retriever {
+	return &retriever{chunks: chunks, emb: emb}
 }
 
 // search шукає топ-K кандидатів по чанках із ДЗ 5.
@@ -119,8 +132,11 @@ func (r *retriever) search(_ agent.Context, query string) (SearchResult, error) 
 }
 
 // rerank переранжовує кандидатів до топ-N.
-// TODO(студент): cross-encoder (напр. BAAI/bge-reranker-v2-m3) або LLM-судія
-// («оціни релевантність 0–10»); збережіть порядок «до/після» для README.
+// TODO(студент): перший крок — embed.Rerank(ctx, r.emb, in.Query, тексти)
+// (bi-encoder: cosine між векторами запиту й чанка). Далі — cross-encoder:
+// systemone.New().Rerank(ctx, in.Query, тексти) — decision-модель tev1:4b в Ollama
+// (P(yes) на «чи відповідає уривок на запит?»; вмикається SYSTEMONE_URL),
+// BAAI/bge-reranker-v2-m3 або LLM-судія. Збережіть порядок «до/після» для README.
 func (r *retriever) rerank(_ agent.Context, in SearchResult) (SearchResult, error) {
 	return in, nil // заглушка: порядок не змінюється
 }

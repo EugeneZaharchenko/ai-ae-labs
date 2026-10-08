@@ -196,6 +196,10 @@ func extractEntities(_ agent.Context, b Batch) (Batch, error) {
 // TODO(студент): для кожного child (ParentID != "") — idx.Add(c.ID, c.Text)
 // і VectorsAdded++. Parents не індексуйте: їх підвантажують за ParentID
 // після пошуку. Ембединг — стаб (internal/vecindex), так і напишіть у README.
+// Справжні вектори — internal/embed: нульовий embed.Client — той самий
+// детермінований стаб на чистому Go, embed.New() з
+// OLLAMA_EMBED_MODEL=embeddinggemma — модель Ollama
+// (https://docs.ollama.com/capabilities/embeddings); пошук — embed.Rerank.
 func newIndexVector(idx *vecindex.Index) func(agent.Context, Batch) (Batch, error) {
 	_ = idx
 	return func(_ agent.Context, b Batch) (Batch, error) {
