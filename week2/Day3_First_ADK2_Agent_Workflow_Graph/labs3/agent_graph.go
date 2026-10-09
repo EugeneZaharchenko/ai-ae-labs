@@ -87,6 +87,29 @@ func newGraph(reg *refund.Registry) (agent.Agent, error) {
 	})
 }
 
+// newStaticGraph is the basic HW3 flow without routing:
+// Start → prepare → open_refund_case → format.
+// Every request goes through open_refund_case, so the case is always
+// opened by the tool node and never "just written" by a model.
+func newStaticGraph(reg *refund.Registry) (agent.Agent, error) {
+	refundTool, err := refund.NewTool(reg)
+	if err != nil {
+		return nil, fmt.Errorf("create refund tool: %w", err)
+	}
+	cfg := workflow.NodeConfig{}
+	prepare := workflow.NewFunctionNode("prepare", refund.Prepare, cfg)
+	openCase, err := workflow.NewToolNodeTyped[refund.Input, refund.Output](refundTool, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create refund node: %w", err)
+	}
+	format := workflow.NewFunctionNode("format", refund.Format, cfg)
+	return workflowagent.New(workflowagent.Config{
+		Name:        refund.AppName,
+		Description: "LEDGERWORKS: prepare the request, open the refund case, format the answer.",
+		Edges:       workflow.Chain(workflow.Start, prepare, openCase, format),
+	})
+}
+
 // classifyRouteText emits the routing event and returns nil, which suppresses
 // the node's own terminal event: the route is the only thing this node is for,
 // and a second event carrying the same string would say nothing new.
