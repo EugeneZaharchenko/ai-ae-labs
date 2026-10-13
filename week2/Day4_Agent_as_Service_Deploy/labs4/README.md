@@ -3,6 +3,175 @@
 **Станом на 09/2026:** Go 1.27.1, ADK Go v2.5.0. Жодного LLM, ключа або `.env` для базового шляху.
 Виконуйте команди **з кореня `ai-ae-labs`**. Потрібні Go, `curl`, а для контейнера — Docker/OrbStack.
 
+## ДЗ 4 — що зроблено
+
+Станом на 10/2026: Go 1.27.1, `google.golang.org/adk/v2 v2.5.0` (пін з `go.mod`, не `@latest`),
+Docker builder `golang:1.27.1`, Docker 29.6.2 (Docker Desktop, Windows 11, engine `linux/amd64`).
+Усе нижче — мої власні запуски 13–14.10.2026, а не скопійовані числа.
+
+### Що я змінив
+
+- `agent_graph.go` — це мій агент з ДЗ 3 (`newStaticGraph` з `labs3`): `Start → prepare → open_refund_case → format`.
+  Роутер `classify` з labs3 я сюди не брав: у сервісу одна задача — відкрити кейс, тому кожен запит іде через tool-вузол.
+  Ім'я агента — `first_graph_agent` (`refund.AppName`), і саме його треба передавати як `appName`.
+- `graph_test.go` — тест, що ім'я агента = `first_graph_agent`, бо інакше REST поверне 404 `failed to find`.
+- `service.go`, `main.go`, `Dockerfile` — база курсу, я їх перевірив і пояснюю нижче, що вони роблять.
+
+### Як зібрати й запустити
+
+```bash
+go build ./week2/...
+go test -race ./week2/...
+go run ./week2/Day4_Agent_as_Service_Deploy/labs4          # локально, 127.0.0.1:8080
+
+# статичний бінарник окремо (те саме робить Dockerfile)
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
+  -o adk-service ./week2/Day4_Agent_as_Service_Deploy/labs4
+
+# контейнер FROM scratch, тег явний — week2, не latest
+docker build --platform linux/amd64 -f week2/Day4_Agent_as_Service_Deploy/labs4/Dockerfile -t ai-ae-lab4:week2 .
+docker run --name ai-ae-lab4 --platform linux/amd64 --detach --read-only --cap-drop ALL \
+  -p 127.0.0.1:8080:8080 ai-ae-lab4:week2
+```
+
+`task week2:day4:docker:*` на Windows не працює (Taskfile лише для macOS/Linux), тому я запускав команди вручну.
+
+### 4 curl-перевірки (локальний запуск)
+
+```bash
+BASE=http://127.0.0.1:8080
+```
+
+**1. Liveness** — процес живий:
+
+```
+$ curl -i $BASE/health
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: 3
+
+OK
+```
+
+**2. Readiness** — сервіс приймає роботу (не в drain):
+
+```
+$ curl -i $BASE/readyz
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: 3
+
+OK
+```
+
+**3. Створення сесії** (без неї `run_sse` дає 404):
+
+```
+$ curl -X POST $BASE/api/apps/first_graph_agent/users/learner/sessions/demo \
+    -H 'Content-Type: application/json' -d '{}'
+{"id":"demo","appName":"first_graph_agent","userId":"learner","lastUpdateTime":1791925405,"events":[],"state":{}}
+```
+
+**4. SSE-запит** через `curl -N` — видно три окремі `data:` події, по одній на вузол:
+
+```
+$ curl -N -i $BASE/api/run_sse -H 'Content-Type: application/json' \
+    -d '{"appName":"first_graph_agent","userId":"learner","sessionId":"demo","newMessage":{"role":"user","parts":[{"text":"Мерчант A-114 просить повернення по транзакції txn-2026-07-118845"}]}}'
+HTTP/1.1 200 OK
+Cache-Control: no-cache
+Connection: keep-alive
+Content-Type: text/event-stream; charset=UTF-8
+Transfer-Encoding: chunked
+
+data: {"id":"2a16bc0e-89c7-41ce-a960-1c06dec1f043","invocationId":"e-eeb47d29-6ca7-49d1-b749-c4ef482cf8ef","author":"first_graph_agent","groundingMetadata":null,"usageMetadata":null,"actions":{"stateDelta":{},"artifactDelta":{}},"output":{"transaction_id":"txn-2026-07-118845","merchant_id":"A-114"},"nodeInfo":{"path":"first_graph_agent@1/prepare@1","outputFor":["first_graph_agent@1/prepare@1"]},"content":null}
+
+data: {"id":"626517d8-7fae-4d33-bb8b-c03093d787d9","invocationId":"e-eeb47d29-6ca7-49d1-b749-c4ef482cf8ef","author":"first_graph_agent","groundingMetadata":null,"usageMetadata":null,"actions":{"stateDelta":{"refund:last_case_id":"rc-txn-2026-07-118845-A-114","refund:last_merchant_id":"A-114","refund:last_status":"pending"},"artifactDelta":{}},"output":{"case_id":"rc-txn-2026-07-118845-A-114","merchant_id":"A-114","status":"pending","transaction_id":"txn-2026-07-118845"},"nodeInfo":{"path":"first_graph_agent@1/open_refund_case@1","outputFor":["first_graph_agent@1/open_refund_case@1"]},"content":null}
+
+data: {"id":"70356881-16e9-4e2c-8faa-7dfe2ec481fb","invocationId":"e-eeb47d29-6ca7-49d1-b749-c4ef482cf8ef","author":"first_graph_agent","groundingMetadata":null,"usageMetadata":null,"actions":{"stateDelta":{},"artifactDelta":{}},"output":"Кейс rc-txn-2026-07-118845-A-114: транзакція txn-2026-07-118845, мерчант A-114, статус pending","nodeInfo":{"path":"first_graph_agent@1/format@1","outputFor":["first_graph_agent@1/format@1","first_graph_agent@1"]},"content":null}
+```
+
+Кейс відкриває саме вузол `open_refund_case` — `stateDelta` з `refund:last_case_id` є лише в його події.
+Той самий запит вдруге в тій самій сесії дає `"status":"already_open"` (повторного кейсу немає).
+`content` = `null`, бо тут немає LLM — вузли графа віддають `output`.
+
+### Graceful shutdown
+
+Як це працює (`main.go` + `service.go`):
+
+1. `signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)` — SIGTERM/Ctrl+C скасовує контекст.
+2. `serve` бачить `ctx.Done()` і ставить `draining = true`: `/readyz` і `/api/...` тепер віддають **503**, а `/health` — далі 200
+   (процес живий, просто не бере нову роботу — тому liveness і readiness різні).
+3. `server.Shutdown(ctx з -drain-timeout, типово 30s)` закриває listener і чекає активні запити.
+   Нове з'єднання після цього може отримати **connection refused**, а не 503 — listener уже закритий.
+4. Якщо drain не вклався в timeout — `server.Close()` рве з'єднання, `serve` повертає помилку → `log.Fatal` → exit ≠ 0.
+   Якщо вклався — `ADK service drained and stopped` і exit 0.
+
+SIGTERM у контейнері (`docker stop` шле саме SIGTERM, у Dockerfile `STOPSIGNAL SIGTERM`):
+
+```
+$ docker stop --timeout 35 ai-ae-lab4
+ai-ae-lab4                                   # зупинився за 0.66 s
+$ docker inspect ai-ae-lab4 --format 'exit={{.State.ExitCode}}'
+exit=0
+$ docker logs ai-ae-lab4
+2026/10/13 21:06:35 ADK service listening at [::]:8080 (no model credentials required)
+2026/10/13 21:06:38 draining: rejecting new work and waiting for active requests
+2026/10/13 21:06:38 ADK service drained and stopped
+```
+
+Тут активних запитів не було (граф встиг відповісти до сигналу), тому це idle-stop. Активний drain і timeout
+перевіряє тест з утримуваним HTTP-запитом:
+
+```
+$ go test -v -run '^TestShutdown$' ./week2/Day4_Agent_as_Service_Deploy/labs4
+=== RUN   TestShutdown
+=== RUN   TestShutdown/drains_active_request
+2026/10/14 00:03:14 draining: rejecting new work and waiting for active requests
+=== RUN   TestShutdown/timeout_closes_active_request
+2026/10/14 00:03:14 draining: rejecting new work and waiting for active requests
+--- PASS: TestShutdown (0.07s)
+    --- PASS: TestShutdown/drains_active_request (0.07s)
+    --- PASS: TestShutdown/timeout_closes_active_request (0.00s)
+PASS
+ok  	github.com/dimetron/ai-eng-course/labs/week2/Day4_Agent_as_Service_Deploy/labs4	0.121s
+```
+
+`drains_active_request` — запит тримається, сервіс не виходить, поки він не завершиться.
+`timeout_closes_active_request` — drain = 0, `serve` повертає `context.DeadlineExceeded`, запит закривається.
+
+### Контейнер `FROM scratch`: розмір і що в ньому є
+
+Виміряно 14.10.2026, `linux/amd64`, Docker 29.6.2:
+
+```
+$ docker image inspect ai-ae-lab4:week2 \
+    --format 'platform={{.Os}}/{{.Architecture}} size={{.Size}} bytes user={{.Config.User}}'
+platform=linux/amd64 size=6751428 bytes user=65532:65532
+
+$ docker history ai-ae-lab4:week2 --format '{{.Size}}\t{{.CreatedBy}}'
+0B      ENTRYPOINT ["/adk-service"]
+0B      STOPSIGNAL SIGTERM
+0B      EXPOSE [8080/tcp]
+0B      ENV PORT=8080
+0B      USER 65532:65532
+242kB   COPY /etc/ssl/certs/ca-certificates.crt /etc…
+16.9MB  COPY /out/adk-service /adk-service # buildkit
+```
+
+- `.Size` = **6 751 428 bytes (≈6.75 MB)** — це стиснутий розмір образу. Розпакований — ≈17.1 MB (бінарник 16.9 MB + CA 242 kB).
+  `docker image ls` на Docker Desktop показує `DISK USAGE 23.9MB` — туди ще входить attestation-маніфест, тому я беру `.Size`.
+- Склад runtime повністю перелічуваний: **один статичний бінарник `/adk-service` + `ca-certificates.crt`**. Немає shell, libc, package manager.
+- CA bundle додано явно, хоча мій граф зараз не робить HTTPS-викликів — він знадобиться, якщо агент піде до LLM-провайдера.
+- Бінарник статичний (`CGO_ENABLED=0`), інакше в `scratch` він би не стартував — а тут стартує.
+- Запуск non-root (`65532:65532`), `--read-only`, `--cap-drop ALL`. Тег — `week2`, не `latest` (вимога Security).
+
+Ті самі 4 curl у контейнері дали: `OK`, `OK`, JSON з `"id":"demo"`, і SSE з вузлами `prepare` → `open_refund_case` (`"status":"pending"`) → `format`.
+
+### Межі
+
+Це навчальний сервіс: немає авторизації, сесії й реєстр кейсів в пам'яті (рестарт = все зникає, повторне створення сесії `demo` дає 500 `already exists`).
+Локально слухає лише `127.0.0.1`, контейнер публікую теж лише на `127.0.0.1`.
+
 ## Запуск і чотири перевірки
 
 ```bash
