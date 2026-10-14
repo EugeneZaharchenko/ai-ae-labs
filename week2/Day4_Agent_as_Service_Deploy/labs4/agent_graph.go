@@ -10,19 +10,21 @@ import (
 	"github.com/dimetron/ai-eng-course/labs/week2/internal/refund"
 )
 
-// newGraph composes the refund workflow this service serves over REST. It is
-// the same `Start → prepare → open_refund_case → format` shape Lab 3 builds in
-// its own agent_graph.go, repeated here on purpose: this lab owns its
-// topology, so Day 4 can extend the flow (draining, readiness, a second node)
-// without changing what Day 3 hands in.
+// newGraph is my agent from HW3 (newStaticGraph in labs3/agent_graph.go):
+// Start → prepare → open_refund_case → format.
+// Here it is not run in the console but served over HTTP by adkrest
+// (see service.go). The name stays refund.AppName ("first_graph_agent"),
+// because appName in every REST request must match it.
 //
-// The steps and the tool live in week2/internal/refund, which both labs share.
+// HW4: I kept the plain chain without the classify router from labs3 —
+// the service has one job, open a refund case, so every request goes
+// through open_refund_case and the case is always opened by the tool node.
 func newGraph(reg *refund.Registry) (agent.Agent, error) {
 	refundTool, err := refund.NewTool(reg)
 	if err != nil {
 		return nil, fmt.Errorf("create refund tool: %w", err)
 	}
-	// No retries: all work is local; validation errors cannot improve on retry.
+	// no retries: everything is local, a bad request won't get better on retry
 	cfg := workflow.NodeConfig{}
 	prepare := workflow.NewFunctionNode("prepare", refund.Prepare, cfg)
 	openCase, err := workflow.NewToolNodeTyped[refund.Input, refund.Output](refundTool, cfg)
@@ -32,7 +34,7 @@ func newGraph(reg *refund.Registry) (agent.Agent, error) {
 	format := workflow.NewFunctionNode("format", refund.Format, cfg)
 	return workflowagent.New(workflowagent.Config{
 		Name:        refund.AppName,
-		Description: "LEDGERWORKS: prepare a refund request, open its case, format the result.",
+		Description: "LEDGERWORKS (HW4 service): prepare the request, open the refund case, format the answer.",
 		Edges:       workflow.Chain(workflow.Start, prepare, openCase, format),
 	})
 }

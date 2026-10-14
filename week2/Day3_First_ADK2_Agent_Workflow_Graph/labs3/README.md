@@ -3,6 +3,60 @@
 **Станом на 09/2026:** Go 1.27.1, `google.golang.org/adk/v2` v2.5.0; точні залежності — у кореневому `go.mod`.
 Потрібен Go. Тести та явний `-mode=graph` не потребують ключа чи LLM; **звичайний запуск використовує реальну модель**. Перше завантаження Go-модулів потребує мережі.
 
+## ДЗ 3 — що зроблено
+
+Версії: Go 1.27.1, `google.golang.org/adk/v2` v2.5.0 (станом на 10/2026, з кореневого `go.mod`).
+
+1. **Статичний граф.** У [`agent_graph.go`](agent_graph.go) додав `newStaticGraph` — базовий потік з ДЗ
+   без маршрутизації, одним рядком ребер:
+   `workflow.Chain(workflow.Start, prepare, openCase, format)`. `prepare` і `format` — це
+   `workflow.NewFunctionNode`, а `open_refund_case` підключений через
+   `workflow.NewToolNodeTyped[refund.Input, refund.Output]`. Запуск: `-mode=static`.
+   Граф з маршрутами (`-mode=graph`, `classify` + `StringRoute`) лишив як є — це частина ++ Advanced.
+2. **Без API-ключа.** Обидва графи працюють без моделі:
+   ```bash
+   cd week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3
+   go run . -mode=static          # один прогін, друкує event log
+   go run . -mode=graph console   # інтерактивно, з маршрутизацією
+   ```
+3. **Тести.** [`nodes_test.go`](nodes_test.go) — табличні тести на `agent.NewStrictContextMock`:
+   - `TestPrepareNode` — 5 кейсів (вільний текст, мерчант малими літерами, порожній вхід, без мерчанта, без транзакції);
+   - `TestFormatNode` — 5 кейсів (новий кейс, `already_open`, порожній результат, без ID кейса, невідомий статус);
+   - `TestOpenRefundCaseStateDelta` — хендлер `open_refund_case`: при успіху в `StateDelta` є
+     `refund:last_case_id` і `refund:last_status=pending`, при помилці (невідомий мерчант, поганий ID транзакції) `StateDelta` порожній;
+   - `TestStaticGraph` — весь ланцюжок від запиту до відповіді + помилка для мерчанта Z-999.
+
+   ```bash
+   go test -v -run 'TestPrepareNode|TestFormatNode|TestOpenRefundCaseStateDelta|TestStaticGraph' ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3
+   ```
+
+### Event log одного рану (нормалізований)
+
+Команда: `go run ./week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3 -mode=static`.
+Formatter — `runAgent` у [`main.go`](main.go): з кожного `session.Event` беру тільки `author`, `routes`,
+`output`, `content` і `Actions.StateDelta`, а ID виклику і час прибираю, тому вивід однаковий між ранами.
+
+```json
+{"author":"first_graph_agent","output":{"transaction_id":"txn-2026-07-118845","merchant_id":"A-114"}}
+{"author":"first_graph_agent","output":{"case_id":"rc-txn-2026-07-118845-A-114","merchant_id":"A-114","status":"pending","transaction_id":"txn-2026-07-118845"},"state_delta":{"refund:last_case_id":"rc-txn-2026-07-118845-A-114","refund:last_merchant_id":"A-114","refund:last_status":"pending"}}
+{"author":"first_graph_agent","output":"Кейс rc-txn-2026-07-118845-A-114: транзакція txn-2026-07-118845, мерчант A-114, статус pending"}
+```
+
+Три рядки = три вузли: `prepare` (розібрані ID), `open_refund_case` (кейс + `state_delta`), `format` (відповідь).
+Головне для аудиту — другий рядок: `state_delta` з `rc-txn-2026-07-118845-A-114` з'являється тільки тоді,
+коли інструмент справді відкрив кейс.
+
+### Що дає граф проти imperative-скрипта (моя думка)
+
+Скрипт теж може викликати `prepare`, потім `open_refund_case`, потім `format`, але цей порядок живе
+тільки в коді функції, і зовні не видно, який крок що зробив. У графі порядок — це дані
+(`workflow.Chain`), тому його легко прочитати в PR і не можна «пропустити» виклик інструмента:
+`format` просто не отримає входу без `open_refund_case`. Кожен вузол лишає свою подію в event log,
+тому Оксана з комплаєнсу бачить `state_delta` з ID кейса, а не тільки ввічливий текст.
+Якщо щось падає (наприклад, невідомий мерчант), помилка прив'язана до конкретного вузла, а `StateDelta`
+лишається порожнім. Ще плюс — кожен вузол я тестую окремо на `StrictContextMock`, без моделі й без мережі.
+Мінус графа в тому, що для простої задачі треба більше коду, ніж для трьох викликів функцій підряд.
+
 ## Перший результат
 
 Команди нижче виконуйте **з кореня `ai-ae-labs`**, де лежить `go.mod`:

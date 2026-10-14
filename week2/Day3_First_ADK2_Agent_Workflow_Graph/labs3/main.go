@@ -61,7 +61,7 @@ func runAgent(ctx context.Context, a agent.Agent, out io.Writer, input string) e
 
 func main() {
 	ctx := context.Background()
-	mode := flag.String("mode", "live", "live (configured model) or graph (no model)")
+	mode := flag.String("mode", "live", "live (configured model), graph (no model) or static (no model, no routing)")
 	classify := flag.String("classify", "rule", "who picks the route: rule (no model) or model (asks the configured model)")
 	flag.Parse()
 	// The classifier choice is separate from the run mode, because they answer
@@ -74,8 +74,8 @@ func main() {
 	if *classify != "rule" && *classify != "model" {
 		log.Fatalf("unknown -classify %q; use rule or model", *classify)
 	}
-	if *mode != "live" && *mode != "graph" {
-		log.Fatalf("unknown mode %q; use live or graph", *mode)
+	if *mode != "live" && *mode != "graph" && *mode != "static" {
+		log.Fatalf("unknown mode %q; use live, graph or static", *mode)
 	}
 	if *classify == "model" && *mode != "live" {
 		log.Fatalf("-classify=model needs -mode=live: it calls the provider that -mode=graph exists to avoid")
@@ -105,6 +105,9 @@ func main() {
 		a, err = newLiveAgent(m, reg)
 	case "graph":
 		a, err = newGraph(reg)
+	case "static":
+		// HW3: plain chain Start → prepare → open_refund_case → format
+		a, err = newStaticGraph(reg)
 	}
 	if err != nil {
 		log.Fatal(err)
