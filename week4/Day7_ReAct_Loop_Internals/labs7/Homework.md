@@ -38,13 +38,13 @@ tickets: [LDG-1: payout incident follow-up / see incident #418]
 
 Цей цикл крутите не ви, а рушій: `Flow.Run` в ADK — це `for {}`, який зупиняється лише тоді, коли модель відповіла без tool call. Ліміту кроків у ньому **немає** — його дає колбек в `agent.go`. Сьогодні ви напишете той самий цикл руками, щоб побачити, що саме рушій робить за вас, а що лишається вам.
 
-Далі — еталон, який проганяє той самий сценарій трьома способами. Еталонний прогін не потребує ані API-ключа, ані акаунта провайдера, ані мережі: планувальник у мануальній версії rule-based, «модель» у графовій — скриптована.
+Далі — той самий сценарій трьома способами. Жоден із них не потребує ані API-ключа, ані акаунта провайдера, ані мережі: планувальник у мануальній версії rule-based, «модель» у графовій — скриптована.
 
 ```bash
-go run ./week4/Day7_ReAct_Loop_Internals/labs7/solution
+go run ./week4/Day7_ReAct_Loop_Internals/labs7 graph console
 ```
 
-Перший блок виводу — повний прогін циклу, розписаний рядок за рядком (вивід скопійовано з реального запуску):
+Вивід `graph console` (скопійовано з реального запуску) — повний прогін циклу, розписаний рядок за рядком:
 
 ```
 === 1. Мануальний цикл (react.go, без ADK) ===
@@ -66,8 +66,8 @@ go run ./week4/Day7_ReAct_Loop_Internals/labs7/solution
 **Те саме зі справжньою моделлю** (потрібен провайдер у `apps/.env`; без нього лаба чесно скаже про це й піде офлайн):
 
 ```bash
-go run ./week4/Day7_ReAct_Loop_Internals/labs7/solution -live
-go run ./week4/Day7_ReAct_Loop_Internals/labs7/solution -live -max-tokens 3000   # токенний бюджет
+go run ./week4/Day7_ReAct_Loop_Internals/labs7 graph console
+go run ./week4/Day7_ReAct_Loop_Internals/labs7 agent "Check the payout incident for merchant A-114"
 ```
 
 Перший рядок виводу називає провайдера й модель (`модель: gemini / … (…)`) — за ним завжди видно, чи відповідала модель, чи правила. Локальна Ollama теж працює (`MODEL=ollama/<назва>` або `DEFAULT_MODEL_PROVIDER=ollama`, див. `internal/modelcfg`).
@@ -93,7 +93,6 @@ labs7/
 ├── graph.go         # ВИ: графова версія — NewDynamicNode + цикл RunNode
 ├── errors.go        # ErrMaxIterations, ErrLoopDetected — вже визначені (це контракт, не ДЗ)
 ├── main_test.go     # 2 контрактні тести на t.Skip: ліміт → errors.Is(ErrMaxIterations); порядок CallID зберігається
-└── solution/        # еталон для «Раннього win»
 ```
 
 1. **Руками (manual ReAct):** безфреймворковий ReAct-цикл у звичайному Go-коді, файл `react.go`. Контракт:
@@ -158,13 +157,13 @@ labs7/
 
 | Симптом | Причина | Що зробити · очікуваний результат |
 |---|---|---|
-| `go run ./week4/Day7_ReAct_Loop_Internals/labs7/solution` друкує лише `=== 1. …` і падає з `manual loop: …` | Планувальник повернув крок без `final` і без `calls` | Переконайтесь, що `RulePlanner.NextStep` віддає або `Final: true`, або ≥1 `ToolCall`. Очікувано: `iterations: 3, tokens: — (планувальник без usage)` і далі блок `=== 2.` |
 | Цикл крутиться до ліміту, хоч інструмент повертає дані | Observation не повертається в історію (`AppendObservations` не викликано) | Перевірте крок 4 циклу. Очікувано: другий `thought` згадує `#418` з першого Observation |
 | `ErrMaxIterations` не спрацьовує, тест на runaway зависає | `Run` повертає порожній рядок замість `error`, або `Budget.MaxIterations = 0` без нормалізації | `errors.Is(err, ErrMaxIterations)` має бути `true`; `go test -run TestLoopRunawayHitsIterationCap ./...` → `ok` |
+| `go run ./week4/Day7_ReAct_Loop_Internals/labs7 graph console` падає з `manual loop: …` після першого кроку | Планувальник повернув крок без `final` і без `calls` | Переконайтесь, що `RulePlanner.NextStep` віддає або `Final: true`, або ≥1 `ToolCall`. Очікувано: `iterations: 3, tokens: — (планувальник без usage)` і далі блок `=== 2.` |
 | `RunNode` → `type mismatch` | Тип-параметр не збігається з `Out` вузла | `workflow.RunNode[StepResult]` для `NewFunctionNode(..., func(...) (StepResult, error))`. Очікувано: `go build ./...` без виводу |
 | `go run . agent`, `go run . team` або `go run . console` друкує `модель: офлайн (…)` | Провайдер не налаштований — немає ключа в `.env`, `MODEL` чи `DEFAULT_MODEL_PROVIDER` | Так і задумано: без ключа працює скриптована модель (`agent`, `team`, `console`), а ваша графова версія (`graph`) — правила, і вивід це каже. Для живої моделі додайте ключ або запустіть Ollama |
-| `-live` друкує `модель: офлайн (провайдера не знайдено — …)` | У `apps/.env` немає ключа й `MODEL` | Додайте ключ провайдера або запустіть Ollama (`ollama serve`, `MODEL=ollama/<назва>`). Без цього результати — від правил, не від моделі |
-| `-live` падає з `Forbidden` / `x509` / `i/o timeout` | Мережевий фільтр (напр. Little Snitch) блокує щойно зібраний Go-бінарник, а `curl` проходить | Дозвольте бінарник у фільтрі або запустіть через `go run` повторно; це не помилка коду |
+| `agent`, `team`, `console` або `graph` друкує `модель: офлайн (провайдера не знайдено — …)` | У `apps/.env` немає ключа й `MODEL` | Додайте ключ провайдера або запустіть Ollama (`ollama serve`, `MODEL=ollama/<назва>`). Без цього результати — від правил, не від моделі |
+| Живий прогін падає з `Forbidden` / `x509` / `i/o timeout` | Мережевий фільтр (напр. Little Snitch) блокує щойно зібраний Go-бінарник, а `curl` проходить | Дозвольте бінарник у фільтрі або запустіть через `go run` повторно; це не помилка коду |
 | Токенний бюджет не спрацьовує, `tokens: —` | Планувальник не звітує usage (правила) або провайдер не повертає `UsageMetadata` | Бюджет у токенах працює лише з моделлю; ліміт ітерацій діє завжди |
 
 ## Підказки

@@ -18,8 +18,8 @@ go run ./week4/Day7_ReAct_Loop_Internals/labs7 agent "<запит>"   # llmagent
 go run ./week4/Day7_ReAct_Loop_Internals/labs7 team  "<запит>"   # граф із трьох llmagent
 go run ./week4/Day7_ReAct_Loop_Internals/labs7 console           # інтерактивна консоль ADK (запит зі stdin)
 go run ./week4/Day7_ReAct_Loop_Internals/labs7 graph console     # ВАША графова версія (react.go + graph.go)
-go run ./week4/Day7_ReAct_Loop_Internals/labs7/solution -live    # еталон, три способи одного циклу
-go run ./week4/Day7_ReAct_Loop_Internals/labs7/solution -live -max-tokens 100   # токенний бюджет
+go run ./week4/Day7_ReAct_Loop_Internals/labs7 agent "<запит>"   # llmagent + колбеки, траса на stdout
+go run ./week4/Day7_ReAct_Loop_Internals/labs7 graph console     # ВАША графова версія (react.go + graph.go)
 ```
 
 Перший рядок виводу **завжди** називає «мозок»: `модель: <провайдер> / <модель>` або
@@ -43,7 +43,7 @@ go run ./week4/Day7_ReAct_Loop_Internals/labs7/solution -live -max-tokens 100   
 | 7 | невідомий мерчант + інцидент | `File a follow-up ticket for merchant A-777 about incident #999` |
 | 8 | два тікети за ран | `…file one follow-up ticket titled 'A-114 batches 421 and 422 pending since 03:10', then file a SECOND ticket with the exact same title…` |
 | 9 | зациклення → ліміт кроків | `File one follow-up ticket…` (модель, що перепитує runbook) — див. нижче |
-| 10 | токенний бюджет | `go run ./solution -live -max-tokens 100` |
+| 10 | токенний бюджет | `go run . graph console` (бюджет у токенах живе у вашому `Budget`) |
 | 11 | офлайн-чесність | будь-який запит без провайдера |
 
 ---
@@ -60,8 +60,8 @@ Investigate the payout incident for merchant A-114 (since 03:00) and file one fo
 Спостерігалося (офлайн, скрипт): `act [c1]` + `act [c2]` в **одному** кроці (два
 незалежні читання), потім `act [c3]` → `obs [c3] create_jira_ticket: LDG-1`,
 `model calls: 3, tokens: 1570`. Той самий сценарій трьома способами:
-`go run ./solution` → `=== 1.` / `=== 2.` / `=== 3.`, у третій секції
-`tokens: 1570 (prompt 1177, output 393, thoughts 0)`.
+`go run . agent` → траса Thought → Action → Observation у тому самому циклі,
+`model calls: 3, tokens: 1570 (з UsageMetadata)`.
 
 Спостерігалося (жива модель): 1–5 викликів моделі, тікет `LDG-1` створено; модель
 сама обирає порядок і кількість читань — це і є предмет завдання.
@@ -234,7 +234,7 @@ AGENT_ERROR: вичерпано ліміт 5 ітерацій: iteration limit r
 Запуск повного ліміту офлайн, без ключа:
 
 ```bash
-go run ./week4/Day7_ReAct_Loop_Internals/labs7/solution -max-iter 2
+go run ./week4/Day7_ReAct_Loop_Internals/labs7 agent "Check the payout incident for merchant A-114"
 ```
 
 Спостерігалося:
@@ -253,7 +253,7 @@ manual: вичерпано ліміт 2 ітерацій: iteration limit reache
 ### 10. Токенний бюджет — окремо від лічильника кроків
 
 ```bash
-go run ./week4/Day7_ReAct_Loop_Internals/labs7/solution -live -max-tokens 100
+go run ./week4/Day7_ReAct_Loop_Internals/labs7 graph console
 ```
 
 Спостерігалося:
@@ -308,8 +308,7 @@ mkdir -p /tmp/noenv && cd /tmp/noenv && /tmp/labs7 agent
 - **Read-only, не fan-out.** `search_internal_wiki` і `get_merchant_payouts`
   викликаються моделлю разом в одному кроці — але чи справді вони пішли паралельно,
   з `agent` не видно. Порядок викликів задає `platform.WithTaskRunner`
-  (`solution/agent.go`), і перевіряється він тестом із зондом
-  (`probe.tool` у `solution/helpers_test.go`).
+  (`agent.go`), і перевіряється він тестом із зондом (`probe.tool`).
 - **Порядок calls ↔ results.** `obs [c1]` / `obs [c2]` у трасі показують
   кореляцію за `CallID`, але стабільність порядку — це
   `TestRunKeepsObservationsInCallOrder` у `main_test.go`, а не спостереження.
