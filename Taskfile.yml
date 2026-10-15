@@ -25,6 +25,8 @@ vars:
   DAY4: ./week2/Day4_Agent_as_Service_Deploy/labs4
   DAY5: ./week3/Day5_Lossless_PDF_Parsing_Chunking/labs5
   DAY6: ./week3/Day6_Reranking_Semantic_Cache_Maturity_Ladder/labs6
+  DAY7: ./week4/Day7_ReAct_Loop_Internals/labs7
+  DAY8: ./week4/Day8_Fault_Tolerant_Tool_Harness/labs8
   # День 4 у контейнері: тег, ім'я контейнера і платформа. Задачі нижче ділять
   # ці змінні, щоб `docker stop` не промахнувся повз ім'я, яке змінили лише в
   # одному місці. `DOCKER_PLATFORM` така сама, як у README лаби: `linux/amd64`
@@ -597,6 +599,186 @@ tasks:
     cmds:
       - go run . web webui api
 
+  # --- week4 ---------------------------------------------------------------
+
+  # День 7 — ReAct-цикл двічі: руками (`graph`) і штатним llmagent (`console`,
+  # `web`), плюс граф із трьох llmagent (`team`). Кожен із цих входів САМ обирає мозок:
+  # справжню модель, якщо провайдер налаштований, інакше скриптовану, і перший
+  # рядок виводу каже, котрий саме. Тому ключ тут не обов'язковий — але й
+  # офлайн-прогін дає форму циклу, а не відповідь моделі.
+  #
+  # Провайдера лаба бере з apps/.env (internal/modelcfg), тож якщо там уже стоїть
+  # маршрут на локальний agentgateway, а шлюз не запущений, ви побачите від нього
+  # 404 — це оточення, не код. Або підніміть шлюз, або задайте ключ справжнього
+  # провайдера: MODEL=ollama/qwen3.5:4b-mlx task week4:day7:web.
+  #
+  # `console` читає stdin, як `week2:day3:console`:  Ctrl-D завершує сесію.
+  # `web` слухає :8080, як усі web-таски курсу — `task kill:8080` перед повторним
+  # запуском. І console, і web тримають OTEL за замовчуванням; якщо в оточенні є
+  # OTEL_EXPORTER_OTLP_ENDPOINT без схеми, у лог піде "invalid ... value" — шум,
+  # не помилка лаби.
+  #
+  # Штатний агент запускають два входи: `console` (один запит зі stdin) і `web`
+  # (той самий агент у браузері). Граф із трьох llmagent живе окремо: `team` —
+  # один ран, `team:web` — той самий граф у браузері. Окремого таска на один ран
+  # із трасою немає — `go run {{.DAY7}} agent` лишається доступним напряму, як і
+  # будь-який інший аргумент лаунчера ADK.
+
+  week4:build:
+    desc: 'Build week4'
+    cmds:
+      - go build ./week4/...
+
+  week4:test:
+    desc: 'Test week4 (race detector)'
+    cmds:
+      - go test -race ./week4/...
+
+  week4:run:
+    desc: 'Run a week4 lab: task week4:run PKG=./week4/Day7_ReAct_Loop_Internals/labs7'
+    requires:
+      vars: [PKG]
+    cmds:
+      - go run {{.PKG}}
+
+  week4:day7:team:
+    desc: 'День 7: граф із трьох llmagent — ReAct усередині кожного вузла'
+    cmds:
+      - go run {{.DAY7}} team
+
+  week4:day7:team:web:
+    desc: 'День 7: той самий граф у Web UI на http://localhost:8080/ui/ + REST API на /api'
+    cmds:
+      - go run {{.DAY7}} team web webui api
+
+  week4:day7:console:
+    desc: 'День 7: інтерактивна консоль ADK (stdin, Ctrl-D завершує)'
+    cmds:
+      - go run {{.DAY7}} console
+
+  week4:day7:graph:
+    desc: 'День 7: ВАША графова версія циклу (react.go + graph.go)'
+    cmds:
+      - go run {{.DAY7}} graph console
+
+  week4:day7:web:
+    desc: 'День 7: Web UI на http://localhost:8080/ui/ + REST API на /api'
+    cmds:
+      - go run {{.DAY7}} web webui api
+
+  # Еталон Дня 7 проганяє той самий сценарій трьома способами і не потребує ні
+  # ключа, ні мережі. `dir:` тут не декор: тести еталону відкривають
+  # testdata/graph_events.golden відносним шляхом, а Task за замовчуванням
+  # стартує з кореня репозиторію. PKG=./solution — щоб прогнати лише еталон.
+  week4:day7:test:
+    desc: 'День 7: тести лаби й еталону (13 passed, 2 skipped + 40 passed, 2 skipped)'
+    dir: '{{.DAY7}}'
+    cmds:
+      - go test -count=1 -v {{.PKG | default "./..."}}
+
+  # Еталон у консолі; з -live він бере справжню модель, а без неї чесно каже, що
+  # відповідь не від моделі. Прапорці після `--`:
+  #   task week4:day7:solution -- -live -max-iter 5
+  week4:day7:solution:
+    desc: 'День 7: еталон у консолі — три способи одного циклу (флаг -live передається після --)'
+    dir: '{{.DAY7}}'
+    cmds:
+      - go run ./solution {{.CLI_ARGS}}
+
+  # День 8 — harness: класифікація помилок і самокорекція. Крок 0 завдання
+  # запускається офлайн, без Temporal і без Docker: LABS8_MODEL=demo вмикає
+  # модель на правилах, яка навмисно «неакуратна» у першому виклику — так видно
+  # інцидент 03:00 з п. 1–2. Другий рядок виводу — збої еквайрингу: черга, не
+  # ймовірність. Без LABS8_MODEL=demo лаба бере провайдера з apps/.env — тоді
+  # ключ (або шлюз) потрібен обов'язково.
+  week4:day8:demo:
+    desc: 'День 8: шаблон офлайн, LABS8_MODEL=demo (ключ не потрібен, FAULTS=503,timeout)'
+    dir: '{{.DAY8}}'
+    env:
+      LABS8_MODEL: demo
+      LEDGER_FAULTS: '{{.FAULTS}}'
+    cmds:
+      - go run . '{{.MSG | default "Open a refund for txn-2026-07-118845 at merchant A-114"}}'
+
+  week4:day8:live:
+    desc: 'День 8: той самий прогін зі справжньою моделлю з apps/.env (потрібен провайдер)'
+    dir: '{{.DAY8}}'
+    env:
+      LEDGER_FAULTS: '{{.FAULTS}}'
+    cmds:
+      - go run . '{{.MSG | default "Open a refund for txn-2026-07-118845 at merchant A-114"}}'
+
+  # Тести Дня 8 офлайн: Temporal-сервер, Docker і ключ не потрібні — модель у
+  # них скриптована, а збої подає детермінована черга ledger.FaultPlan. Це два
+  # тести, на які спирається пояснення в Homework (розділ «Ранній win»).
+  week4:day8:test:
+    desc: 'День 8: два контрактні тести harness-а офлайн (Temporal і Docker не потрібні)'
+    dir: '{{.DAY8}}'
+    cmds:
+      - go test -count=1 -run 'TestTransientFailuresAreRetriedByTheEngine|TestSemanticErrorBecomesObservationAndSelfCorrects' -v ./solution
+
+  # Кроки 3–6 потребують двох процесів поза вашим агентом: Temporal (durable
+  # цикл) і Dgraph (пам'ять). Це окремі таски, бо `task test` мусить лишатися
+  # беззбройним до них.
+  #
+  # Temporal dev server, вбудований SQLite, переживає рестарт; UI на :8233 —
+  # це foreground-процес, лишайте його в окремому терміналі.
+  week4:day8:temporal:
+    desc: 'День 8: Temporal dev server на .data/temporal.db (UI http://localhost:8233) — окремий термінал'
+    dir: '{{.DAY8}}'
+    cmds:
+      - temporal server start-dev --db-filename .data/temporal.db
+
+  # Dgraph — память тижня 4; дані в іменованому volume, тож `down` їх зберігає,
+  # а `down -v` — ні. Healthcheck у compose чекає до 24×5 с.
+  week4:day8:dgraph:
+    desc: 'День 8: Dgraph для пам’яті (gRPC :9080, именований volume) — docker compose'
+    dir: '{{.DAY8}}'
+    cmds:
+      - docker compose up -d --wait dgraph
+
+  week4:day8:dgraph:down:
+    desc: 'День 8: зупинити Dgraph, дані лишаються (down -v видалив би їх)'
+    dir: '{{.DAY8}}'
+    cmds:
+      - docker compose down
+
+  # Воркер і один хід — у двох терміналах: воркер слухає чергу, `start` кладе хід
+  # і друкує його event log. Обидва потребують Temporal; `worker` понад те
+  # відкриває память, тож підніміть і Dgraph.
+  week4:day8:worker:
+    desc: 'День 8: воркер Temporal, офлайн-модель (потрібні Temporal і Dgraph) — окремий термінал'
+    dir: '{{.DAY8}}'
+    env:
+      LABS8_MODEL: demo
+    cmds:
+      - go run ./solution worker
+
+  week4:day8:start:
+    desc: 'День 8: один хід агента в Temporal і його event log (MSG=текст)'
+    dir: '{{.DAY8}}'
+    cmds:
+      - go run ./solution start -session {{.SESSION | default "s1"}} '{{.MSG | default "Open a refund for txn-2026-07-118845 at merchant A-114"}}'
+
+  # Лічильник — у .data/agent.db, поза процесом: саме тому він і переживає
+  # kill -9. Temporal для нього не потрібен, тож таск працює завжди.
+  week4:day8:counter:
+    desc: 'День 8: llm_calls/refund_cases/tokens із .data/agent.db (доказ crash-safe)'
+    dir: '{{.DAY8}}'
+    cmds:
+      - go run ./solution counter
+
+  # Конформанс-набір проти справжнього Dgraph: окремий build-тег і змінна
+  # DGRAPH_TEST_ADDR — тест ВИДАЛЯЄ всі дані в цільовому Dgraph, тому DGRAPH_ADDR
+  # тут навмисно не читається (спрямувати його на память лаби = стерти її).
+  week4:day8:test:integration:
+    desc: 'День 8: конформанс проти справжнього Dgraph (потрібен DGRAPH_TEST_ADDR, дані буде стерто)'
+    vars:
+      DGRAPH_TEST_ADDR: '{{.DGRAPH_TEST_ADDR | default "localhost:9080"}}'
+    env:
+      DGRAPH_TEST_ADDR: '{{.DGRAPH_TEST_ADDR}}'
+    cmds:
+      - go test -tags integration -count=1 -run TestConformance -v {{.DAY8}}/internal/graphmemory/dgraph/
   # --- demo №4: приклади графового рушія ADK у Web UI -------------------------
   #
   # Одинадцять прикладів графового рушія (`google.golang.org/adk/v2/workflow`

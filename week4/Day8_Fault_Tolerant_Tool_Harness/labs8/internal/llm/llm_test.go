@@ -169,3 +169,63 @@ func TestDemoRecallAndOtherIntents(t *testing.T) {
 		t.Errorf("out of domain = %q", got)
 	}
 }
+
+// usageRecorder is a Recorder that also takes token usage.
+type usageRecorder struct {
+	recorder
+	prompt, output int32
+	usageErr       error
+}
+
+func (u *usageRecorder) RecordLLMUsage(_ context.Context, _ string, p, o int32) error {
+	u.prompt, u.output = p, o
+	return u.usageErr
+}
+
+// metered answers in two chunks; the provider repeats UsageMetadata, the last
+// one being the total.
+type metered struct{}
+
+func (metered) Name() string { return "metered" }
+func (metered) GenerateContent(context.Context, *model.LLMRequest, bool) iter.Seq2[*model.LLMResponse, error] {
+	return func(yield func(*model.LLMResponse, error) bool) {
+		_ = yield(&model.LLMResponse{UsageMetadata: &genai.GenerateContentResponseUsageMetadata{PromptTokenCount: 5, CandidatesTokenCount: 1}}, nil) &&
+			yield(&model.LLMResponse{UsageMetadata: &genai.GenerateContentResponseUsageMetadata{PromptTokenCount: 120, CandidatesTokenCount: 17}}, nil)
+	}
+}
+
+func TestCountingRecordsTokenUsage(t *testing.T) {
+	t.Parallel()
+	rec := &usageRecorder{}
+	for _, err := range (Counting{Inner: metered{}, Recorder: rec}).GenerateContent(context.Background(), &model.LLMRequest{}, true) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if rec.prompt != 120 || rec.output != 17 || len(rec.calls) != 1 {
+		t.Errorf("usage = %d/%d calls=%v, want the final 120/17 and one call", rec.prompt, rec.output, rec.calls)
+	}
+
+	// A recorder that cannot store usage fails the call loudly.
+	bad := &usageRecorder{usageErr: errors.New("disk full")}
+	var got error
+	for _, err := range (Counting{Inner: metered{}, Recorder: bad}).GenerateContent(context.Background(), &model.LLMRequest{}, true) {
+		if err != nil {
+			got = err
+		}
+	}
+	if got == nil || !strings.Contains(got.Error(), "disk full") {
+		t.Errorf("err = %v", got)
+	}
+
+	// A plain Recorder (no UsageRecorder) is fine: only the call is counted.
+	plain := &recorder{}
+	for _, err := range (Counting{Inner: metered{}, Recorder: plain}).GenerateContent(context.Background(), &model.LLMRequest{}, true) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(plain.calls) != 1 {
+		t.Errorf("plain calls = %v", plain.calls)
+	}
+}

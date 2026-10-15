@@ -51,6 +51,14 @@ type llmCall struct {
 	At    time.Time
 }
 
+type llmUsage struct {
+	ID           uint `gorm:"primaryKey"`
+	Model        string
+	PromptTokens int32
+	OutputTokens int32
+	At           time.Time
+}
+
 // Open opens (or creates) the SQLite file at path and migrates every table.
 // WAL lets the starter read the counter while the worker writes.
 func Open(path string) (*DB, error) {
@@ -71,7 +79,7 @@ func Open(path string) (*DB, error) {
 	if err := database.AutoMigrate(sessions); err != nil {
 		return nil, fmt.Errorf("agentdb: migrate sessions: %w", err)
 	}
-	if err := db.AutoMigrate(&refundCase{}, &llmCall{}); err != nil {
+	if err := db.AutoMigrate(&refundCase{}, &llmCall{}, &llmUsage{}); err != nil {
 		return nil, fmt.Errorf("agentdb: migrate: %w", err)
 	}
 	return &DB{db: db, sessions: sessions}, nil
@@ -122,4 +130,17 @@ func (d *DB) CountLLMCalls(ctx context.Context) (int64, error) {
 	var n int64
 	err := d.db.WithContext(ctx).Model(&llmCall{}).Count(&n).Error
 	return n, err
+}
+
+// RecordLLMUsage appends the token usage a provider reported for one call.
+func (d *DB) RecordLLMUsage(ctx context.Context, model string, promptTokens, outputTokens int32) error {
+	return d.db.WithContext(ctx).Create(&llmUsage{Model: model, PromptTokens: promptTokens, OutputTokens: outputTokens, At: time.Now().UTC()}).Error
+}
+
+// SumLLMTokens totals the prompt and output tokens of every recorded call.
+func (d *DB) SumLLMTokens(ctx context.Context) (prompt, output int64, err error) {
+	var sums struct{ P, O int64 }
+	err = d.db.WithContext(ctx).Model(&llmUsage{}).
+		Select("COALESCE(SUM(prompt_tokens), 0) AS p, COALESCE(SUM(output_tokens), 0) AS o").Scan(&sums).Error
+	return sums.P, sums.O, err
 }

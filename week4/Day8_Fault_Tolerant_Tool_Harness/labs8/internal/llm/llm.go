@@ -25,6 +25,14 @@ type Recorder interface {
 	RecordLLMCall(ctx context.Context, model string) error
 }
 
+// UsageRecorder is optional: a Recorder that also implements it receives the
+// token usage the provider reported (genai UsageMetadata) after each call.
+// Tokens are what a restart actually costs; the call count only shows that it
+// happened.
+type UsageRecorder interface {
+	RecordLLMUsage(ctx context.Context, model string, promptTokens, outputTokens int32) error
+}
+
 // Counting decorates a model with a durable call counter.
 type Counting struct {
 	Inner    model.LLM
@@ -47,9 +55,18 @@ func (c Counting) GenerateContent(ctx context.Context, req *model.LLMRequest, st
 		}
 		r := *req
 		r.Model = c.Inner.Name()
+		var usage *genai.GenerateContentResponseUsageMetadata
 		for resp, err := range c.Inner.GenerateContent(ctx, &r, stream) {
+			if resp != nil && resp.UsageMetadata != nil {
+				usage = resp.UsageMetadata // streaming repeats it; the last one is the total
+			}
 			if !yield(resp, err) {
 				return
+			}
+		}
+		if u, ok := c.Recorder.(UsageRecorder); ok && usage != nil {
+			if err := u.RecordLLMUsage(ctx, c.Inner.Name(), usage.PromptTokenCount, usage.CandidatesTokenCount); err != nil {
+				yield(nil, fmt.Errorf("llm: record usage: %w", err))
 			}
 		}
 	}

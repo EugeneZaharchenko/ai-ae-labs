@@ -82,6 +82,33 @@ func TestClosedDBErrors(t *testing.T) {
 	if _, err := db.CountCases(ctx); err == nil {
 		t.Error("CountCases on a closed DB must fail")
 	}
+	if err := db.RecordLLMUsage(ctx, "m", 1, 1); err == nil {
+		t.Error("RecordLLMUsage on a closed DB must fail")
+	}
+	if _, _, err := db.SumLLMTokens(ctx); err == nil {
+		t.Error("SumLLMTokens on a closed DB must fail")
+	}
+}
+
+func TestTokenUsageSums(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	db, err := Open(filepath.Join(t.TempDir(), "agent.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if p, o, err := db.SumLLMTokens(ctx); err != nil || p != 0 || o != 0 {
+		t.Fatalf("empty db: %d/%d, %v", p, o, err)
+	}
+	for _, u := range [][2]int32{{100, 10}, {250, 40}} {
+		if err := db.RecordLLMUsage(ctx, "m", u[0], u[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if p, o, err := db.SumLLMTokens(ctx); err != nil || p != 350 || o != 50 {
+		t.Errorf("sum = %d/%d, %v; want 350/50", p, o, err)
+	}
 }
 
 func TestOpenRejectsNonDatabaseFile(t *testing.T) {
