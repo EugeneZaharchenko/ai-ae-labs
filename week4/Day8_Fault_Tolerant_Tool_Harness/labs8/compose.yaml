@@ -1,0 +1,85 @@
+# Day 8 infrastructure.
+#
+#   docker compose up -d dgraph                 # memory (MEMORY_BACKEND=dgraph, the default)
+#   docker compose --profile temporal-pg up -d  # OPTIONAL: Temporal on PostgreSQL 16
+#
+# Durable execution by default is the Temporal CLI dev server with its
+# built-in SQLite file — no container:
+#
+#   temporal server start-dev --db-filename .data/temporal.db
+#
+# `docker compose down` keeps the named volumes, so memory survives a restart.
+# Only `docker compose down -v` deletes it.
+name: labs8
+
+services:
+  dgraph:
+    # Zero + Alpha in one container: the right size for a laptop. The data
+    # directory is a named volume — that is what makes memory durable.
+    image: dgraph/standalone:v25.4.1
+    ports:
+      - "8080:8080" # HTTP + Ratel-compatible endpoint
+      - "9080:9080" # gRPC — DGRAPH_ADDR=localhost:9080
+    volumes:
+      - dgraph-data:/dgraph
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+  postgres:
+    profiles: ["temporal-pg"]
+    # PostgreSQL 16: the newest major Temporal's test matrix covers (13–16).
+    image: postgres:16
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal # local dev only, not a secret
+    volumes:
+      - temporal-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+  temporal-schema:
+    profiles: ["temporal-pg"]
+    image: temporalio/admin-tools:1.31.3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SQL_PLUGIN: postgres12
+      SQL_HOST: postgres
+      SQL_PORT: "5432"
+      SQL_USER: temporal
+      SQL_PASSWORD: temporal
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        temporal-sql-tool --db temporal create-database || true;
+        temporal-sql-tool --db temporal setup-schema -v 0.0 || true;
+        temporal-sql-tool --db temporal update-schema -d /etc/temporal/schema/postgresql/v12/temporal/versioned;
+        temporal-sql-tool --db temporal_visibility create-database || true;
+        temporal-sql-tool --db temporal_visibility setup-schema -v 0.0 || true;
+        temporal-sql-tool --db temporal_visibility update-schema -d /etc/temporal/schema/postgresql/v12/visibility/versioned
+
+  temporal:
+    profiles: ["temporal-pg"]
+    image: temporalio/server:1.31.3
+    depends_on:
+      temporal-schema:
+        condition: service_completed_successfully
+    environment:
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporal
+      POSTGRES_SEEDS: postgres
+    ports:
+      - "7233:7233" # same address as the dev server, so the worker needs no change
+
+volumes:
+  dgraph-data:
+  temporal-pg:
