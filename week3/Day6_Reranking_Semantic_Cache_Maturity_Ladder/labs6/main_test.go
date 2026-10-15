@@ -39,6 +39,7 @@ import (
 
 	"github.com/dimetron/ai-eng-course/labs/internal/labrun"
 	"github.com/dimetron/ai-eng-course/labs/week3/Day6_Reranking_Semantic_Cache_Maturity_Ladder/labs6/internal/corpus"
+	"github.com/dimetron/ai-eng-course/labs/week3/Day6_Reranking_Semantic_Cache_Maturity_Ladder/labs6/internal/embed"
 )
 
 type nodeCtx struct {
@@ -55,7 +56,7 @@ func newTestRetriever(t *testing.T) *retriever {
 	if err != nil {
 		t.Fatalf("корпус: %v", err)
 	}
-	return newRetriever(chunks)
+	return newRetriever(chunks, &embed.Client{}) // чистий Go: детермінований стаб, без мережі
 }
 
 // --- Вузол search ------------------------------------------------------------

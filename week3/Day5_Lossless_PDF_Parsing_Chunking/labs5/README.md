@@ -1,6 +1,6 @@
 # Лабораторна 5 — ingestion-конвеєр: PDF → Markdown → ієрархічні чанки
 
-**Станом на 09/2026:** Go 1.27.1, ADK Go v2.4.0, docling-mcp 3.2.1. Жодного LLM, ключа або `.env`.
+**Станом на 09/2026:** Go 1.27.1, ADK Go v2.5.0, docling-mcp 3.2.1. Жодного LLM, ключа або `.env`.
 Завдання — у [Homework.md](Homework.md).
 
 ## Запуск
@@ -24,6 +24,7 @@ Start → load → parse → chunk → extract_entities → index_vector → ind
 | `main.go` | лише wiring: docling-клієнт + launcher | — |
 | `main_test.go` | табличні тести на `StrictContextMock` | зняти `t.Skip`, переписати тести-заглушки |
 | `internal/docling` | MCP-клієнт до docling-mcp | читати, не змінювати |
+| `internal/embed` | ембединги (чистий Go за замовчуванням, Ollama — через `OLLAMA_EMBED_MODEL`), `Cosine`, `Rerank` | у `index_vector`, A1 |
 | `internal/mdblocks` | Markdown → блоки (`Document.Blocks`); таблиця — один блок; глибина заголовка з нумерації, а не з `#` | у `chunk`, `extract_entities` |
 | `internal/chunkeval` | токени, min/avg/max, скільки таблиць цілі, naive baseline | у `report`, порівняння для README |
 | `internal/vecindex` | in-memory індекс зі стаб-ембедингом | у `index_vector`, A1 |

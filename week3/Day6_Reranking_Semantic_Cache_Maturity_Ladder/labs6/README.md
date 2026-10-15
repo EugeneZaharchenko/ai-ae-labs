@@ -1,6 +1,6 @@
 # Лабораторна 6 — retrieval: пошук → re-rank → відповідь із provenance + кеш
 
-**Станом на 09/2026:** Go 1.27.1, ADK Go v2.4.0. Жодного LLM, ключа або `.env` для стартера.
+**Станом на 09/2026:** Go 1.27.1, ADK Go v2.5.0. Жодного LLM, ключа або `.env` для стартера.
 Завдання — у [Homework.md](Homework.md).
 
 ## Запуск
@@ -30,6 +30,8 @@ Start → search → rerank → answer
 | `main.go` | лише wiring: корпус + launcher | — |
 | `main_test.go` | табличні тести на `StrictContextMock` | зняти два `t.Skip`, переписати тести-заглушки |
 | `internal/corpus` | читання `chunks.json` із перевіркою provenance | читати, не змінювати |
+| `internal/systemone` | re-rank decision-моделлю `tev1:4b` через `/v1/systemone` (вмикається `SYSTEMONE_URL`) | викликати з `rerank`, не змінювати |
+| `internal/embed` | ембединги (чистий Go за замовчуванням, Ollama — через `OLLAMA_EMBED_MODEL`), `Cosine`, `Rerank` | викликати з `rerank` і кешу, не змінювати |
 | `testdata/chunks.json` | корпус у форматі `Chunk` із ДЗ 5 | додати свої документи |
 
 ## Корпус
@@ -44,6 +46,88 @@ Start → search → rerank → answer
 `search` рахує частку слів запиту в чанку. На *«яка ставка комісії на тарифі T-2?»* чанк про T-1
 (`c-A331-rate`) потрапляє в топ-5 поруч із чанками про T-2 — `TestBaseline_ConfusesTariffs`
 показує це. Це вихідна точка для таблиці «до/після» re-ranker-а в README.
+
+## Ембединги
+
+За замовчуванням `internal/embed` працює на чистому Go: детермінований стаб (хешовані триграми символів),
+без мережі й ключа — на ньому йдуть `go test` і `go run`. Справжня модель — [Ollama](https://docs.ollama.com/capabilities/embeddings),
+вмикається явно:
+
+```bash
+ollama pull embeddinggemma
+OLLAMA_EMBED_MODEL=embeddinggemma go run . console   # OLLAMA_BASE_URL — якщо не localhost:11434
+task week3:day6:web:ollama                           # Web UI з Ollama: перевіряє сервер і тягне модель
+```
+
+Рядок `embeddings: …` на старті показує, що саме працює. **Пороги не калібруйте на стабі:** він дає
+0.47 для перефразування *«Що таке тариф T-2?» ≈ «Розкажи про тарифний план T-2»* і 0.88 для
+*«…T-2?» vs «…T-1?»*, а `embed.Rerank` на стабі ставить чанк про мерчанта на T-1 першим на запит про T-2.
+Стаб схожий на рядки, а не на зміст.
+
+Але й модель сама не рятує. `embeddinggemma` (Ollama 0.40, 10/2026) на тих самих парах:
+
+| Пара | стаб | embeddinggemma |
+|---|---:|---:|
+| «Що таке тариф T-2?» ≈ «Розкажи про тарифний план T-2» (має влучити) | 0.47 | 0.79 |
+| «Що таке тариф T-2?» vs «Що таке тариф T-1?» (не має влучити) | 0.88 | 0.79 |
+| «Скільки коштує тариф T-2?» ≈ «Яка ціна тарифу T-2?» | 0.42 | 0.95 |
+
+Re-rank на моделі вже правильний (чанк про T-2 — перший), а от для кешу перефразування й інший тариф
+мають однаковий cosine: жоден поріг їх не розділить. Потрібен детермінований доказ поверх схожості —
+наприклад, однаковий набір кодів (`T-2`, `CT-2025-031`) у запиті й у кешованому запиті.
+
+## Re-rank decision-моделлю (tev1:4b)
+
+[Decision-модель](https://docs.ollama.com/capabilities/decision) — не чат-модель: відповідає на типізовані
+питання за один прохід, без генерації тексту. `internal/systemone` питає для кожного кандидата «чи містить
+уривок відповідь на запит?» і бере P(yes) як оцінку — це cross-encoder, на відміну від `embed.Rerank`.
+Модель за замовчуванням — [`tev1:4b`](https://ollama.com/library/tev1) (Together AI).
+
+```bash
+task week3:day6:web:ollama        # тягне embeddinggemma і tev1:4b, вмикає обидва
+```
+
+Один запит руками — так виглядає re-rank одного кандидата:
+
+```bash
+curl -s http://localhost:11434/v1/systemone -H 'Content-Type: application/json' -d '{
+  "model": "tev1:4b",
+  "state": {"query": "Яка ставка комісії на тарифі T-2?",
+            "passage": "Тариф T-2 — тарифний план зі ставкою комісії 2.9 % для мерчантів, які підпадають під вимогу НБУ 2026."},
+  "questions": {"relevant": {"type": "noul", "instructions": "Does the passage contain the answer to the query?"}}
+}'
+# {"model":"tev1:4b","answers":{"relevant":{"type":"noul","noul":0.915}},"usage":{"input_tokens":167,"output_tokens":0}}
+```
+
+`tev1:4b` на корпусі стартера (Ollama 0.40.1, 10/2026):
+
+| Перевірка | tev1:4b | embeddinggemma (cosine) |
+|---|---:|---:|
+| re-rank «ставка T-2»: чанк про T-2 | **0.92** | 0.73 |
+| re-rank «ставка T-2»: чанки про T-1 | 0.004, 0.009 | 0.66, 0.57 |
+| кеш: «Що таке тариф T-2?» ≈ «Розкажи про тарифний план T-2» | **0.89** | 0.79 |
+| кеш: «Що таке тариф T-2?» vs «Що таке тариф T-1?» | **0.085** | 0.79 |
+
+Для кешу питання інше: state `{"question_a", "question_b"}`, noul *«Do both questions ask for the same
+information, so one answer serves both?»* — там, де cosine дає однакові 0.79, decision-модель розділяє.
+Ціна — один виклик моделі на кандидата (або на пару запитів), тож рахуйте latency в eval harness.
+
+Чи модель справді працює з українською, перевіряє live eval на Go — `internal/systemone/eval_test.go`:
+rerank із hard negatives (інший тариф, договір, мерчант), порядок кандидатів, out-of-domain, кеш і
+детермінізм. Без `SYSTEMONE_URL` тести пропускаються.
+
+```bash
+task week3:day6:eval:systemone                      # tev1:4b
+task week3:day6:eval:systemone RERANK_MODEL=nimble  # те саме для іншої моделі
+```
+
+`tev1:4b`, 08.10.2026: rerank TP=10 FP=0 TN=11 FN=0, кеш TP=5 FP=0 TN=5 FN=0, out-of-domain ≤ 0.014.
+Одна пастка: модель читає state як JSON-текст. Кирилиця має йти UTF-8, а не `\uXXXX` — Go так і робить,
+а Python `json.dumps` без `ensure_ascii=False` ні (той самий запит: 0.867 замість 0.963).
+
+Інші decision-моделі в Ollama: `tev1:0.8b`, `nimble`, `laya`, `clef-flash`, `clef`
+([список](https://ollama.com/search?c=decision)); підставляйте через `SYSTEMONE_MODEL`.
+LiquidAI d1-3B в Ollama 0.40.1 ще не працює (`unsupported decision encoding "lfm2-d1"`).
 
 ## Кеш
 

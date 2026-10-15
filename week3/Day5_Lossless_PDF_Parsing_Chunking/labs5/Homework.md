@@ -94,7 +94,7 @@ Fan-out на кілька `load → parse → chunk` гілок із `JoinNode`-
 
 ## Якщо щось не працює
 
-- **`go run . console` не стартує / помилки компіляції.** Спершу `go version` — потрібен **Go 1.27+** (`go`-директива в `go.mod`). Найчастіша плутанина: у документації ADK фігурує `go 1.26.6` — це мінімум *самого ADK*, а не модуля лаб; на Go 1.26.x `go mod tidy` впаде з `go.mod requires go >= 1.27`. Далі `go mod tidy`; якщо помилка вказує на ADK API — звірте сигнатури з [`examples/workflow/`](https://github.com/google/adk-go/tree/v2.4.0/examples/workflow).
+- **`go run . console` не стартує / помилки компіляції.** Спершу `go version` — потрібен **Go 1.27+** (`go`-директива в `go.mod`). Найчастіша плутанина: у документації ADK фігурує `go 1.26.6` — це мінімум *самого ADK*, а не модуля лаб; на Go 1.26.x `go mod tidy` впаде з `go.mod requires go >= 1.27`. Далі `go mod tidy`; якщо помилка вказує на ADK API — звірте сигнатури з [`examples/workflow/`](https://github.com/google/adk-go/tree/v2.5.0/examples/workflow).
 - **PDF: `"uvx" not found`.** Встановіть [`uv`](https://docs.astral.sh/uv/getting-started/installation/) або вкажіть свій сервер у `DOCLING_MCP_CMD`. Markdown-файли docling не потребують.
 - **PDF: перший запуск «висить».** docling завантажує моделі розмітки (сотні MB) — прогрес видно в stderr. Наступні запуски — секунди.
 - **PDF: `DOCLING_MCP_SERVICE_URL is not set`.** docling-mcp 3.x за замовчуванням конвертує віддалено. Стартер сам ставить `DOCLING_MCP_CONVERSION_MODE=local`; якщо ви перевизначили `DOCLING_MCP_CMD`, запускайте пакет із `[local]` (`uvx --from='docling-mcp[local]' …`).
@@ -106,7 +106,7 @@ Fan-out на кілька `load → parse → chunk` гілок із `JoinNode`-
 ## Обмеження та чесні застереження
 
 - **PDF парсери не ідеальні.** docling добре тримає звичайні таблиці, але merged cells, таблиці-картинки й нестандартні шрифти — ризик для будь-якого парсера. У README чесно зазначте обмеження: «які типи таблиць підтримуються, які — ні, що робите, коли парсер не витягнув таблицю (fallback)». Якщо обираєте інший парсер (Go-бібліотеку чи Docling Serve), замініть `MarkdownConverter` у `pipeline.go` — граф від цього не зміниться.
-- **Embedding у лабі — стаб.** У базовому завданні немає реального embedding: child chunks зберігаються в in-memory структурі, яка імітує vector store. Якщо ви додаєте реальний embedding (A1) — зазначте, яку модель використовуєте (локальну чи хмарну) і чи вона детерміністична.
+- **Embedding у лабі — стаб.** У базовому завданні немає реального embedding: child chunks зберігаються в in-memory структурі, яка імітує vector store. Готовий embedder — `internal/embed`: без налаштувань це детермінований стаб на чистому Go, а з `OLLAMA_EMBED_MODEL=embeddinggemma` (після `ollama pull embeddinggemma`) — [ембединги Ollama](https://docs.ollama.com/capabilities/embeddings); `embed.Cosine` і `embed.Rerank` — там же. Якщо ви додаєте реальний embedding (A1) — зазначте, яку модель використовуєте (локальну чи хмарну) і чи вона детерміністична.
 - **In-memory graph.** Knowledge graph у базовій лабі живе у вашій in-memory adjacency map. Перезапуск процесу = втрата графу. Для продакшну — окреме сховище; це поза межами ДЗ, але варто зазначити в README.
 - **Provenance переживає merge.** Для кожної сутності й зв'язку збережіть `document_id`, `page_no`, `chunk_id`/`source_chunk_id`; під час merge об'єднайте, а не перезапишіть посилання на джерела. Це дає аудитору шлях до кожного первинного фрагмента.
 - **Сканований PDF — окремий передкрок.** Якщо у файлі немає текстового шару, спершу потрібен OCR/VLM-OCR; не називайте результат `Tables: K/K preserved`, доки не перевірили його на оригінальній сторінці.
@@ -141,7 +141,7 @@ GitHub-репозиторій з кодом, тестовим документо
 ## Стартовий шаблон і референси
 
 Стартовий шаблон: [week3/Day5_Lossless_PDF_Parsing_Chunking/labs5/main.go](https://github.com/dimetron/ai-ae-labs/blob/main/week3/Day5_Lossless_PDF_Parsing_Chunking/labs5/main.go)
-Еталонні приклади: [`examples/workflow/basic`](https://github.com/google/adk-go/blob/v2.4.0/examples/workflow/basic/main.go), [`examples/workflow/complex`](https://github.com/google/adk-go/blob/v2.4.0/examples/workflow/complex/main.go)
+Еталонні приклади: [`examples/workflow/basic`](https://github.com/google/adk-go/blob/v2.5.0/examples/workflow/basic/main.go), [`examples/workflow/complex`](https://github.com/google/adk-go/blob/v2.5.0/examples/workflow/complex/main.go)
 
 Парсинг PDF: [docling-mcp](https://github.com/docling-project/docling-mcp) (у стартері), [docling](https://github.com/docling-project/docling) (сам конвертер). Перевірте, чи він коректно обробляє ваш тестовий документ — і зафіксуйте в README версію та обмеження.
 
