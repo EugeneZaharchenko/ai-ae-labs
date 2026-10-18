@@ -39,3 +39,6 @@ demo/agui_web/agui_web
 
 # macOS/VS Code droppings.
 .DS_Store
+
+# Week 4 Day 8: Temporal dev server, session store and counters (local state)
+.data/
