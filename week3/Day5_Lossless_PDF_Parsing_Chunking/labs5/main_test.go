@@ -1,50 +1,27 @@
-// Скелет тестів для ДЗ 5.
+// HW5 tests: table tests for every node on agent.StrictContextMock,
+// no Python, no docling, no network. The PDF path uses fakeConverter;
+// the real docling output for the course PDF is in
+// testdata/ledgerworks_soc2.docling.md.
 //
-// Homework.md, пункт 7, вимагає табличні тести на кожен вузол графа через
-// agent.StrictContextMock — і `go test ./...` зеленим. Цей файл дає готову
-// форму, щоб ви не витрачали перші 40 хвилин на «як узагалі підсунути
-// agent.Context у функцію вузла».
-//
-// ЯК ЦИМ КОРИСТУВАТИСЬ
-//
-//	go test ./...            — зараз зелено: тести перевіряють ЗАГЛУШКИ
-//	                           (один гігантський чанк — це поточна поведінка).
-//	                           Це навмисно: зелений старт означає, що
-//	                           середовище живе, і далі ви ламаєте тести
-//	                           свідомо, а не воюєте з інструментами.
-//
-// Ваш шлях: реалізуєте TODO у pipeline.go → тести нижче ПАДАЮТЬ, бо вони
-// описують стару поведінку → переписуєте їх під нову. Місця, які треба
-// переписати, позначені TODO(студент). Тест «таблиця не ріжеться»
-// (TestChunk_TableStaysWhole) уже описує ЦІЛЬОВУ поведінку і має падати, доки
-// chunk — заглушка: це контракт ДЗ, а не заготовка. Він єдиний тут із t.Skip —
-// зніміть skip, коли візьметесь за chunking.
-//
-// Тестам не потрібні ні Python, ні docling: PDF-шлях перевіряється фейковим
-// конвертером (fakeConverter). Справжній docling-mcp перевіряє opt-in тест
-// internal/docling (DOCLING_E2E=1), а його реальний вихід для тестового PDF
-// збережено в testdata/ledgerworks_soc2.docling.md.
-//
-// Чому StrictContextMock, а не nil: вузли приймають agent.Context. Передати
-// туди nil можна лише доти, доки ви його не використовуєте; щойно у вашому
-// коді з'явиться ctx.InvocationID() або емісія події, nil дасть panic у
-// найгіршому місці — у проді. StrictContextMock панікує ГУЧНО і одразу на
-// будь-якому методі, про який ви не подумали, тож помилка знаходиться в тесті,
-// а не на демо.
+// The main contract is TestChunk_TableStaysWhole: every table is exactly one
+// chunk, with the header and all rows.
 package main
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"google.golang.org/adk/v2/agent"
 
 	"github.com/dimetron/ai-eng-course/labs/internal/labrun"
+	"github.com/dimetron/ai-eng-course/labs/week3/Day5_Lossless_PDF_Parsing_Chunking/labs5/internal/chunkeval"
 )
 
 // nodeCtx — суворий фейк agent.Context. Вбудований StrictContextMock означає:
@@ -180,26 +157,83 @@ func TestDoclingFixtureKeepsTables(t *testing.T) {
 
 // --- Вузол chunk -------------------------------------------------------------
 
-// TestChunk_Stub фіксує ПОТОЧНУ поведінку заглушки: один чанк на весь документ.
-//
-// TODO(студент): щойно ви реалізуєте Parent-Child chunking, цей тест має
-// впасти — і це правильно. Замініть його на перевірку вашої ієрархії:
-// скільки parents, скільки children, чи в кожного child заповнений ParentID
-// і SectionPath, чи Level зростає всередині розділу.
-func TestChunk_Stub(t *testing.T) {
+// TestChunk_Hierarchy checks parents, children, parent_id and section_path.
+// The headings are all "##" like in docling output, the depth comes from the numbers.
+func TestChunk_Hierarchy(t *testing.T) {
 	t.Parallel()
-	got, err := chunk(newNodeCtx(), newDocument("d1", "", "# Розділ\n\nабзац\n"))
+	long := strings.Repeat("Речення з п'яти слів. ", 60) // 300 tokens
+	tests := []struct {
+		name         string
+		md           string
+		wantParents  int
+		wantChildren int
+		wantPath     string // section path of the last child
+	}{
+		{"one section", "## 1 Scope\n\nабзац\n", 1, 1, "1 Scope"},
+		{"subsection is not a parent", "## 1 Scope\n\nабзац\n\n## 1.1 Vendors\n\n- a\n- b\n", 1, 2, "1 Scope / 1.1 Vendors"},
+		{"third level", "## 1 A\n\n## 1.2 B\n\n## 1.2.1 C\n\nтекст\n", 1, 1, "1 A / 1.2 B / 1.2.1 C"},
+		{"back to second level", "## 1 A\n\n## 1.1 B\n\n## 1.1.1 C\n\n## 1.2 D\n\nтекст\n", 1, 1, "1 A / 1.2 D"},
+		{"two sections", "## 1 A\n\nx\n\n## 2 B\n\ny\n", 2, 2, "2 B"},
+		{"text before heading gets a parent", "вступ\n\n## 1 A\n\nx\n", 2, 2, "1 A"},
+		{"long text is split", "## 1 A\n\n" + long + "\n", 1, 2, "1 A"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := chunk(newNodeCtx(), newDocument("d1", "", tt.md))
+			if err != nil {
+				t.Fatalf("chunk() error = %v", err)
+			}
+			parents := map[string]bool{}
+			var children []Chunk
+			for _, c := range got.Chunks {
+				if c.DocumentID != "d1" {
+					t.Errorf("chunk %s: DocumentID = %q — provenance втрачено", c.ID, c.DocumentID)
+				}
+				if c.ParentID == "" {
+					parents[c.ID] = true
+					continue
+				}
+				children = append(children, c)
+			}
+			if len(parents) != tt.wantParents || len(children) != tt.wantChildren {
+				t.Fatalf("parents/children = %d/%d, want %d/%d: %+v", len(parents), len(children), tt.wantParents, tt.wantChildren, got.Chunks)
+			}
+			for _, c := range children {
+				if !parents[c.ParentID] {
+					t.Errorf("child %s has unknown parent %q", c.ID, c.ParentID)
+				}
+				if c.Level != 2 || c.SectionPath == "" {
+					t.Errorf("child %s: level=%d path=%q", c.ID, c.Level, c.SectionPath)
+				}
+				if n := chunkeval.Tokens(c.Text); c.Kind != "table" && n > maxChildTokens {
+					t.Errorf("child %s has %d tokens > %d", c.ID, n, maxChildTokens)
+				}
+			}
+			if last := children[len(children)-1]; last.SectionPath != tt.wantPath {
+				t.Errorf("section_path = %q, want %q", last.SectionPath, tt.wantPath)
+			}
+		})
+	}
+}
+
+// A big table stays one child even if it is longer than maxChildTokens.
+func TestChunk_BigTableNotSplit(t *testing.T) {
+	t.Parallel()
+	var sb strings.Builder
+	sb.WriteString("## 1 A\n\n| ID | Text |\n|----|------|\n")
+	for i := range 80 {
+		fmt.Fprintf(&sb, "| R-%d | some long cell text here |\n", i)
+	}
+	got, err := chunk(newNodeCtx(), newDocument("d1", "", sb.String()))
 	if err != nil {
-		t.Fatalf("chunk() error = %v", err)
+		t.Fatal(err)
 	}
-	if len(got.Chunks) != 1 {
-		t.Fatalf("заглушка має повертати 1 чанк, отримали %d — схоже, ви вже реалізували chunking; перепишіть цей тест", len(got.Chunks))
+	if len(got.Chunks) != 2 || got.Chunks[1].Kind != "table" {
+		t.Fatalf("want 1 parent + 1 table child, got %+v", got.Chunks)
 	}
-	if got.Chunks[0].ParentID != "" {
-		t.Errorf("ParentID кореневого чанка = %q, очікували порожній", got.Chunks[0].ParentID)
-	}
-	if got.Chunks[0].DocumentID != "d1" {
-		t.Errorf("DocumentID = %q, очікували d1 — provenance втрачено", got.Chunks[0].DocumentID)
+	if !strings.Contains(got.Chunks[1].Text, "| ID | Text |") || !strings.Contains(got.Chunks[1].Text, "R-79") {
+		t.Error("table lost its header or last row")
 	}
 }
 
@@ -215,10 +249,8 @@ func TestChunk_EmptyDocumentIsError(t *testing.T) {
 // Головна вимога тижня: жодна таблиця не може бути розрізана між двома
 // чанками. Тест перевіряє це напряму на реальному виході docling: кожна
 // таблиця — рівно один чанк Kind == "table", з усіма рядками й заголовком.
-//
-// TODO(студент): приберіть t.Skip, коли візьметесь за вузол chunk.
 func TestChunk_TableStaysWhole(t *testing.T) {
-	t.Skip("зніміть skip, коли реалізуєте Parent-Child chunking у pipeline.go")
+	t.Parallel()
 
 	data, err := os.ReadFile(fixtureDocMD)
 	if err != nil {
@@ -279,62 +311,233 @@ func firstTableRow(text string) string {
 
 // --- Вузли extract_entities / index_vector / index_graph ---------------------
 
-// TestStubNodesPassThrough фіксує заглушки: вузли повертають batch без змін.
-//
-// TODO(студент): замініть на табличні тести ваших вузлів — наприклад,
-// extract_entities знаходить Vendor "Acme Bank JSC" із SourceChunkID;
-// index_vector дає VectorsAdded == кількість children і st.Vector.Len() те
-// саме; index_graph не створює дублікатів (NodesAdded ≤ len(Entities)).
-func TestStubNodesPassThrough(t *testing.T) {
-	t.Parallel()
-	in := Batch{Chunks: []Chunk{{ID: "c1", Text: "Acme Bank JSC"}}}
-	st := NewStores()
-	nodes := map[string]func(agent.Context, Batch) (Batch, error){
-		"extract_entities": extractEntities,
-		"index_vector":     newIndexVector(st.Vector),
-		"index_graph":      newIndexGraph(st.Graph),
+// fixtureBatch is the docling fixture after chunk + extract_entities.
+func fixtureBatch(t *testing.T) Batch {
+	t.Helper()
+	data, err := os.ReadFile(fixtureDocMD)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for name, node := range nodes {
-		t.Run(name, func(t *testing.T) {
+	b, err := chunk(newNodeCtx(), newDocument("ledgerworks_soc2", fixtureDocMD, string(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err = extractEntities(newNodeCtx(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestExtractEntities(t *testing.T) {
+	t.Parallel()
+	b := fixtureBatch(t)
+	tableIDs := map[string]bool{}
+	for _, c := range b.Chunks {
+		if c.Kind == "table" {
+			tableIDs[c.ID] = true
+		}
+	}
+	tests := []struct {
+		id, typ string
+	}{
+		{"vendor:acme-bank-jsc", "Vendor"},
+		{"finding:f-101", "Finding"},
+		{"severity:high", "Severity"},
+		{"report:soc2-type-ii", "Report"},
+		{"merchant:a-114", "Merchant"},
+		{"contract:ct-2025-014", "Contract"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.id, func(t *testing.T) {
 			t.Parallel()
-			got, err := node(newNodeCtx(), in)
-			if err != nil {
-				t.Fatalf("%s: %v", name, err)
+			for _, e := range b.Entities {
+				if e.ID == tt.id {
+					if e.Type != tt.typ {
+						t.Errorf("type = %q, want %q", e.Type, tt.typ)
+					}
+					if !tableIDs[e.SourceChunkID] {
+						t.Errorf("source chunk %q is not a table chunk", e.SourceChunkID)
+					}
+					return
+				}
 			}
-			if len(got.Chunks) != len(in.Chunks) {
-				t.Errorf("%s загубив чанки: %d → %d", name, len(in.Chunks), len(got.Chunks))
+			t.Errorf("entity %s not found", tt.id)
+		})
+	}
+}
+
+func TestExtractEntities_TextChunksGiveNothing(t *testing.T) {
+	t.Parallel()
+	in := Batch{Chunks: []Chunk{{ID: "c1", ParentID: "p1", Kind: "text", Text: "Acme Bank JSC"}}}
+	got, err := extractEntities(newNodeCtx(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Entities) != 0 {
+		t.Errorf("entities from text chunk: %+v", got.Entities)
+	}
+}
+
+func TestEntityID(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ typ, name, want string }{
+		{"Vendor", "Acme Bank JSC", "vendor:acme-bank-jsc"},
+		{"Subcategory", "GOVERN 1.1", "subcategory:govern-1.1"},
+		{"Merchant", " A-114 ", "merchant:a-114"},
+	}
+	for _, tt := range tests {
+		if got := entityID(tt.typ, tt.name); got != tt.want {
+			t.Errorf("entityID(%q, %q) = %q, want %q", tt.typ, tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestEntityName_NISTCell(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ typ, cell, want string }{
+		{"Subcategory", "GOVERN 1.1: Legal and regulatory requirements involving AI are understood.", "GOVERN 1.1"},
+		{"Category", "MAP 2: Categorization of the AI system is performed.", "MAP 2"},
+		{"Category", "", ""},
+		{"Vendor", " Acme Bank JSC ", "Acme Bank JSC"},
+	}
+	for _, tt := range tests {
+		if got := entityName(tt.typ, tt.cell); got != tt.want {
+			t.Errorf("entityName(%q, %q) = %q, want %q", tt.typ, tt.cell, got, tt.want)
+		}
+	}
+}
+
+func TestIndexVector(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		chunks []Chunk
+		want   int
+	}{
+		{"parents are skipped", []Chunk{{ID: "p1", Text: "1 A"}, {ID: "p1.c1", ParentID: "p1", Text: "x"}}, 1},
+		{"empty batch", nil, 0},
+		{"two children", []Chunk{{ID: "p1"}, {ID: "p1.c1", ParentID: "p1", Text: "a"}, {ID: "p1.c2", ParentID: "p1", Text: "b"}}, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			st := NewStores()
+			got, err := newIndexVector(st.Vector)(newNodeCtx(), Batch{Chunks: tt.chunks})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.VectorsAdded != tt.want || st.Vector.Len() != tt.want {
+				t.Errorf("VectorsAdded=%d Len=%d, want %d", got.VectorsAdded, st.Vector.Len(), tt.want)
 			}
 		})
 	}
 }
 
+func TestIndexVector_DuplicateIDIsError(t *testing.T) {
+	t.Parallel()
+	in := Batch{Chunks: []Chunk{{ID: "c", ParentID: "p", Text: "a"}, {ID: "c", ParentID: "p", Text: "b"}}}
+	if _, err := newIndexVector(NewStores().Vector)(newNodeCtx(), in); err == nil {
+		t.Fatal("same child indexed twice must be an error")
+	}
+}
+
+func TestIndexGraph(t *testing.T) {
+	t.Parallel()
+	st := NewStores()
+	b, err := newIndexGraph(st.Graph)(newNodeCtx(), fixtureBatch(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.NodesAdded == 0 || b.NodesAdded > len(b.Entities) {
+		t.Errorf("NodesAdded = %d, entities = %d", b.NodesAdded, len(b.Entities))
+	}
+	if nodes, edges := st.Graph.Stats(); nodes != b.NodesAdded || edges != b.EdgesAdded {
+		t.Errorf("graph stats %d/%d, batch %d/%d", nodes, edges, b.NodesAdded, b.EdgesAdded)
+	}
+	// Acme appears in two tables: one node, two sources
+	acme, ok := st.Graph.Node("vendor:acme-bank-jsc")
+	if !ok || len(acme.Sources) != 2 {
+		t.Errorf("acme node = %+v, want 2 sources", acme)
+	}
+}
+
+// The compliance query from the homework: High findings of Acme in SOC2 Type II.
+func TestIndexGraph_AcmeHighFindings(t *testing.T) {
+	t.Parallel()
+	st := NewStores()
+	if _, err := newIndexGraph(st.Graph)(newNodeCtx(), fixtureBatch(t)); err != nil {
+		t.Fatal(err)
+	}
+	got := highFindings(st.Graph, "vendor:acme-bank-jsc", "report:soc2-type-ii")
+	want := []string{"F-101", "F-104"}
+	if !slices.Equal(got, want) {
+		t.Errorf("high findings = %v, want %v", got, want)
+	}
+	if got := highFindings(st.Graph, "vendor:globex-payments", "report:soc2-type-ii"); len(got) != 0 {
+		t.Errorf("globex has SOC2 Type I, got %v", got)
+	}
+}
+
+func TestIndexGraph_EntityWithoutSourceIsError(t *testing.T) {
+	t.Parallel()
+	in := Batch{Entities: []Entity{{ID: "vendor:x", Type: "Vendor", Name: "X"}}}
+	if _, err := newIndexGraph(NewStores().Graph)(newNodeCtx(), in); err == nil {
+		t.Fatal("entity without provenance must be an error")
+	}
+}
+
 // --- Вузол report ------------------------------------------------------------
 
-// TODO(студент): за Homework п.5 report має друкувати статистику за рівнями,
-// розміри (min/avg/max) і `Tables: K/K preserved`. Розширте таблицю кейсів,
-// коли реалізуєте це.
 func TestReport(t *testing.T) {
 	t.Parallel()
+	doc := newDocument("d", "", "## 1 A\n\nтекст\n\n| H |\n|---|\n| v |\n")
 	tests := []struct {
 		name     string
-		chunks   []Chunk
-		contains string
+		batch    Batch
+		contains []string
 	}{
-		{name: "порожній вхід", chunks: nil, contains: "0"},
-		{name: "один чанк", chunks: []Chunk{{ID: "c1"}}, contains: "1"},
-		{name: "три чанки", chunks: []Chunk{{ID: "c1"}, {ID: "c2"}, {ID: "c3"}}, contains: "3"},
+		{"empty input", Batch{}, []string{"Parents: 0, Children: 0", "Tables: 0/0 preserved"}},
+		{"table kept", Batch{Document: doc, Chunks: []Chunk{
+			{ID: "p1", Text: "1 A"},
+			{ID: "p1.c1", ParentID: "p1", Kind: "text", Text: "текст"},
+			{ID: "p1.c2", ParentID: "p1", Kind: "table", Text: "| H |\n|---|\n| v |"},
+		}, VectorsAdded: 2}, []string{"Parents: 1, Children: 2 (tables: 1)", "Tables: 1/1 preserved", "vectors_added: 2", "1 tables, 1 headings"}},
+		{"table lost", Batch{Document: doc, Chunks: []Chunk{
+			{ID: "p1", Text: "1 A"},
+			{ID: "p1.c1", ParentID: "p1", Kind: "table", Text: "| H |\n|---|"},
+		}}, []string{"Tables: 0/1 preserved"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := report(newNodeCtx(), Batch{Chunks: tt.chunks})
+			got, err := report(newNodeCtx(), tt.batch)
 			if err != nil {
 				t.Fatalf("report() error = %v", err)
 			}
-			if !strings.Contains(got, tt.contains) {
-				t.Errorf("report() = %q; очікували підрядок %q", got, tt.contains)
+			for _, want := range tt.contains {
+				if !strings.Contains(got, want) {
+					t.Errorf("report() = %q; want substring %q", got, want)
+				}
 			}
 		})
+	}
+}
+
+func TestReport_SavesChunks(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "chunks.json")
+	t.Setenv("CHUNKS_OUT", out)
+	in := Batch{Chunks: []Chunk{{ID: "p1", DocumentID: "d", Kind: "heading", Text: "1 A"}}}
+	if _, err := report(newNodeCtx(), in); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []Chunk
+	if err := json.Unmarshal(data, &got); err != nil || len(got) != 1 || got[0].ID != "p1" {
+		t.Errorf("saved chunks = %s, %v", data, err)
 	}
 }
 
@@ -352,7 +555,7 @@ func TestGraph_EarlyWin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	if !strings.Contains(res.Final, "Отримано 1 чанків") {
+	if !strings.Contains(res.Final, "Tables: 3/3 preserved") {
 		t.Errorf("фінальна відповідь = %q; очікували рядок вузла report", res.Final)
 	}
 	// 7 вузлів після Start — 7 подій: жоден вузол не випав із ланцюжка.

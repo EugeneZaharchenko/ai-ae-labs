@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"google.golang.org/adk/v2/agent"
 
+	"github.com/dimetron/ai-eng-course/labs/week3/Day5_Lossless_PDF_Parsing_Chunking/labs5/internal/chunkeval"
 	"github.com/dimetron/ai-eng-course/labs/week3/Day5_Lossless_PDF_Parsing_Chunking/labs5/internal/kgraph"
 	"github.com/dimetron/ai-eng-course/labs/week3/Day5_Lossless_PDF_Parsing_Chunking/labs5/internal/mdblocks"
 	"github.com/dimetron/ai-eng-course/labs/week3/Day5_Lossless_PDF_Parsing_Chunking/labs5/internal/vecindex"
@@ -63,6 +65,7 @@ type Batch struct {
 	Entities     []Entity `json:"entities,omitempty"`
 	VectorsAdded int      `json:"vectors_added"`
 	NodesAdded   int      `json:"nodes_added"`
+	EdgesAdded   int      `json:"edges_added"`
 }
 
 // MarkdownConverter перетворює PDF на Markdown. У main.go це docling-mcp
@@ -109,12 +112,8 @@ func load(_ agent.Context, path string) (Source, error) {
 }
 
 // newParse повертає вузол parse. PDF іде в docling-mcp, Markdown читається як є;
-// далі mdblocks розкладає Markdown на блоки.
-//
-// TODO(студент): перевірте на своєму PDF, що кожна таблиця вийшла цілою
-// Markdown-таблицею із заголовками (mdblocks.Tables(doc.Blocks) — швидкий
-// лічильник). Сканований PDF без текстового шару потребує OCR — docling уміє,
-// але це повільніше; зазначте в README.
+// далі mdblocks розкладає Markdown на блоки. Що таблиці цілі, видно в report
+// (Tables: K/K preserved).
 func newParse(conv MarkdownConverter) func(agent.Context, Source) (Document, error) {
 	return func(ctx agent.Context, src Source) (Document, error) {
 		var md string
@@ -152,81 +151,126 @@ func documentID(path string) string {
 	return strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 }
 
-// chunk нарізає документ ієрархічно.
-//
-// TODO(студент): Parent-Child chunking — головна частина ДЗ. Ідіть по
-// doc.Blocks (вони вже розібрані, див. internal/mdblocks):
-//  1. KindHeading з Depth == 1 відкриває новий parent (Level 0, ParentID "").
-//     Depth > 1 — підрозділ: оновіть SectionPath ("2 Findings / 2.1 …").
-//     Depth == 0 — заголовок без номера (назва документа): теж parent.
-//  2. Решта блоків — children (Level 2) поточного parent: ParentID,
-//     SectionPath, DocumentID заповнені; Kind = string(block.Kind).
-//  3. KindTable — РІВНО один child, Text = block.Text без змін. Не ріжте.
-//  4. Довгий KindText (> maxChildTokens, див. chunkeval.Tokens) — розбийте
-//     по реченнях на кілька children.
-//  5. Блок до першого заголовка теж потребує parent — створіть неявний.
-//
-// Текст parent — його заголовок (як у labs6/testdata/chunks.json).
-func chunk(_ agent.Context, doc Document) (Batch, error) {
-	if strings.TrimSpace(doc.Markdown) == "" {
-		return Batch{}, fmt.Errorf("порожній документ")
-	}
-	// заглушка: один гігантський чанк
-	return Batch{Document: doc, Chunks: []Chunk{{ID: "c1", DocumentID: doc.ID, Level: 0, Kind: "text", Text: doc.Markdown}}}, nil
-}
-
-// maxChildTokens — стеля довжини текстового child (у chunkeval.Tokens).
-// Таблиці на неї не зважають: краще великий цілий чанк, ніж дві половини.
-const maxChildTokens = 200
-
-// extractEntities витягує сутності з чанків.
-//
-// TODO(студент): читайте сутності з чанків Kind == "table" — там структура
-// вже є. mdblocks.Parse(c.Text)[0].Table дає таблицю назад, а
-// Table.Column("Vendor") — усі значення стовпчика. Типи на ваш вибір (Vendor,
-// Finding, Merchant, Contract…); у кожної сутності — SourceChunkID = c.ID.
-// ID сутності робіть стабільним: "vendor:acme-bank-jsc".
-// Для ++ A2 — entity resolution поверх цього списку.
-func extractEntities(_ agent.Context, b Batch) (Batch, error) {
-	return b, nil // заглушка: сутностей немає
-}
-
-// newIndexVector повертає вузол index_vector над idx.
-//
-// TODO(студент): для кожного child (ParentID != "") — idx.Add(c.ID, c.Text)
-// і VectorsAdded++. Parents не індексуйте: їх підвантажують за ParentID
-// після пошуку. Ембединг — стаб (internal/vecindex), так і напишіть у README.
-// Справжні вектори — internal/embed: нульовий embed.Client — той самий
-// детермінований стаб на чистому Go, embed.New() з
-// OLLAMA_EMBED_MODEL=embeddinggemma — модель Ollama
-// (https://docs.ollama.com/capabilities/embeddings); пошук — embed.Rerank.
+// newIndexVector adds every child to the vector index. Parents are not
+// indexed: after a search they are loaded by ParentID.
+// The embedding is the deterministic stub from internal/vecindex.
 func newIndexVector(idx *vecindex.Index) func(agent.Context, Batch) (Batch, error) {
-	_ = idx
 	return func(_ agent.Context, b Batch) (Batch, error) {
-		return b, nil // заглушка: нічого не індексуємо
+		for _, c := range b.Chunks {
+			if c.ParentID == "" {
+				continue
+			}
+			if err := idx.Add(c.ID, c.Text); err != nil {
+				return Batch{}, fmt.Errorf("index_vector: %w", err)
+			}
+			b.VectorsAdded++
+		}
+		return b, nil
 	}
 }
 
-// newIndexGraph повертає вузол index_graph над g.
-//
-// TODO(студент): кожна Entity → g.AddNode(kgraph.Node{ID, Type, Name,
-// Sources: []string{SourceChunkID}}); NodesAdded++ лише коли AddNode
-// повернув true (повтор — це злиття provenance, не новий вузол). Ребра між
-// сутностями одного рядка таблиці (Vendor —has_finding→ Finding) — g.AddEdge.
+// newIndexGraph puts entities into the graph and links entities from the same
+// table row (Vendor -has_finding-> Finding). A repeated entity only adds its
+// source chunk to the existing node, so NodesAdded counts unique nodes.
 func newIndexGraph(g *kgraph.Graph) func(agent.Context, Batch) (Batch, error) {
-	_ = g
 	return func(_ agent.Context, b Batch) (Batch, error) {
-		return b, nil // заглушка: граф порожній
+		for _, e := range b.Entities {
+			if e.SourceChunkID == "" {
+				return Batch{}, fmt.Errorf("index_graph: entity %q without source chunk", e.ID)
+			}
+			added, err := g.AddNode(kgraph.Node{ID: e.ID, Type: e.Type, Name: e.Name, Sources: []string{e.SourceChunkID}})
+			if err != nil {
+				return Batch{}, fmt.Errorf("index_graph: %w", err)
+			}
+			if added {
+				b.NodesAdded++
+			}
+		}
+		for _, c := range b.Chunks {
+			for _, row := range rowEntities(c) {
+				for _, from := range row {
+					for _, to := range row {
+						rel, ok := relations[[2]string{from.Type, to.Type}]
+						if !ok {
+							continue
+						}
+						added, err := g.AddEdge(kgraph.Edge{From: from.ID, Rel: rel, To: to.ID, Source: c.ID})
+						if err != nil {
+							return Batch{}, fmt.Errorf("index_graph: %w", err)
+						}
+						if added {
+							b.EdgesAdded++
+						}
+					}
+				}
+			}
+		}
+		return b, nil
 	}
 }
 
-// report рахує статистику нарізки.
-//
-// TODO(студент): кількість чанків за рівнями (parents/children),
-// min/avg/max у токенах, `Tables: K/K preserved`. Готові лічильники — у
-// internal/chunkeval: Measure (min/avg/max), Preserved (скільки таблиць
-// документа лежать цілими в чанках; таблиці документа —
-// mdblocks.Tables(b.Document.Blocks)), NaiveWindows (baseline для README).
+// naiveWindow is the size of the naive baseline from the lecture (800 tokens).
+const naiveWindow = 800
+
+// report prints the statistics that prove the chunking is lossless.
+// If CHUNKS_OUT is set, the chunks are also saved as JSON for HW6.
 func report(_ agent.Context, b Batch) (string, error) {
-	return fmt.Sprintf("Отримано %d чанків. TODO: статистика за рівнями і таблицями.", len(b.Chunks)), nil
+	var parents, children, tableChunks []string
+	for _, c := range b.Chunks {
+		if c.ParentID == "" {
+			parents = append(parents, c.Text)
+			continue
+		}
+		children = append(children, c.Text)
+		if c.Kind == string(mdblocks.KindTable) {
+			tableChunks = append(tableChunks, c.Text)
+		}
+	}
+	var tables []string
+	for _, t := range mdblocks.Tables(b.Document.Blocks) {
+		tables = append(tables, t.Text)
+	}
+	blocks := b.Document.Blocks
+	naive := chunkeval.NaiveWindows(b.Document.Markdown, naiveWindow, 0)
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Blocks: %d (%d tables, %d headings, %d paragraphs, %d lists)\n",
+		len(blocks), len(tables), len(mdblocks.Headings(blocks)), countKind(blocks, mdblocks.KindText), countKind(blocks, mdblocks.KindList))
+	fmt.Fprintf(&sb, "Parents: %d, Children: %d (tables: %d)\n", len(parents), len(children), len(tableChunks))
+	fmt.Fprintf(&sb, "Children size: %s\n", chunkeval.Measure(children))
+	fmt.Fprintf(&sb, "Tables: %d/%d preserved\n", chunkeval.Preserved(tables, tableChunks), len(tables))
+	fmt.Fprintf(&sb, "Naive %d-token windows: %d chunks, tables whole: %d/%d\n",
+		naiveWindow, len(naive), chunkeval.Preserved(tables, naive), len(tables))
+	fmt.Fprintf(&sb, "Entities: %d, vectors_added: %d, nodes_added: %d, edges_added: %d",
+		len(b.Entities), b.VectorsAdded, b.NodesAdded, b.EdgesAdded)
+
+	if out := os.Getenv("CHUNKS_OUT"); out != "" {
+		if err := saveChunks(out, b.Chunks); err != nil {
+			return "", err
+		}
+		fmt.Fprintf(&sb, "\nChunks saved to %s", out)
+	}
+	return sb.String(), nil
+}
+
+func countKind(blocks []mdblocks.Block, k mdblocks.Kind) int {
+	n := 0
+	for _, b := range blocks {
+		if b.Kind == k {
+			n++
+		}
+	}
+	return n
+}
+
+// saveChunks writes the chunks as a JSON array — the format HW6 reads.
+func saveChunks(path string, chunks []Chunk) error {
+	data, err := json.MarshalIndent(chunks, "", "  ")
+	if err != nil {
+		return fmt.Errorf("save chunks: %w", err)
+	}
+	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
+		return fmt.Errorf("save chunks: %w", err)
+	}
+	return nil
 }
