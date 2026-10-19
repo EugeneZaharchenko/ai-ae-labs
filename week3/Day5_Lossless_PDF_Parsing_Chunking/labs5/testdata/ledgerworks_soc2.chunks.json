@@ -1,0 +1,150 @@
+[
+  {
+    "id": "p1",
+    "document_id": "ledgerworks_soc2",
+    "level": 0,
+    "kind": "heading",
+    "section_path": "LEDGERWORKS - Vendor Assurance Review Q3 2025",
+    "text": "LEDGERWORKS - Vendor Assurance Review Q3 2025"
+  },
+  {
+    "id": "p1.c1",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p1",
+    "level": 2,
+    "kind": "text",
+    "section_path": "LEDGERWORKS - Vendor Assurance Review Q3 2025",
+    "text": "Навчальний документ курсу AI Agents Engineering. Усі компанії, числа й підписанти вигадані."
+  },
+  {
+    "id": "p2",
+    "document_id": "ledgerworks_soc2",
+    "level": 0,
+    "kind": "heading",
+    "section_path": "1 Scope",
+    "text": "1 Scope"
+  },
+  {
+    "id": "p2.c1",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p2",
+    "level": 2,
+    "kind": "text",
+    "section_path": "1 Scope",
+    "text": "Огляд охоплює звіти SOC2 Type II трьох підрядників LEDGERWORKS за період 01.07.2025-30.09.2025."
+  },
+  {
+    "id": "p2.c2",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p2",
+    "level": 2,
+    "kind": "text",
+    "section_path": "1 Scope",
+    "text": "Мета - визначити знахідки з Severity=High, які потребують плану виправлення до 31.12.2025."
+  },
+  {
+    "id": "p2.c3",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p2",
+    "level": 2,
+    "kind": "table",
+    "section_path": "1 Scope / 1.1 Vendors in scope",
+    "text": "| Vendor          | Service        | Report       | Period   | Auditor              |\n|-----------------|----------------|--------------|----------|----------------------|\n| Acme Bank JSC   | Card acquiring | SOC2 Type II | Q3 2025  | Kovalenko \u0026 Partners |\n| Northwind Cloud | Hosting        | SOC2 Type II | Q3 2025  | Delta Assurance      |\n| Globex Payments | Payouts        | SOC2 Type I  | Q3 2025  | Kovalenko \u0026 Partners |"
+  },
+  {
+    "id": "p2.c4",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p2",
+    "level": 2,
+    "kind": "text",
+    "section_path": "1 Scope / 1.2 Method",
+    "text": "Кожну знахідку звірено з контрольною метою (Control ID) звіту. Знахідки без Control ID не враховуються."
+  },
+  {
+    "id": "p3",
+    "document_id": "ledgerworks_soc2",
+    "level": 0,
+    "kind": "heading",
+    "section_path": "2 Findings",
+    "text": "2 Findings"
+  },
+  {
+    "id": "p3.c1",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p3",
+    "level": 2,
+    "kind": "table",
+    "section_path": "2 Findings / 2.1 Security Findings",
+    "text": "| Finding ID   | Vendor          | Control ID   | Severity   | Status      |\n|--------------|-----------------|--------------|------------|-------------|\n| F-101        | Acme Bank JSC   | CC6.1        | High       | Open        |\n| F-102        | Acme Bank JSC   | CC7.2        | Medium     | Remediated  |\n| F-103        | Northwind Cloud | CC6.6        | High       | Open        |\n| F-104        | Acme Bank JSC   | CC8.1        | High       | In progress |\n| F-105        | Globex Payments | CC6.1        | Low        | Open        |"
+  },
+  {
+    "id": "p3.c2",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p3",
+    "level": 2,
+    "kind": "text",
+    "section_path": "2 Findings / 2.1 Security Findings",
+    "text": "Знахідка F-101: привілейовані облікові записи Acme Bank JSC не проходили квартальний перегляд доступу."
+  },
+  {
+    "id": "p3.c3",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p3",
+    "level": 2,
+    "kind": "text",
+    "section_path": "2 Findings / 2.1 Security Findings",
+    "text": "Знахідка F-104: зміни в продуктивному середовищі розгорталися без затвердження другої особи."
+  },
+  {
+    "id": "p3.c4",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p3",
+    "level": 2,
+    "kind": "text",
+    "section_path": "2 Findings / 2.2 Availability Findings",
+    "text": "Northwind Cloud зафіксував два інциденти недоступності понад 4 години. Обидва закриті з RCA."
+  },
+  {
+    "id": "p4",
+    "document_id": "ledgerworks_soc2",
+    "level": 0,
+    "kind": "heading",
+    "section_path": "3 Tariffs and Signers",
+    "text": "3 Tariffs and Signers"
+  },
+  {
+    "id": "p4.c1",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p4",
+    "level": 2,
+    "kind": "table",
+    "section_path": "3 Tariffs and Signers / 3.1 Merchant tariffs",
+    "text": "| Merchant   | Tariff   |   Fee, % | NBU 2026 requirement   | Contract    |\n|------------|----------|----------|------------------------|-------------|\n| A-114      | T-2      |      2.9 | Yes                    | CT-2025-014 |\n| A-207      | T-2      |      2.9 | Yes                    | CT-2025-031 |\n| A-331      | T-1      |      1.8 | No                     | CT-2025-007 |"
+  },
+  {
+    "id": "p4.c2",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p4",
+    "level": 2,
+    "kind": "list",
+    "section_path": "3 Tariffs and Signers / 3.2 Contract signers",
+    "text": "- CT-2025-014 - підписав Олег Мельник, CFO, 12.03.2025.\n- CT-2025-031 - підписала Ірина Бойко, Head of Partnerships, 02.06.2025.\n- CT-2025-007 - підписав Олег Мельник, CFO, 20.01.2025."
+  },
+  {
+    "id": "p5",
+    "document_id": "ledgerworks_soc2",
+    "level": 0,
+    "kind": "heading",
+    "section_path": "4 Conclusion",
+    "text": "4 Conclusion"
+  },
+  {
+    "id": "p5.c1",
+    "document_id": "ledgerworks_soc2",
+    "parent_id": "p5",
+    "level": 2,
+    "kind": "text",
+    "section_path": "4 Conclusion",
+    "text": "Три знахідки з Severity=High: дві стосуються Acme Bank JSC (F-101, F-104), одна - Northwind Cloud (F-103)."
+  }
+]

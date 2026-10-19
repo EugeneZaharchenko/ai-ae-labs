@@ -22,6 +22,7 @@ import (
 
 	"github.com/dimetron/ai-eng-course/labs/internal/labrun"
 	"github.com/dimetron/ai-eng-course/labs/week3/Day5_Lossless_PDF_Parsing_Chunking/labs5/internal/chunkeval"
+	"github.com/dimetron/ai-eng-course/labs/week3/Day5_Lossless_PDF_Parsing_Chunking/labs5/internal/mdblocks"
 )
 
 // nodeCtx — суворий фейк agent.Context. Вбудований StrictContextMock означає:
@@ -393,17 +394,22 @@ func TestEntityID(t *testing.T) {
 	}
 }
 
-func TestEntityName_NISTCell(t *testing.T) {
+func TestEntityNames_NISTCell(t *testing.T) {
 	t.Parallel()
-	tests := []struct{ typ, cell, want string }{
-		{"Subcategory", "GOVERN 1.1: Legal and regulatory requirements involving AI are understood.", "GOVERN 1.1"},
-		{"Category", "MAP 2: Categorization of the AI system is performed.", "MAP 2"},
-		{"Category", "", ""},
-		{"Vendor", " Acme Bank JSC ", "Acme Bank JSC"},
+	tests := []struct {
+		typ, cell string
+		want      []string
+	}{
+		{"Subcategory", "GOVERN 1.1: Legal requirements are understood. GOVERN 1.2: The characteristics of trustworthy AI are integrated.", []string{"GOVERN 1.1", "GOVERN 1.2"}},
+		{"Category", "MAP 2: Categorization of the AI system is performed.", []string{"MAP 2"}},
+		{"Category", "that considers and communicates AI risk.", nil}, // text continued from the previous page
+		{"Category", "", nil},
+		{"Subcategory", "no ids here", nil},
+		{"Vendor", " Acme Bank JSC ", []string{"Acme Bank JSC"}},
 	}
 	for _, tt := range tests {
-		if got := entityName(tt.typ, tt.cell); got != tt.want {
-			t.Errorf("entityName(%q, %q) = %q, want %q", tt.typ, tt.cell, got, tt.want)
+		if got := entityNames(tt.typ, tt.cell); !slices.Equal(got, tt.want) {
+			t.Errorf("entityNames(%q, %q) = %q, want %q", tt.typ, tt.cell, got, tt.want)
 		}
 	}
 }
@@ -578,5 +584,64 @@ func TestChunkJSONContract(t *testing.T) {
 		if !strings.Contains(string(raw), key) {
 			t.Errorf("JSON чанка без поля %s: %s", key, raw)
 		}
+	}
+}
+
+// --- My PDF: NIST AI RMF 1.0 -----------------------------------------------
+
+// TestNIST_RealDoclingOutput runs the nodes on the saved docling output of
+// testdata/nist_ai_rmf.pdf. NIST AI RMF has 19 categories and 72
+// subcategories; docling cuts its 4 big tables into 11 pieces by page.
+func TestNIST_RealDoclingOutput(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("testdata/nist_ai_rmf.docling.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := newDocument("nist_ai_rmf", "", string(data))
+	b, err := chunk(newNodeCtx(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err = extractEntities(newNodeCtx(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := NewStores()
+	b, err = newIndexGraph(st.Graph)(newNodeCtx(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var tables, tableChunks []string
+	for _, tb := range mdblocks.Tables(doc.Blocks) {
+		tables = append(tables, tb.Text)
+	}
+	for _, c := range b.Chunks {
+		if c.Kind == "table" {
+			tableChunks = append(tableChunks, c.Text)
+		}
+	}
+	if got := chunkeval.Preserved(tables, tableChunks); got != len(tables) || len(tables) != 13 {
+		t.Errorf("tables preserved %d/%d, want 13/13", got, len(tables))
+	}
+	if n := len(st.Graph.ByType("Category")); n != 19 {
+		t.Errorf("categories = %d, want 19", n)
+	}
+	if n := len(st.Graph.ByType("Subcategory")); n != 72 {
+		t.Errorf("subcategories = %d, want 72", n)
+	}
+	// every subcategory is linked to its category, also after a page break
+	linked := 0
+	for _, c := range st.Graph.ByType("Category") {
+		for _, s := range st.Graph.Neighbors(c.ID, "has_subcategory") {
+			if !strings.HasPrefix(s.Name, c.Name+".") {
+				t.Errorf("%s -has_subcategory-> %s: wrong category", c.Name, s.Name)
+			}
+			linked++
+		}
+	}
+	if linked != 72 {
+		t.Errorf("has_subcategory edges = %d, want 72", linked)
 	}
 }

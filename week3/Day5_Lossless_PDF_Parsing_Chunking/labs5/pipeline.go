@@ -186,8 +186,9 @@ func newIndexGraph(g *kgraph.Graph) func(agent.Context, Batch) (Batch, error) {
 				b.NodesAdded++
 			}
 		}
+		var tr tableReader
 		for _, c := range b.Chunks {
-			for _, row := range rowEntities(c) {
+			for _, row := range tr.rows(c) {
 				for _, from := range row {
 					for _, to := range row {
 						rel, ok := relations[[2]string{from.Type, to.Type}]
