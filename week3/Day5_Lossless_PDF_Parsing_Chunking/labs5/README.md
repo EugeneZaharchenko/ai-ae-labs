@@ -18,7 +18,46 @@
 | `query.go` | приклад multi-hop запиту по графу (див. нижче) |
 | `main_test.go` | табличні тести на `StrictContextMock` для кожного вузла; контракт `TestChunk_TableStaysWhole` без skip |
 
-### Запуск
+#### ++ Advanced A1: векторний індекс + 5 запитів по таблицях
+
+Індекс — `internal/vecindex`, **deterministic stub embedding** (hashed bag of words, 128 вимірів), не семантична модель.
+Індексуються лише children; після пошуку `retrieve()` (`query.go`) довантажує parent за `parent_id`.
+Запити йдуть по `testdata/ledgerworks_soc2.chunks.json` (там таблиці з числами). Перевіряє `TestA1_TableQueries`,
+вивід — `go test -v -run TestA1 .`. Відповідь я рахував вручну з таблиці, модель тут не потрібна.
+
+| # | Запит | Топ-3 children (score) | Відповідь (вручну з таблиці) |
+|---|---|---|---|
+| 1 | `Fee % for Merchant A-114 on Tariff T-2` | **p4.c1** table (0.703), p5.c1 text (0.174), p3.c2 text (0.142) | **2.9 %**, контракт CT-2025-014 |
+| 2 | `Finding ID Severity High Vendor Acme Bank JSC` | **p3.c1** table (0.591), p5.c1 text (0.408), p3.c2 text (0.333) | **F-101** (CC6.1, Open), **F-104** (CC8.1, In progress) |
+| 3 | `which Vendor has Report SOC2 Type I and which Auditor` | **p2.c3** table (0.464), p4.c2 list (0.298), p2.c1 text (0.241) | **Globex Payments**, аудитор Kovalenko & Partners |
+| 4 | `Control ID and Status of finding F-103 Northwind Cloud` | p2.c3 table (0.464), p4.c2 list (0.464), **p3.c1** table (0.457) | **CC6.6, Open** (Severity High) |
+| 5 | `which Merchant has Tariff T-1 with Fee 1.8 and which Contract` | **p4.c1** table (0.511), p3.c1 table (0.222), p4.c2 list (0.158) | **A-331**, CT-2025-007 (з p4.c2: підписав Олег Мельник, 20.01.2025) |
+
+Parent-контекст, який отримала б модель (parent → його children за `parent_id`):
+
+- запити 1 і 5 → parent **p4** `3 Tariffs and Signers`, child `p4.c1` (`3 Tariffs and Signers / 3.1 Merchant tariffs`):
+  ```
+  | Merchant   | Tariff   |   Fee, % | NBU 2026 requirement   | Contract    |
+  |------------|----------|----------|------------------------|-------------|
+  | A-114      | T-2      |      2.9 | Yes                    | CT-2025-014 |
+  | A-207      | T-2      |      2.9 | Yes                    | CT-2025-031 |
+  | A-331      | T-1      |      1.8 | No                     | CT-2025-007 |
+  ```
+  Це саме приклад із лекції: 1.8 — ставка **A-331**, а не A-114. Таблиця ціла, із заголовком `Fee, %`, тому рядки не плутаються.
+- запити 2 і 4 → parent **p3** `2 Findings`, child `p3.c1` (`2 Findings / 2.1 Security Findings`): таблиця
+  `| Finding ID | Vendor | Control ID | Severity | Status |` з усіма 5 рядками F-101 … F-105.
+- запит 3 → parent **p2** `1 Scope`, child `p2.c3` (`1 Scope / 1.1 Vendors in scope`): таблиця
+  `| Vendor | Service | Report | Period | Auditor |` з 3 вендорами.
+
+Що я помітив:
+- У всіх 5 запитах правильна таблиця в топ-3 і вона **ціла** — тест перевіряє, що в ній є і заголовок, і потрібні значення.
+- Запит 4 — найслабший: правильна таблиця лише #3 (0.457), бо таблиця вендорів теж містить `Northwind Cloud`. Stub рахує
+  збіг слів, а не сенс.
+- На NIST stub гірший: для `GOVERN 6 third-party software data supply chain subcategories` потрібний шматок таблиці
+  `p16.c12` лише **#5** (0.282) — довга таблиця (~300 слів) «розмиває» вектор, і короткі абзаци зі словом GOVERN виграють.
+  Зафіксовано в `TestA1_NISTTableRank`. Справжня модель (`internal/embed` з `OLLAMA_EMBED_MODEL`) або reranking (ДЗ 6) — наступний крок.
+
+## Запуск
 
 ```bash
 cd week3/Day5_Lossless_PDF_Parsing_Chunking/labs5

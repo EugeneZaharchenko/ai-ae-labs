@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/dimetron/ai-eng-course/labs/week3/Day5_Lossless_PDF_Parsing_Chunking/labs5/internal/kgraph"
+	"github.com/dimetron/ai-eng-course/labs/week3/Day5_Lossless_PDF_Parsing_Chunking/labs5/internal/vecindex"
 )
 
 // highFindings answers the multi-hop query from the homework:
@@ -25,5 +26,27 @@ func highFindings(g *kgraph.Graph, vendorID, reportID string) []string {
 		}
 	}
 	slices.Sort(out)
+	return out
+}
+
+// Retrieved is one search result: the child that matched and its parent
+// (the section heading), loaded by ParentID after the search.
+type Retrieved struct {
+	Child  Chunk
+	Parent Chunk
+	Score  float64
+}
+
+// retrieve searches the children in idx and adds the parent of each hit.
+func retrieve(idx *vecindex.Index, chunks []Chunk, query string, k int) []Retrieved {
+	byID := make(map[string]Chunk, len(chunks))
+	for _, c := range chunks {
+		byID[c.ID] = c
+	}
+	var out []Retrieved
+	for _, h := range idx.Search(query, k) {
+		child := byID[h.ID]
+		out = append(out, Retrieved{Child: child, Parent: byID[child.ParentID], Score: h.Score})
+	}
 	return out
 }
