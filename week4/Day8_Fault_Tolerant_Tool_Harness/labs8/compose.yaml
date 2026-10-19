@@ -1,12 +1,15 @@
 # Day 8 infrastructure.
 #
 #   docker compose up -d dgraph                 # memory (MEMORY_BACKEND=dgraph, the default)
-#   docker compose --profile temporal-pg up -d  # OPTIONAL: Temporal on PostgreSQL 16
+#   docker compose --profile temporal-pg up -d  # OPTIONAL: Temporal on PostgreSQL 16 + Web UI
 #
 # Durable execution by default is the Temporal CLI dev server with its
 # built-in SQLite file — no container:
 #
 #   temporal server start-dev --db-filename .data/temporal.db
+#
+# Both paths serve the Web UI on http://localhost:8233, so the URL in the
+# homework works either way. Do not run them at once: they both claim :7233.
 #
 # `docker compose down` keeps the named volumes, so memory survives a restart.
 # Only `docker compose down -v` deletes it.
@@ -17,8 +20,15 @@ services:
     # Zero + Alpha in one container: the right size for a laptop. The data
     # directory is a named volume — that is what makes memory durable.
     image: dgraph/standalone:v25.4.1
+    # dgraph: long-running, so bring it back after a crash or a host reboot.
+    restart: always
     ports:
-      - "8080:8080" # HTTP + Ratel-compatible endpoint
+      # 8080 (Dgraph's HTTP/Ratel endpoint) is deliberately NOT published: the lab
+      # talks to Dgraph over gRPC on 9080 only (DGRAPH_ADDR=localhost:9080), so the
+      # HTTP port is unused — and it is the port ADK's web UI wants. Keeping it
+      # unpublished is what lets `task week4:day8:adk` and `task week4:day8:web`
+      # use the conventional :8080 while Dgraph runs. The healthcheck still reaches
+      # it inside the container's network namespace.
       - "9080:9080" # gRPC — DGRAPH_ADDR=localhost:9080
     volumes:
       - dgraph-data:/dgraph
@@ -32,6 +42,8 @@ services:
     profiles: ["temporal-pg"]
     # PostgreSQL 16: the newest major Temporal's test matrix covers (13–16).
     image: postgres:16
+    # postgres: long-running, so bring it back after a crash or a host reboot.
+    restart: always
     environment:
       POSTGRES_USER: temporal
       POSTGRES_PASSWORD: temporal # local dev only, not a secret
@@ -68,6 +80,8 @@ services:
   temporal:
     profiles: ["temporal-pg"]
     image: temporalio/server:1.31.3
+    # temporal: long-running, so bring it back after a crash or a host reboot.
+    restart: always
     depends_on:
       temporal-schema:
         condition: service_completed_successfully
@@ -77,9 +91,62 @@ services:
       POSTGRES_USER: temporal
       POSTGRES_PWD: temporal
       POSTGRES_SEEDS: postgres
+    # `temporalio/server` ships no config files at all — only entrypoint.sh. On start
+    # it validates $DYNAMIC_CONFIG_FILE_PATH (config/dynamicconfig/docker.yaml under
+    # the root /etc/temporal) and exits 1 if the path is missing. Mount the directory
+    # so it resolves; the file itself is intentionally empty (see dynamicconfig/).
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig:ro
     ports:
       - "7233:7233" # same address as the dev server, so the worker needs no change
+
+  temporal-namespace:
+    profiles: ["temporal-pg"]
+    # `temporalio/server` starts the server but registers no namespaces — only
+    # `temporal-system` exists. The `auto-setup` image would have created `default`;
+    # the plain server image does not. Without this one-shot job every client fails
+    # with "Namespace default is not found". Poll until the server answers, then
+    # register once; an existing namespace makes the loop exit immediately.
+    image: temporalio/admin-tools:1.31.3
+    depends_on:
+      temporal:
+        condition: service_started
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        for _ in $$(seq 1 30); do
+          if temporal operator namespace describe --namespace default >/dev/null 2>&1; then
+            echo "temporal: namespace default ready"; exit 0;
+          fi;
+          temporal operator namespace create --namespace default >/dev/null 2>&1 || true;
+          sleep 2;
+        done;
+        echo "timed out waiting for namespace default" >&2; exit 1
+
+  temporal-ui:
+    profiles: ["temporal-pg"]
+    # The Web UI. `temporalio/server` has no UI of its own — the dev server does,
+    # which is why this service exists only for the Postgres profile. Tag matches
+    # the `temporal` image so UI and server are released together. 2.54.1 is also
+    # what the local `temporal` CLI (1.9.1) bundles.
+    image: temporalio/ui:2.54.1
+    # temporal-ui: long-running, so bring it back after a crash or a host reboot.
+    restart: always
+    depends_on:
+      temporal-namespace:
+        # The UI opens the default namespace on load, so it must exist first. This
+        # also proves the frontend is accepting connections.
+        condition: service_completed_successfully
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_UI_PORT: "8080"
+      TEMPORAL_DEFAULT_NAMESPACE: default
+    ports:
+      - "8233:8080" # same URL as the dev server, as the homework's README quotes
 
 volumes:
   dgraph-data:
   temporal-pg:
+

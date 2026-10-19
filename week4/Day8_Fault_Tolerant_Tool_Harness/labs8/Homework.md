@@ -85,7 +85,7 @@ go run . counter
 
 `LABS8_MODEL=demo` вмикає офлайн-модель на правилах. Без цієї змінної воркер використовує провайдера з `apps/.env` (так само, як лаби Тижня 1) і на старті друкує рядок `worker: … model live (gemini-3.8-flash) …` з назвою моделі. Немає ключа — воркер зупиняється одразу, а не на першому ході, і підказує `LABS8_MODEL=demo`. Збої вмикає змінна `LEDGER_FAULTS` (наприклад, `503,503,timeout`), затримку інструмента — `LEDGER_LATENCY` (наприклад, `15s`).
 
-Опційно: Temporal на PostgreSQL 16 замість SQLite — `docker compose --profile temporal-pg up -d`. Для оцінки це не потрібно; так виглядає production-конфігурація.
+Опційно: Temporal на PostgreSQL 16 замість SQLite — `docker compose --profile temporal-pg up -d` (або `task week4:day8:temporal-compose:up`). Для оцінки це не потрібно; так виглядає production-конфігурація. Обидва шляхи дають Web UI на http://localhost:8233, але разом вони не працюють: і dev server, і контейнер займають :7233. Профіль піднімає `postgres`, разові `temporal-schema` і `temporal-namespace`, сам `temporal` та окремий `temporal-ui` — образ `temporalio/server` не містить ні UI, ні namespace `default`, тому без цих сервісів клієнт падає з `Namespace default is not found`. Файл `dynamicconfig/docker.yaml` існує лише тому, що сервер валідує шлях `$DYNAMIC_CONFIG_FILE_PATH` і без нього не стартує.
 
 Сесії й лічильник лежать у файлі `.data/agent.db` (додайте `.data/` у `.gitignore`). Пам'ять — у Dgraph. Temporal тримає власний файл `.data/temporal.db`, і ваш код у нього не пише.
 
