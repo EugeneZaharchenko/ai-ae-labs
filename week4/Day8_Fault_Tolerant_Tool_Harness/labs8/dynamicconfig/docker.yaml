@@ -1,0 +1,22 @@
+# Dynamic config for the `temporal` service in compose.yaml (profile temporal-pg).
+#
+# The file exists because the server refuses to start without it: `temporalio/server`
+# ships no config at all, so `temporal-server start` validates
+# `$DYNAMIC_CONFIG_FILE_PATH` — `config/dynamicconfig/docker.yaml`, relative to the
+# config root `/etc/temporal` — and dies with
+#
+#   unable to validate dynamic config: stat .../dynamicconfig/docker.yaml: no such file
+#
+# compose.yaml mounts this directory to `/etc/temporal/config/dynamicconfig`, so the
+# path resolves. The content is deliberately empty: Temporal's own repo keeps
+# `docker.yaml` as a zero-byte placeholder, and an empty file is a valid (empty) set
+# of overrides — every setting falls back to the server's built-in defaults.
+#
+# Add overrides only when a test needs to change server behaviour, e.g. to let a
+# restart be observed quickly:
+#
+#   limit.maxIDLength:
+#     - value: 255
+#       constraints: {}
+#
+# Keep this file free of credentials: it is plain config, versioned in git.

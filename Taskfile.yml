@@ -766,6 +766,29 @@ tasks:
     cmds:
       - temporal server start-dev --db-filename .data/temporal.db
 
+  # Той самий Temporal, але в контейнері — профіль temporal-pg у compose.yaml
+  # (postgres + schema + server + namespace + ui). Це альтернатива таску вище, а
+  # не додаток до нього: обидва займають :7233 і :8233, тож спершу зупиніть dev
+  # server. `temporalio/server` не має ні UI, ні namespace `default`, тому в
+  # профілі є окремі one-shot задача (namespace) і сервіс UI — без них клієнт
+  # падає з "Namespace default is not found".
+  # --wait повертається, коли всі контейнери healthy (healthcheck є в dgraph і
+  # postgres; server і ui вважаються готовими, щойно запущені).
+  week4:day8:temporal-compose:up:
+    desc: 'День 8: Temporal у Docker (профіль temporal-pg, UI :8233) — зупиніть dev server спершу'
+    dir: '{{.DAY8}}'
+    cmds:
+      - docker compose --profile temporal-pg up -d --wait
+      - "echo 'Temporal UI: http://localhost:8233  (frontend :7233)'"
+
+  # Без -v: іменовані volume (dgraph-data, temporal-pg) лишаються, тож память і
+  # історія переживають рестарт — саме це доводить п. 6 завдання.
+  week4:day8:temporal-compose:down:
+    desc: 'День 8: зупинити Temporal-контейнери, дані лишаються (down -v видалив би їх)'
+    dir: '{{.DAY8}}'
+    cmds:
+      - docker compose --profile temporal-pg down
+
   # Dgraph — память тижня 4; дані в іменованому volume, тож `down` їх зберігає,
   # а `down -v` — ні. Healthcheck у compose чекає до 24×5 с.
   week4:day8:dgraph:
