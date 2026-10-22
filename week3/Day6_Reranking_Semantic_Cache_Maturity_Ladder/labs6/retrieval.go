@@ -29,42 +29,8 @@ type SearchResult struct {
 	CacheHit   bool        `json:"cache_hit"`
 }
 
-// topK — скільки кандидатів search віддає в rerank.
+// topK — скільки кандидатів baseline search віддає в rerank.
 const topK = 5
-
-// answerCache — кеш відповідей. Безпечний для одночасних викликів: коли ви
-// зробите fan-out, вузли працюватимуть паралельно, а launcher у режимі web
-// обслуговує кілька запитів одночасно.
-//
-// TODO(студент): семантичний кеш. Зараз ключ — нормалізований рядок запиту
-// (точний hit). Перейдіть на схожість: r.emb.Embed + embed.Cosine проти
-// збережених векторів запитів — перефразований запит має влучати, а запит
-// про T-1 не має отримати відповідь про T-2. Ключ має ізолювати tenant, версію
-// корпусу й TTL (Homework п.4).
-type answerCache struct {
-	mu sync.Mutex
-	m  map[string]string
-}
-
-func (c *answerCache) get(query string) (string, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	v, ok := c.m[normalize(query)]
-	return v, ok
-}
-
-func (c *answerCache) put(query, answer string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.m == nil {
-		c.m = map[string]string{}
-	}
-	c.m[normalize(query)] = answer
-}
-
-func normalize(q string) string {
-	return strings.Join(tokens(q), " ")
-}
 
 // defaultChunks — корпус стартера: ті самі LEDGERWORKS-документи, що в ДЗ 5,
 // уже нарізані у форматі labs5.Chunk. Шлях відносний — запускайте з теки labs6.
@@ -88,30 +54,45 @@ type embedder interface {
 	Embed(ctx context.Context, texts []string) ([][]float32, error)
 }
 
-// retriever тримає корпус, кеш і embedder; його методи — вузли графа.
+// retriever тримає корпус, граф, індекси, кеш і embedder; його методи — вузли графа.
 type retriever struct {
-	chunks []corpus.Chunk
-	cache  answerCache
-	emb    embedder
+	chunks   []corpus.Chunk
+	emb      embedder
+	graph    *kgraph
+	bm25     *bm25Index
+	reranker crossEncoder // nil — офлайн-reranker на ознаках
+	cache    *semanticCache
+	scope    cacheScope
+
+	vecOnce sync.Once
+	vecs    [][]float32
+	vecErr  error
 }
 
 func newRetriever(chunks []corpus.Chunk, emb embedder) *retriever {
-	return &retriever{chunks: chunks, emb: emb}
+	return &retriever{
+		chunks: chunks,
+		emb:    emb,
+		graph:  buildGraph(chunks),
+		bm25:   newBM25(chunks),
+		cache:  newSemanticCache(defaultCacheThreshold, defaultCacheTTL),
+		scope:  cacheScope{Tenant: "ledgerworks", Policy: "legal", CorpusVersion: corpusVersion(chunks)},
+	}
 }
 
 // search шукає топ-K кандидатів по чанках із ДЗ 5.
 //
-// Зараз це BASELINE: частка слів запиту, які є в чанку (keyword overlap).
-// Він навмисно наївний — на «яка ставка на тарифі T-2?» чанк про T-1 набирає
-// майже стільки ж, скільки чанк про T-2.
-//
-// TODO(студент): векторний пошук (ембединги) або BM25; для ++ Advanced —
-// обидва через fan-out + RRF.
-func (r *retriever) search(_ agent.Context, query string) (SearchResult, error) {
+// Це BASELINE: частка слів запиту, які є в чанку (keyword overlap). В agentic
+// графі його замінюють vector_search і keyword_search (BM25) + RRF.
+func (r *retriever) search(ctx agent.Context, query string) (SearchResult, error) {
 	if strings.TrimSpace(query) == "" {
 		return SearchResult{}, fmt.Errorf("порожній запит")
 	}
-	if answer, ok := r.cache.get(query); ok {
+	answer, kind, err := r.cache.lookup(ctx, r.emb, r.scope, query)
+	if err != nil {
+		return SearchResult{}, fmt.Errorf("cache: %w", err)
+	}
+	if kind != "" {
 		return SearchResult{Query: query, CacheHit: true, Candidates: []Candidate{{ChunkID: "cache", Text: answer, Score: 1}}}, nil
 	}
 	q := tokens(query)
@@ -131,20 +112,19 @@ func (r *retriever) search(_ agent.Context, query string) (SearchResult, error) 
 	return SearchResult{Query: query, Candidates: out}, nil
 }
 
-// rerank переранжовує кандидатів до топ-N.
-// TODO(студент): перший крок — embed.Rerank(ctx, r.emb, in.Query, тексти)
-// (bi-encoder: cosine між векторами запиту й чанка). Далі — cross-encoder:
-// systemone.New().Rerank(ctx, in.Query, тексти) — decision-модель tev1:4b в Ollama
-// (P(yes) на «чи відповідає уривок на запит?»; вмикається SYSTEMONE_URL),
-// BAAI/bge-reranker-v2-m3 або LLM-судія. Збережіть порядок «до/після» для README.
-func (r *retriever) rerank(_ agent.Context, in SearchResult) (SearchResult, error) {
-	return in, nil // заглушка: порядок не змінюється
+// rerank переранжовує кандидатів: cross-encoder (tev1:4b), якщо він увімкнений,
+// інакше офлайн-reranker на ознаках пари «запит ↔ чанк» (див. rerank.go).
+func (r *retriever) rerank(ctx agent.Context, in SearchResult) (SearchResult, error) {
+	out, err := r.rerankCandidates(ctx, in.Query, in.Candidates)
+	if err != nil {
+		return SearchResult{}, err
+	}
+	in.Candidates = out
+	return in, nil
 }
 
-// answer формує фінальну відповідь із топ-кандидата і пише в кеш.
-// TODO(студент): складіть відповідь із кількох кандидатів із цитатами
-// chunk_id / document_id; для multi-hop — з обох гілок.
-func (r *retriever) answer(_ agent.Context, in SearchResult) (string, error) {
+// answer — відповідь лінійного конвеєра (baseline): топ-кандидат + запис у кеш.
+func (r *retriever) answer(ctx agent.Context, in SearchResult) (string, error) {
 	if len(in.Candidates) == 0 {
 		return "Нічого не знайдено: у корпусі немає доказів для цього запиту.", nil
 	}
@@ -153,7 +133,9 @@ func (r *retriever) answer(_ agent.Context, in SearchResult) (string, error) {
 	}
 	top := in.Candidates[0]
 	result := fmt.Sprintf("[cache_hit=false] Топ-результат (%s, %s): %s", top.ChunkID, top.DocumentID, top.Text)
-	r.cache.put(in.Query, strings.Replace(result, "[cache_hit=false]", "[cache_hit=true]", 1))
+	if err := r.cache.store(ctx, r.emb, r.scope, in.Query, strings.Replace(result, "[cache_hit=false]", "[cache_hit=true]", 1)); err != nil {
+		return "", fmt.Errorf("cache: %w", err)
+	}
 	return result, nil
 }
 
@@ -181,4 +163,8 @@ func overlap(query, text []string) float64 {
 		}
 	}
 	return float64(hits) / float64(len(query))
+}
+
+func normalize(q string) string {
+	return strings.Join(tokens(q), " ")
 }

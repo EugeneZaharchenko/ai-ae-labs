@@ -25,6 +25,7 @@ import (
 	"github.com/dimetron/ai-eng-course/labs/internal/adkenv"
 	"github.com/dimetron/ai-eng-course/labs/week3/Day6_Reranking_Semantic_Cache_Maturity_Ladder/labs6/internal/corpus"
 	"github.com/dimetron/ai-eng-course/labs/week3/Day6_Reranking_Semantic_Cache_Maturity_Ladder/labs6/internal/embed"
+	"github.com/dimetron/ai-eng-course/labs/week3/Day6_Reranking_Semantic_Cache_Maturity_Ladder/labs6/internal/systemone"
 )
 
 func main() {
@@ -38,7 +39,12 @@ func main() {
 	}
 	emb := embed.New()
 	log.Printf("embeddings: %s", emb.Name())
-	wa, err := newGraph(newRetriever(chunks, emb))
+	r := newRetriever(chunks, emb)
+	if c := systemone.New(); c != nil {
+		r.reranker = c
+	}
+	log.Printf("reranker: %s", systemone.New().Name())
+	wa, err := newGraph(r)
 	if err != nil {
 		log.Fatalf("failed to create workflow: %v", err)
 	}
