@@ -153,7 +153,7 @@ func runBaseline(ctx context.Context, r *retriever, q goldQuery) (evalRow, error
 
 // runAgentic sends the query through the whole graph with an empty cache.
 func runAgentic(ctx context.Context, r *retriever, q goldQuery) (evalRow, error) {
-	r.cache = newSemanticCache(defaultCacheThreshold, defaultCacheTTL)
+	r.cache = newSemanticCache(r.cache.threshold, defaultCacheTTL)
 	a, err := newGraph(r)
 	if err != nil {
 		return evalRow{}, err

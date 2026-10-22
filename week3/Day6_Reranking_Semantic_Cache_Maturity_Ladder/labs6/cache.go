@@ -49,7 +49,8 @@ type cacheStats struct {
 }
 
 const (
-	defaultCacheThreshold = 0.40 // calibrated on the stub embedder, see README
+	defaultCacheThreshold = 0.40 // stub embedder, calibrated in README
+	ollamaCacheThreshold  = 0.80 // embeddinggemma, calibrated in README
 	defaultCacheTTL       = 24 * time.Hour
 )
 

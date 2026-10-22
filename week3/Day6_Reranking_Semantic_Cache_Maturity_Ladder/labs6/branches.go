@@ -48,6 +48,10 @@ func (r *retriever) chunkVectors(ctx context.Context) ([][]float32, error) {
 			texts[i] = c.Text
 		}
 		r.vecs, r.vecErr = r.emb.Embed(ctx, texts)
+		r.vecIndex = make(map[string]int, len(cs))
+		for i, c := range cs {
+			r.vecIndex[c.ID] = i
+		}
 	})
 	return r.vecs, r.vecErr
 }

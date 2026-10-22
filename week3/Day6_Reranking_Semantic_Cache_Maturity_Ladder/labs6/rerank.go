@@ -44,12 +44,12 @@ func (r *retriever) rerankCandidates(ctx context.Context, query string, cands []
 			scores[s.Index] = s.Score
 		}
 	} else {
-		ranked, err := embed.Rerank(ctx, r.emb, query, texts)
+		cos, err := r.cosines(ctx, query, cands)
 		if err != nil {
 			return nil, err
 		}
-		for _, s := range ranked {
-			scores[s.Index] = 0.5*s.Score + pairFeatures(query, texts[s.Index])
+		for i := range cands {
+			scores[i] = 0.5*cos[i] + pairFeatures(query, texts[i])
 		}
 	}
 	out := slices.Clone(cands)
@@ -57,6 +57,34 @@ func (r *retriever) rerankCandidates(ctx context.Context, query string, cands []
 		out[i].Score = scores[i]
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Score > out[j].Score })
+	return out, nil
+}
+
+// cosines scores candidates by the cosine of the query and chunk vectors.
+// Chunks of the corpus reuse the index vectors, so a query costs one
+// embedding call; unknown texts are embedded on the fly.
+func (r *retriever) cosines(ctx context.Context, query string, cands []Candidate) ([]float64, error) {
+	vecs, err := r.chunkVectors(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("rerank: %w", err)
+	}
+	q, err := embedOne(ctx, r.emb, query)
+	if err != nil {
+		return nil, fmt.Errorf("rerank: %w", err)
+	}
+	out := make([]float64, len(cands))
+	for i, c := range cands {
+		j, ok := r.vecIndex[c.ChunkID]
+		if ok && r.normalized()[j].Text == c.Text {
+			out[i] = embed.Cosine(q, vecs[j])
+			continue
+		}
+		v, err := embedOne(ctx, r.emb, c.Text)
+		if err != nil {
+			return nil, fmt.Errorf("rerank: %w", err)
+		}
+		out[i] = embed.Cosine(q, v)
+	}
 	return out, nil
 }
 

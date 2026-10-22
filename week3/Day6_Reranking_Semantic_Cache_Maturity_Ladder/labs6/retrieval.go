@@ -64,9 +64,10 @@ type retriever struct {
 	cache    *semanticCache
 	scope    cacheScope
 
-	vecOnce sync.Once
-	vecs    [][]float32
-	vecErr  error
+	vecOnce  sync.Once
+	vecs     [][]float32
+	vecIndex map[string]int
+	vecErr   error
 }
 
 func newRetriever(chunks []corpus.Chunk, emb embedder) *retriever {

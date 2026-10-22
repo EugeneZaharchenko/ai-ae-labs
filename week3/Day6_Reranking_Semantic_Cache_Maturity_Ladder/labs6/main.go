@@ -40,6 +40,9 @@ func main() {
 	emb := embed.New()
 	log.Printf("embeddings: %s", emb.Name())
 	r := newRetriever(chunks, emb)
+	if emb.BaseURL != "" {
+		r.cache.threshold = ollamaCacheThreshold
+	}
 	if c := systemone.New(); c != nil {
 		r.reranker = c
 	}

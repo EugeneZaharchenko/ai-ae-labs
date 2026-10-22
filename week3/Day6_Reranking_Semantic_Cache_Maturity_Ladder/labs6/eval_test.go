@@ -202,5 +202,6 @@ func liveRetriever(t *testing.T) *retriever {
 	r := newTestRetriever(t)
 	r.emb = embed.New()
 	r.vecOnce = sync.Once{}
+	r.cache.threshold = ollamaCacheThreshold
 	return r
 }
