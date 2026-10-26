@@ -27,6 +27,8 @@ vars:
   DAY6: ./week3/Day6_Reranking_Semantic_Cache_Maturity_Ladder/labs6
   DAY7: ./week4/Day7_ReAct_Loop_Internals/labs7
   DAY8: ./week4/Day8_Fault_Tolerant_Tool_Harness/labs8
+  DAY9: ./week5/Day9_Agent_Memory_Event_Sourced_State/labs9
+  DAY10: ./week5/Day10_Collaboration_Agents_HITL/labs10
   # День 4 у контейнері: тег, ім'я контейнера і платформа. Задачі нижче ділять
   # ці змінні, щоб `docker stop` не промахнувся повз ім'я, яке змінили лише в
   # одному місці. `DOCKER_PLATFORM` така сама, як у README лаби: `linux/amd64`
@@ -810,6 +812,101 @@ tasks:
       DGRAPH_TEST_ADDR: '{{.DGRAPH_TEST_ADDR}}'
     cmds:
       - go test -tags integration -count=1 -run TestConformance -v {{.DAY8}}/internal/graphmemory/dgraph/
+  # --- week5 ---------------------------------------------------------------
+
+  # День 9 — пам'ять агента, event-sourced стан. Лаба сама обирає мозок:
+  # справжню модель із apps/.env, якщо провайдер налаштований, інакше правилову
+  # offline-модель — і перший рядок виводу каже, котрий саме. Тому ключ тут не
+  # обов'язковий, але й офлайн-прогін дає форму поведінки, не відповідь моделі.
+  #
+  # Стан лабораторії живе в labs9/.data/memory.db (SQLite; тека в .gitignore).
+  # Саме тому `say` в одному процесі й `facts` у наступному бачать той самий
+  # факт — це і є «пережити рестарт». Прибрати стан: rm -rf labs9/.data.
+  week5:build:
+    desc: 'Build week5'
+    cmds:
+      - go build ./week5/...
+
+  week5:test:
+    desc: 'Test week5 (race detector)'
+    cmds:
+      - go test -race ./week5/...
+
+  week5:run:
+    desc: 'Run a week5 lab: task week5:run PKG=./week5/Day9_Agent_Memory_Event_Sourced_State/labs9'
+    requires:
+      vars: [PKG]
+    cmds:
+      - go run {{.PKG}}
+
+  # Ранній win Дня 9: два процеси, два `say`, один факт. Кожна команда — окремий
+  # процес навмисно: так видно, що стан пережив рестарт.
+  week5:day9:say:
+    desc: 'День 9: записати факт у сесію day1 (модель із apps/.env або offline-rules)'
+    vars:
+      TEXT: 'A-114 сидить на legacy-інтеграції, міграцію відклали до Q4.'
+    cmds:
+      - go run {{.DAY9}} say day1 "{{.TEXT}}"
+
+  week5:day9:facts:
+    desc: 'День 9: факти user: і журнал змін стану для сесії (за замовчуванням day1)'
+    vars:
+      SESSION: '{{.SESSION | default "day1"}}'
+    cmds:
+      - go run {{.DAY9}} facts {{.SESSION}}
+
+  week5:day9:poison:
+    desc: 'День 9: інцидент — нотатка партнерського порталу намагається переписати факт'
+    cmds:
+      - go run {{.DAY9}} poison
+
+  # Компакція вмикається прапорцем -threshold: історія стискається, а факт
+  # лишається в user: стані. Той самий крок без прапорця — для порівняння.
+  week5:day9:compact:
+    desc: 'День 9: увімкнути компакцію контексту (поріг у токенах)'
+    vars:
+      THRESHOLD: '{{.THRESHOLD | default "600"}}'
+      TEXT: 'Розкажи довго про історію інтеграцій A-114 і що ми пробували.'
+    cmds:
+      - go run {{.DAY9}} -threshold {{.THRESHOLD}} say long "{{.TEXT}}"
+
+  # День 10 — команда агентів із затвором схвалення (HITL). Стартовий шаблон має
+  # одного спеціаліста; решта — ваші TODO. Вивід починається з того, який мозок
+  # обрано: справжня модель чи названий офлайн-фейк.
+  week5:day10:demo:
+    desc: 'День 10: стартовий шаблон — один спеціаліст з одним інструментом'
+    cmds:
+      - go run {{.DAY10}}
+
+  # Тести лаби. `dir:` тут не декор: частина тестів відкриває .data
+  # відносним шляхом, а Task за замовчуванням стартує з кореня репозиторію.
+  # PKG звужує прогін до пакета, напр. PKG=./internal/memlab.
+  week5:day9:test:
+    desc: 'День 9: тести лаби (PKG звужує, напр. PKG=./internal/memlab)'
+    dir: '{{.DAY9}}'
+    vars:
+      PKG: '{{.PKG | default "./..."}}'
+    cmds:
+      - go test -race -count=1 -v {{.PKG}}
+
+  week5:day10:test:
+    desc: 'День 10: тести лаби (PKG звужує, напр. PKG=./internal/approvals)'
+    dir: '{{.DAY10}}'
+    vars:
+      PKG: '{{.PKG | default "./..."}}'
+    cmds:
+      - go test -race -count=1 -v {{.PKG}}
+
+  # Живий тест іде окремо й потребує робочого провайдера: без нього він
+  # пропускається з названою причиною — «skip» не означає «пройшло».
+  week5:day10:live:
+    desc: 'День 10: живий тест проти справжньої моделі (потрібен провайдер)'
+    dir: '{{.DAY10}}'
+    env:
+      LAB_LIVE: '1'
+    cmds:
+      - go test -count=1 -run Live -v .
+
   # --- demo №4: приклади графового рушія ADK у Web UI -------------------------
   #
   # Одинадцять прикладів графового рушія (`google.golang.org/adk/v2/workflow`

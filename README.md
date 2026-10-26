@@ -26,12 +26,12 @@
 | 6 | Чт 08.10.2026 | 18:00 UTC | week3 | `Day6_Reranking_Semantic_Cache_Maturity_Ladder` | ⏳ очікує |
 | 7 | Пн 12.10.2026 | 18:00 UTC | week4 | `Day7_ReAct_Loop_Internals` | ⏳ очікує |
 | 8 | Чт 15.10.2026 | 18:00 UTC | week4 | `Day8_Fault_Tolerant_Tool_Harness` | ⏳ очікує |
-| 9 | Пн 19.10.2026 | 18:00 UTC | week5 | `Day9_Agent_Memory_Event_Sourced_State` | ⏳ очікує |
-| 10 | Чт 22.10.2026 | 18:00 UTC | week5 | `Day10_Collaboration_Agents_HITL` | ⏳ очікує |
+| 9 | Пн 19.10.2026 | 18:00 UTC | week5 | [`Day9_Agent_Memory_Event_Sourced_State`](week5/Day9_Agent_Memory_Event_Sourced_State/) | ✅ у репозиторії |
+| 10 | Чт 22.10.2026 | 18:00 UTC | week5 | [`Day10_Collaboration_Agents_HITL`](week5/Day10_Collaboration_Agents_HITL/) | ✅ у репозиторії |
 | 11 | Пн 26.10.2026 | 18:00 UTC | week6 | `Day11_Dynamic_Workflows_Multi_Critic` | ⏳ очікує |
 | 12 | Чт 29.10.2026 | 18:00 UTC | week6 | `Day12_Self_Improving_Agents_Demo_Day` | ⏳ очікує |
 
-> **Тижні 1–2 вже в репозиторії.** Наступні тижні з'являються
+> **Тижні 1–5 уже в репозиторії.** Наступні тижні з'являються
 > за графіком вище: у понеділок і четвер о 18:00 UTC. Час указано в UTC.
 > Щоб отримати новий тиждень у своїй копії, зробіть `git pull`.
 
