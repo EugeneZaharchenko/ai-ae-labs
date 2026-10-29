@@ -29,6 +29,8 @@ vars:
   DAY8: ./week4/Day8_Fault_Tolerant_Tool_Harness/labs8
   DAY9: ./week5/Day9_Agent_Memory_Event_Sourced_State/labs9
   DAY10: ./week5/Day10_Collaboration_Agents_HITL/labs10
+  DAY11: ./week6/Day11_Dynamic_Workflows_Multi_Critic/labs11
+  DAY12: ./week6/Day12_Self_Improving_Agents_Demo_Day/labs12
   # День 4 у контейнері: тег, ім'я контейнера і платформа. Задачі нижче ділять
   # ці змінні, щоб `docker stop` не промахнувся повз ім'я, яке змінили лише в
   # одному місці. `DOCKER_PLATFORM` така сама, як у README лаби: `linux/amd64`
@@ -906,6 +908,84 @@ tasks:
       LAB_LIVE: '1'
     cmds:
       - go test -count=1 -run Live -v .
+
+  # --- тиждень 6 ---------------------------------------------------------------
+
+  # День 11 — динамічний workflow «maker → gate → critics». Стартовий шаблон
+  # запускається без ключа лише там, де його заглушки; еталон у solution/ має
+  # офлайн-режим (див. Homework.md).
+  week6:day11:demo:
+    desc: 'День 11: стартовий шаблон лаби'
+    cmds:
+      - go run {{.DAY11}}
+
+  week6:day11:test:
+    desc: 'День 11: тести лаби й еталона (PKG звужує, напр. PKG=./internal/gate)'
+    dir: '{{.DAY11}}'
+    vars:
+      PKG: '{{.PKG | default "./..."}}'
+    cmds:
+      - go test -race -count=1 -v {{.PKG}}
+
+  week6:day11:live:
+    desc: 'День 11: живий тест проти справжньої моделі (потрібен провайдер)'
+    dir: '{{.DAY11}}'
+    env:
+      LAB_LIVE: '1'
+    cmds:
+      - go test -count=1 -run Live -v ./solution
+
+  # День 12 — самополіпшувальний агент (фінал). Скелет працює без ключа.
+  week6:day12:demo:
+    desc: 'День 12: стартовий шаблон фіналу (console)'
+    cmds:
+      - go run {{.DAY12}} console
+
+  # Web UI шаблону фіналу. `dir:` потрібен: шаблон читає strategy.md і пише
+  # experiments.log у поточній теці. Приклади запитів — у labs12/PROMPTS.md.
+  # Порт :8080 спільний з іншими `web`-задачами:
+  # якщо зайнятий — `task kill:8080`.
+  week6:day12:live-web:
+    desc: 'День 12: шаблон фіналу у Web UI на http://localhost:8080/ui/ + REST API на /api'
+    dir: '{{.DAY12}}'
+    cmds:
+      - go run . web webui api
+
+  # Web UI еталона: воркер-агент з kb_search/kb_read за чинною стратегією.
+  # Робоча тека work12/ (strategy.md, experiments.log) — та сама, що в циклі:
+  #   task week6:day12:solution:loop   → стратегія покращується
+  #   task week6:day12:solution:web    → ставите те саме питання у Web UI
+  week6:day12:solution:web:
+    desc: 'День 12: Web UI еталона (воркер за work12/strategy.md) на http://localhost:8080/ui/'
+    dir: '{{.DAY12}}'
+    env:
+      LAB12_ROOT: work12
+    cmds:
+      - go run ./solution web webui api
+
+  week6:day12:solution:loop:
+    desc: 'День 12: цикл самополіпшення еталона (EXPERIMENTS=3), пише у work12/'
+    dir: '{{.DAY12}}'
+    vars:
+      EXPERIMENTS: '{{.EXPERIMENTS | default "3"}}'
+    cmds:
+      - go run ./solution --root=work12 --experiments={{.EXPERIMENTS}}
+
+  week6:day12:test:
+    desc: 'День 12: тести лаби й еталона (PKG звужує, напр. PKG=./solution)'
+    dir: '{{.DAY12}}'
+    vars:
+      PKG: '{{.PKG | default "./..."}}'
+    cmds:
+      - go test -race -count=1 -v {{.PKG}}
+
+  week6:day12:live:
+    desc: 'День 12: живий тест проти справжньої моделі (потрібен провайдер)'
+    dir: '{{.DAY12}}'
+    env:
+      LAB_LIVE: '1'
+    cmds:
+      - go test -count=1 -run Live -v ./solution
 
   # --- demo №4: приклади графового рушія ADK у Web UI -------------------------
   #
