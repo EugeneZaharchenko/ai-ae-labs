@@ -1,8 +1,8 @@
-# AGENTS.md — репозиторій курсу «AI Agents Engineering» (тижні 1–2)
+# AGENTS.md — репозиторій курсу «AI Agents Engineering» (тижні 1–6)
 
 Цей документ описує структуру, команди збірки та конвенції репозиторію для агентів
-і розробників. **Область дії — весь репозиторій** (це гілка лише з матеріалами
-тижні 1–2).
+і розробників. **Область дії — весь репозиторій** (це гілка з матеріалами
+тижнів 1–6).
 
 ---
 
@@ -80,15 +80,14 @@ cd week2/Day4_Agent_as_Service_Deploy/labs4 && go run . -offline console
 ## 3. Структура
 
 ```
-week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3/ стартовий шаблон лаби + README з покроковою інструкцією
-week2/Day4_Agent_as_Service_Deploy/labs4/ стартовий шаблон лаби + README з покроковою інструкцією
-week2/<День>/Homework.md    умова домашнього завдання, критерії оцінювання, формат здачі
-week1/<День>/labs/solution/ еталонний розв'язок (публікується вручну після дедлайну)
-internal/                   спільні helper-пакети (adkenv, fakellm, labrun)
+week<N>/<День>/labs<N>/      стартовий шаблон лаби: код, який студент дописує, і README
+week<N>/<День>/labs<N>/Homework.md
+                            умова домашнього завдання, критерії оцінювання, формат здачі
+week1/<День>/labs/solution/ еталонний розв'язок Тижня 1 (решта — після дедлайну, у монорепозиторії)
+internal/                   спільні helper-пакети (adkenv, fakellm, labrun, modelcfg)
 apps/.env-example           шаблон ключів провайдерів (копія → apps/.env)
-1_ai-gateway/               agentgateway + Jaeger/Prometheus/Grafana — локальний моніторинг (bonus-трек)
-3_adk2_patterns/            каталог патернів ADK Go v2.5.0 (16 патернів + 2 додатки) — власний Taskfile.yml
-adk-quickstart/             ADK Go v2 агент, який студенти запускають локально
+demo/                       демо-проєкти курсу: 1_ai-gateway, 3_adk2_patterns, 4_adk_examples,
+                            adk-quickstart, agui_web, 6_adk_telegram_bot, 9_cloudflare-durable-go
 Taskfile.yml                команди репозиторію (task check, task test, task cover)
 AGENTS.md                   конвенції репозиторію для агентів і розробників
 .devcontainer/              dev container: Go + Docker + kind (див. §6)

@@ -22,16 +22,16 @@
 | 2 | Чт 24.09.2026 | 18:00 UTC | week1 | [`Day2_Structured_Output_Function_Calling`](week1/Day2_Structured_Output_Function_Calling/) | ✅ у репозиторії |
 | 3 | Пн 28.09.2026 | 18:00 UTC | week2 | [`Day3_First_ADK2_Agent_Workflow_Graph`](week2/Day3_First_ADK2_Agent_Workflow_Graph/) | ✅ у репозиторії |
 | 4 | Чт 01.10.2026 | 18:00 UTC | week2 | [`Day4_Agent_as_Service_Deploy`](week2/Day4_Agent_as_Service_Deploy/) | ✅ у репозиторії |
-| 5 | Пн 05.10.2026 | 18:00 UTC | week3 | `Day5_Lossless_PDF_Parsing_Chunking` | ⏳ очікує |
-| 6 | Чт 08.10.2026 | 18:00 UTC | week3 | `Day6_Reranking_Semantic_Cache_Maturity_Ladder` | ⏳ очікує |
-| 7 | Пн 12.10.2026 | 18:00 UTC | week4 | `Day7_ReAct_Loop_Internals` | ⏳ очікує |
-| 8 | Чт 15.10.2026 | 18:00 UTC | week4 | `Day8_Fault_Tolerant_Tool_Harness` | ⏳ очікує |
-| 9 | Пн 19.10.2026 | 18:00 UTC | week5 | `Day9_Agent_Memory_Event_Sourced_State` | ⏳ очікує |
-| 10 | Чт 22.10.2026 | 18:00 UTC | week5 | `Day10_Collaboration_Agents_HITL` | ⏳ очікує |
-| 11 | Пн 26.10.2026 | 18:00 UTC | week6 | `Day11_Dynamic_Workflows_Multi_Critic` | ⏳ очікує |
-| 12 | Чт 29.10.2026 | 18:00 UTC | week6 | `Day12_Self_Improving_Agents_Demo_Day` | ⏳ очікує |
+| 5 | Пн 05.10.2026 | 18:00 UTC | week3 | [`Day5_Lossless_PDF_Parsing_Chunking`](week3/Day5_Lossless_PDF_Parsing_Chunking/) | ✅ у репозиторії |
+| 6 | Чт 08.10.2026 | 18:00 UTC | week3 | [`Day6_Reranking_Semantic_Cache_Maturity_Ladder`](week3/Day6_Reranking_Semantic_Cache_Maturity_Ladder/) | ✅ у репозиторії |
+| 7 | Пн 12.10.2026 | 18:00 UTC | week4 | [`Day7_ReAct_Loop_Internals`](week4/Day7_ReAct_Loop_Internals/) | ✅ у репозиторії |
+| 8 | Чт 15.10.2026 | 18:00 UTC | week4 | [`Day8_Fault_Tolerant_Tool_Harness`](week4/Day8_Fault_Tolerant_Tool_Harness/) | ✅ у репозиторії |
+| 9 | Пн 19.10.2026 | 18:00 UTC | week5 | [`Day9_Agent_Memory_Event_Sourced_State`](week5/Day9_Agent_Memory_Event_Sourced_State/) | ✅ у репозиторії |
+| 10 | Чт 22.10.2026 | 18:00 UTC | week5 | [`Day10_Collaboration_Agents_HITL`](week5/Day10_Collaboration_Agents_HITL/) | ✅ у репозиторії |
+| 11 | Пн 26.10.2026 | 18:00 UTC | week6 | [`Day11_Dynamic_Workflows_Multi_Critic`](week6/Day11_Dynamic_Workflows_Multi_Critic/) | ✅ у репозиторії |
+| 12 | Чт 29.10.2026 | 18:00 UTC | week6 | [`Day12_Self_Improving_Agents_Demo_Day`](week6/Day12_Self_Improving_Agents_Demo_Day/) | ✅ у репозиторії |
 
-> **Тижні 1–2 вже в репозиторії.** Наступні тижні з'являються
+> **Тижні 1–6 уже в репозиторії.** Наступні тижні з'являються
 > за графіком вище: у понеділок і четвер о 18:00 UTC. Час указано в UTC.
 > Щоб отримати новий тиждень у своїй копії, зробіть `git pull`.
 
@@ -95,17 +95,19 @@
 ## Структура
 
 ```
-week2/Day3_First_ADK2_Agent_Workflow_Graph/labs3/ стартовий шаблон лаби + README з покроковою інструкцією
-week2/Day4_Agent_as_Service_Deploy/labs4/ стартовий шаблон лаби + README з покроковою інструкцією
-week2/<День>/Homework.md    умова домашнього завдання, критерії оцінювання, формат здачі
-week1/<День>/labs/solution/ еталонний розв'язок (публікується вручну після дедлайну)
-internal/                   спільні helper-пакети (adkenv, fakellm, labrun)
+week<N>/<День>/labs<N>/      стартовий шаблон лаби: код, який ви дописуєте, і README з покроковою інструкцією
+week<N>/<День>/labs<N>/Homework.md
+                            умова домашнього завдання, критерії оцінювання, формат здачі
+week1/<День>/labs/solution/ еталонний розв'язок Тижня 1 (решта — після дедлайну, у монорепозиторії)
+internal/                   спільні helper-пакети (adkenv, fakellm, labrun, modelcfg)
 apps/.env-example           шаблон ключів провайдерів (копія → apps/.env)
-1_ai-gateway/               agentgateway + Jaeger/Prometheus/Grafana — локальний моніторинг (bonus-трек)
-adk-quickstart/             ADK Go v2 агент, який студенти запускають локально
+demo/                       демо-проєкти курсу (agentgateway, ADK-патерни, AG-UI, Telegram)
 Taskfile.yml                команди репозиторію (task check, task test, task cover)
 AGENTS.md                   конвенції репозиторію для агентів і розробників
 ```
+
+Лаби названо за номером дня (`labs5` — День 5), бо після публікації в кожного
+тижня власний checkout: сама лише тека `labs` не була б унікальною.
 
 ## Команди (`Taskfile.yml`)
 
