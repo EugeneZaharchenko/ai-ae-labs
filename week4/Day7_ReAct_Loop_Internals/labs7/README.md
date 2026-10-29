@@ -33,6 +33,36 @@ answer: Related incident #418 found; acquirer says unrelated. Ticket: LDG-1
 `вичерпано ліміт 5 ітерацій: iteration limit reached without a final answer`, і `errors.Is(err, ErrMaxIterations)` повертає true
 (`TestRunStopsAtIterationLimit`, `TestGraphStopsAtIterationLimit`).
 
+### Прогін зі справжньою моделлю
+
+З ключем у `apps/.env` мозок графової версії — `react.LLMPlanner` (нативний function calling). Ось реальний прогін тієї ж команди:
+
+```
+модель: gemini / gemini-3.8-flash (gemini → gemini-3.8-flash)
+User -> Investigate the payout incident for merchant A-114
+Agent -> [1] thought:
+    obs [call_239957] get_merchant_payouts: 2 payouts pending since 03:10; last settled batch #418 delayed, acquirer says unrelated (since )
+    …
+    obs [call_239958] search_internal_wiki: 0 hits
+[2] thought:
+    obs [call_290886] search_internal_wiki: 3 hits: event-1 (rejected), event-2 (merged into incident #418), event-3 (open)
+[3] thought:
+    obs [call_212226] search_internal_wiki: 0 hits
+[4] thought:
+    obs [call_264089] search_internal_wiki: 0 hits
+[5] thought:
+    obs [call_261935] search_internal_wiki: 0 hits
+
+AGENT_ERROR: вичерпано ліміт 5 ітерацій: iteration limit reached without a final answer
+```
+
+Що тут видно:
+
+- Модель сама обирала інструменти й так і не дала фінальної відповіді. Цикл зупинився на 5-й ітерації з явною помилкою, а не мовчки. Саме від такого «3 AM-сценарію» і захищає ліміт.
+- `CallID` тут дає провайдер (`call_…`), а не правила. Кожне Observation все одно стоїть під своїм викликом, зокрема два виклики першого кроку.
+- `thought` порожній, бо з нативним function calling Gemini повертає лише виклики інструментів, без тексту.
+- Детекція зациклення не спрацювала. Модель щоразу міняла запит, тож однакових `(action, args)` поспіль не було, і зупинив цикл саме ліміт ітерацій.
+
 ## Руками vs рушій
 
 | Рушій бере на себе | Лишається на інженері |
