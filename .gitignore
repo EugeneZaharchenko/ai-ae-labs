@@ -42,3 +42,7 @@ demo/agui_web/agui_web
 
 # Week 4 Day 8: Temporal dev server, session store and counters (local state)
 .data/
+
+# Робоча тека еталона Дня 12 (strategy.md, experiments.log)
+work12/
+week6/**/experiments.log
