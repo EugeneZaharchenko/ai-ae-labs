@@ -38,6 +38,8 @@
 - транзієнтна помилка, яка лишилась після всіх повторів, стає Observation `status: "unavailable"`;
 - четверта семантична помилка за хід або фатальна помилка зупиняє хід явною помилкою workflow з типом `SelfCorrectionExhausted` / `FatalError`.
 
+Go-сентинел `ErrSelfCorrectionExhausted` межу workflow → клієнт теж не проходить. Тому `start` відновлює його за рядком типу (`turnError`): у викликача `errors.Is(err, ErrSelfCorrectionExhausted)` повертає true, і це перевіряє `TestSelfCorrectionBudgetExhausted`.
+
 Лічильник самокорекцій живе в ході (`budget` створюється всередині workflow), а не в глобальній змінній.
 
 Одна деталь: якщо інструмент повертає `error`, ADK не зупиняє цикл, а показує моделі `{"error": …}` і йде далі. Тому зупинка — це прапорець `budget.stop`, який workflow перевіряє після кожної події.

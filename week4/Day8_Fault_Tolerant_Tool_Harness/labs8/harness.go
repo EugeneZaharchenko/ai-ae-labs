@@ -176,3 +176,14 @@ func (b *budget) observe(tool string, err error) (Observation, error) {
 	b.stop = fmt.Errorf("%s: fatal: %w", tool, err)
 	return Observation{}, b.stop
 }
+
+// turnError is the client side of the boundary: the workflow error arrives as
+// an ApplicationError, so the sentinel is restored by its type string and
+// errors.Is(err, ErrSelfCorrectionExhausted) works for the caller of start.
+func turnError(err error) error {
+	var appErr *temporal.ApplicationError
+	if errors.As(err, &appErr) && appErr.Type() == errTypeExhausted {
+		return fmt.Errorf("%s: %w", appErr.Message(), ErrSelfCorrectionExhausted)
+	}
+	return err
+}

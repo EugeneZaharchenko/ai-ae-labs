@@ -202,7 +202,7 @@ func runStart(ctx context.Context, args []string, out io.Writer) error {
 	var res Result
 	err = run.Get(ctx, &res)
 	printResult(out, res, err)
-	return err
+	return turnError(err)
 }
 
 func printResult(out io.Writer, res Result, err error) {

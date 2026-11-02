@@ -232,8 +232,9 @@ func TestSelfCorrectionBudgetExhausted(t *testing.T) {
 	if !errors.As(tr.err, &appErr) || appErr.Type() != errTypeExhausted {
 		t.Fatalf("err = %v, want ApplicationError %s", tr.err, errTypeExhausted)
 	}
-	if !strings.Contains(appErr.Message(), ErrSelfCorrectionExhausted.Error()) {
-		t.Errorf("message = %q", appErr.Message())
+	// The Go sentinel does not cross the boundary; the client restores it by the type string.
+	if errors.Is(tr.err, ErrSelfCorrectionExhausted) || !errors.Is(turnError(tr.err), ErrSelfCorrectionExhausted) {
+		t.Errorf("errors.Is before/after turnError = %v/%v", errors.Is(tr.err, ErrSelfCorrectionExhausted), errors.Is(turnError(tr.err), ErrSelfCorrectionExhausted))
 	}
 	if n := tr.starts["OpenRefundCase"]; n != maxSelfCorrections+1 {
 		t.Errorf("OpenRefundCase attempts = %d, want %d", n, maxSelfCorrections+1)
