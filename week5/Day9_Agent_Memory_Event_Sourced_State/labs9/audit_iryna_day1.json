@@ -1,0 +1,38 @@
+[
+  {
+    "seq": 1,
+    "at": "2026-11-03T12:29:42.07015+02:00",
+    "invocation": "e-f1e235b4-dcd4-4911-8b65-41d8a675467a",
+    "author": "memory_agent",
+    "kind": "state_delta",
+    "key": "user:fact.do_not_suggest.A-114",
+    "detail": "міграція до Q4 [user, user_message]"
+  },
+  {
+    "seq": 2,
+    "at": "2026-11-03T12:29:42.07015+02:00",
+    "invocation": "e-f1e235b4-dcd4-4911-8b65-41d8a675467a",
+    "author": "memory_agent",
+    "kind": "state_delta",
+    "key": "user:fact.integration.A-114",
+    "detail": "legacy [user, user_message]"
+  },
+  {
+    "seq": 3,
+    "at": "2026-11-03T12:30:37.332684+02:00",
+    "invocation": "e-a5975b57-776e-4fc5-9a44-47bc5adddc5d",
+    "author": "memory_agent",
+    "kind": "state_delta",
+    "key": "user:fact.contact_channel.A-114",
+    "detail": "тікети в порталі [user, user_message]"
+  },
+  {
+    "seq": 4,
+    "at": "2026-11-03T12:30:37.332684+02:00",
+    "invocation": "e-a5975b57-776e-4fc5-9a44-47bc5adddc5d",
+    "author": "memory_agent",
+    "kind": "state_delta",
+    "key": "user:fact.recommended_path.A-114",
+    "detail": "легасі-фікс вебхуків [user, user_message]"
+  }
+]
