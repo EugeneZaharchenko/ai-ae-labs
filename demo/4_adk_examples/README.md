@@ -4,7 +4,7 @@
 разом з `agent/workflowagent`). Кожен приклад — окремий пакет `main`, який будує
 `workflowagent` з графа вузлів і віддає його консольному лаунчеру.
 
-Одинадцять прикладів, з них сім працюють **без ключа й без мережі**. Кожен має
+Одинадцять прикладів графового рушія (плюс шістнадцять тижневих — див. нижче), з них сім працюють **без ключа й без мережі**. Кожен має
 власний `README.md` зі схемою Mermaid, метою, командою запуску та прикладом сесії.
 
 ## Швидкий старт
@@ -126,6 +126,51 @@ README не записуйте.
 | [`dynamic/llm`](./dynamic/llm) | Динаміка | динамічний оркестратор викликає вузол `LlmAgent` | Так |
 | [`dynamic/use_as_output`](./dynamic/use_as_output) | Динаміка | виведення дитини стає виведенням оркестратора | Так |
 
+## Тижневі приклади (`week1` … `week6`)
+
+Окрім одинадцяти прикладів графового рушія, у каталозі лежать шістнадцять
+прикладів-супутників до тижнів курсу: `weekN/partM/cmd`. Це окремі пакети
+`main` кореневого модуля (власного `go.mod` немає), які використовують
+спільні `internal/adkrun`, `internal/modelcfg`, `internal/scripted` і
+`internal/usage`.
+
+| Приклад | Тема | Без ключа? | Задача |
+|---|---|---|---|
+| [`week1/part1`](./week1/part1/cmd) | ModelBenchmarkAgent — порівняння моделей за затримкою, ціною, якістю | Так | `task week1-part1` |
+| [`week1/part2`](./week1/part2/cmd) | StrictSchemaEnforcer — типовий контракт і JSON-схема | Так | `task week1-part2` |
+| [`week2/part1`](./week2/part1/cmd) | WorkflowGraphAgent — явний граф із типізованими вузлами | Так | `task week2-part1` |
+| [`week2/part2`](./week2/part2/cmd) | AgentService — агент за HTTP, health, graceful shutdown | Так, **сервер :8080** | `task week2-part2` |
+| [`week3/part1`](./week3/part1/cmd) | OntologyAwareKnowledgeBuilder — PDF → чанки → сутності | Так | `task week3-part1` |
+| [`week3/part2`](./week3/part2/cmd) | AgenticGraphRAGEngine — планувальник, гібридний пошук, реранк | Так | `task week3-part2` |
+| [`week4/part1`](./week4/part1/cmd) | ReAct-цикл, написаний вручну | `-offline` | `task week4-part1` |
+| [`week4/part2`](./week4/part2/cmd) | відмовостійкий harness інструментів | `-offline` | `task week4-part2` |
+| [`week5/part1`](./week5/part1/cmd) | пам’ять агента як event-sourced стан | `-offline` | `task week5-part1` |
+| [`week5/part2`](./week5/part2/cmd) | координатор, desks, людське схвалення | `-offline` | `task week5-part2` |
+| [`week6/part1`](./week6/part1/cmd) | динамічний workflow maker/gate/critics | `-offline` | `task week6-part1` |
+| [`week6/part2`](./week6/part2/cmd) | самополіпшення за autoresearch, із гальмами | `-offline` | `task week6-part2` |
+| [`week6/part3`](./week6/part3/cmd) | панель агентів із вузьким каналом | Так | `task week6-part3` |
+| [`week6/part4`](./week6/part4/cmd) | A2A: виклик агента через loopback-сокет | Так | `task week6-part4` |
+| [`week6/part5`](./week6/part5/cmd) | agentic SDLC: координатор і воркери | Так | `task week6-part5` |
+| [`week6/part6`](./week6/part6) | harness як kagent BYO-агент ([runbook](./week6/part6/README.md)) | `-offline`, **сервер :8080** | `task week6-part6` |
+
+```bash
+task week4-part2                              # за замовчуванням -offline
+task week4-part2 WA="-offline -faults 503,timeout"
+task week4-part1 WA=""                        # справжня модель (apps/.env)
+task weeks:list                               # перелік тижневих прикладів
+task weeks:all                                # смоук усіх, крім двох серверів
+```
+
+`WA` — це аргументи **самого прикладу** (`-offline`, `-query`, `-faults`, …), а
+не лаунчера, тому окремо від `ARGS`. Для тижнів 4–6 типове `WA` — `-offline`:
+скриптована модель замість провайдера, детермінований вивід. Порожній `WA`
+вмикає справжню модель через `internal/modelcfg`; перший рядок виводу називає
+мозок. Ці приклади **не входять** у `task list` і `task all` з розділів вище:
+ті шукають `main.go` на глибині ≤3, а тижневі лежать глибше.
+
+`week2/part2` і `week6/part6` — сервери на `:8080`, самі не завершуються й
+виключені з `weeks:all`; порт звільняє `task kill:8080` з кореня.
+
 ## Базові поняття
 
 - **Вузли** — одиниці роботи: `FunctionNode` (Go-функція), `AgentNode` (обгортка
@@ -140,4 +185,4 @@ README не записуйте.
 
 ---
 
-Станом на 09/2026 · `google.golang.org/adk/v2 v2.5.0` · Go 1.27.1
+Станом на 10/2026 · `google.golang.org/adk/v2 v2.5.0` · Go 1.27.1

@@ -919,6 +919,38 @@ tasks:
     cmds:
       - go run {{.DAY11}}
 
+  # Web UI шаблону Дня 11. Цикл ігнорує текст у чаті: завдання задає LAB_TASK
+  # (prorate_refund | parse_amount | validate_iban), надішліть будь-яке
+  # повідомлення, щоб запустити прогін. Приклади — у labs11/PROMPTS.md.
+  # Порт :8080 спільний з іншими `web`-задачами: `task kill:8080`.
+  week6:day11:live-web:
+    desc: 'День 11: шаблон лаби у Web UI на http://localhost:8080/ui/ (LAB_TASK=validate_iban)'
+    dir: '{{.DAY11}}'
+    vars:
+      LAB_TASK: '{{.LAB_TASK | default "validate_iban"}}'
+    cmds:
+      - go run . -task {{.LAB_TASK}} web webui api
+
+  # Web UI еталона: maker → gate → панель критиків. Без провайдера — офлайн-
+  # скрипт на ОДИН прогін (перезапустіть сервер для наступного); LAB_OFFLINE=1
+  # вмикає його примусово. Завдання — LAB_TASK, як у live-web.
+  week6:day11:solution:web:
+    desc: 'День 11: Web UI еталона на http://localhost:8080/ui/ (LAB_TASK=prorate_refund, LAB_OFFLINE=1)'
+    dir: '{{.DAY11}}'
+    vars:
+      LAB_TASK: '{{.LAB_TASK | default "prorate_refund"}}'
+      OFFLINE_FLAG: '{{if .LAB_OFFLINE}}-offline{{end}}'
+    cmds:
+      - go run ./solution {{.OFFLINE_FLAG}} -task {{.LAB_TASK}} web webui api
+
+  week6:day11:solution:eval:
+    desc: 'День 11: eval-таблиця еталона по всіх завданнях (LAB_OFFLINE=1 — скриптовані моделі)'
+    dir: '{{.DAY11}}'
+    vars:
+      OFFLINE_FLAG: '{{if .LAB_OFFLINE}}-offline{{end}}'
+    cmds:
+      - go run ./solution {{.OFFLINE_FLAG}} -eval
+
   week6:day11:test:
     desc: 'День 11: тести лаби й еталона (PKG звужує, напр. PKG=./internal/gate)'
     dir: '{{.DAY11}}'

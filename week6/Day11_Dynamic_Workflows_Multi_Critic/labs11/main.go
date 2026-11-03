@@ -27,6 +27,8 @@ import (
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/agent/llmagent"
 	"google.golang.org/adk/v2/agent/workflowagent"
+	"google.golang.org/adk/v2/cmd/launcher"
+	"google.golang.org/adk/v2/cmd/launcher/full"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/adk/v2/workflow"
@@ -137,6 +139,17 @@ func main() {
 	})
 	if err != nil {
 		log.Fatalf("workflowagent: %v", err)
+	}
+
+	// Слова після прапорців (`web webui api`, `console`) — режим лаунчера ADK:
+	// той самий агент у Web UI на :8080. Завдання береться з -task, а не з
+	// тексту в чаті: цикл ігнорує вхідне повідомлення.
+	if args := flag.Args(); len(args) > 0 {
+		l := full.NewLauncher()
+		if err := l.Execute(ctx, &launcher.Config{AgentLoader: agent.NewSingleLoader(wa)}, args); err != nil {
+			log.Fatalf("Run failed: %v\n\n%s", err, l.CommandLineSyntax())
+		}
+		return
 	}
 
 	res, err := labrun.Run(ctx, wa, task.Prompt)

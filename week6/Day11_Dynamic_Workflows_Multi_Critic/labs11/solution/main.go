@@ -3,6 +3,7 @@
 //
 //	go run ./week6/Day11_Dynamic_Workflows_Multi_Critic/labs11/solution              # одне завдання
 //	go run ./week6/Day11_Dynamic_Workflows_Multi_Critic/labs11/solution -eval         # усі завдання + таблиця
+//	go run ./week6/Day11_Dynamic_Workflows_Multi_Critic/labs11/solution -task parse_amount web webui api  # Web UI (web.go)
 //
 // Модель беремо з apps/.env через internal/modelcfg; роль можна перевизначити
 // (LAB11_MAKER_MODEL, LAB11_CORRECTNESS_MODEL, LAB11_STYLE_MODEL,
@@ -47,6 +48,9 @@ type config struct {
 	writeBase   bool
 	priceIn     float64
 	priceOut    float64
+	// serve — слова після прапорців (`web webui api`, `console`): режим
+	// лаунчера ADK замість разового прогону (див. web.go).
+	serve []string
 }
 
 func parseFlags(args []string, errOut io.Writer) (config, error) {
@@ -65,6 +69,7 @@ func parseFlags(args []string, errOut io.Writer) (config, error) {
 	if err := fs.Parse(args); err != nil {
 		return config{}, err
 	}
+	c.serve = fs.Args()
 	if c.writeBase && c.baseline == "" {
 		return config{}, errors.New("-write-baseline потребує -baseline <файл>")
 	}
@@ -85,6 +90,9 @@ func run(ctx context.Context, args []string, out io.Writer, res Resolver) error 
 	if err != nil {
 		return err
 	}
+	if len(cfg.serve) > 0 {
+		return serve(ctx, cfg, out, res)
+	}
 	tasks := billing.Tasks()
 	if !cfg.eval {
 		t, ok := billing.ByID(cfg.task)
@@ -94,24 +102,7 @@ func run(ctx context.Context, args []string, out io.Writer, res Resolver) error 
 		tasks = []billing.Task{t}
 	}
 
-	// Помилка вибору провайдера — не привід падати: це офлайн-режим, але з
-	// названою причиною (порожній «0 результатів» без причини гірший за помилку).
-	var models Models
-	var merr error
-	if cfg.offline {
-		merr = errors.New("запитано прапорцем -offline")
-	} else {
-		_ = modelcfg.LoadEnv(".")
-		models, merr = res.Resolve(ctx)
-	}
-	offline := merr != nil
-	if offline {
-		fmt.Fprintf(out, "ОФЛАЙН-РЕЖИМ: %v\n"+
-			"Моделі скриптовані, gate і граф — справжні. Ключ або Ollama: див. Homework.md, розділ «Якщо щось не працює».\n\n",
-			firstLine(merr))
-	} else {
-		fmt.Fprint(out, "Моделі:\n", models.Describe(), "\n")
-	}
+	models, offline := pickModels(ctx, cfg, res, out)
 
 	opt := Options{MaxAttempts: cfg.maxAttempts, MaxTokens: cfg.maxTokens, Gate: gate.Runner{}}
 	var price *usage.Price
@@ -143,6 +134,29 @@ func run(ctx context.Context, args []string, out io.Writer, res Resolver) error 
 	}
 	fmt.Fprint(out, suite.Markdown(price))
 	return baselineStep(out, cfg, suite)
+}
+
+// pickModels вибирає моделі й друкує, чим саме працюватиме прогін.
+//
+// Помилка вибору провайдера — не привід падати: це офлайн-режим, але з
+// названою причиною (порожній «0 результатів» без причини гірший за помилку).
+func pickModels(ctx context.Context, cfg config, res Resolver, out io.Writer) (Models, bool) {
+	var models Models
+	var merr error
+	if cfg.offline {
+		merr = errors.New("запитано прапорцем -offline")
+	} else {
+		_ = modelcfg.LoadEnv(".")
+		models, merr = res.Resolve(ctx)
+	}
+	if merr != nil {
+		fmt.Fprintf(out, "ОФЛАЙН-РЕЖИМ: %v\n"+
+			"Моделі скриптовані, gate і граф — справжні. Ключ або Ollama: див. Homework.md, розділ «Якщо щось не працює».\n\n",
+			firstLine(merr))
+		return models, true
+	}
+	fmt.Fprint(out, "Моделі:\n", models.Describe(), "\n")
+	return models, false
 }
 
 // baselineStep порівнює з базою або записує нову.

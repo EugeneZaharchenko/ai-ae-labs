@@ -1,0 +1,27 @@
+# The same image as a SandboxAgent on Agent Substrate. Demo step 5: "execution was sandboxed".
+# Fields from the kagent API reference (SandboxAgentSpec, SandboxConfig, NetworkConfig) · verified 2026-10-21.
+# Requires Agent Substrate in the cluster (an ate.dev WorkerPool; the controller default is used when
+# spec.substrate.workerPoolRef is unset). Substrate is pre-production — say so on screen.
+#
+# Isolation proof: with sandbox.network.allowedDomains empty, "outbound access is denied by default"
+# (kagent API reference, SandboxConfig.network). Ask the agent to "check egress to https://example.com":
+#   Agent (agent-byo.yaml)        -> {"reachable":true, ...}
+#   SandboxAgent (this manifest)  -> {"reachable":false,"detail":"blocked or unreachable: ..."}
+# Then add example.com to allowedDomains, re-apply, ask again: reachable. One field, observable from chat.
+apiVersion: kagent.dev/v1alpha2
+kind: SandboxAgent
+metadata:
+  name: refund-harness-sandboxed
+  namespace: kagent
+spec:
+  description: The course harness inside an Agent Substrate sandbox, egress denied by default.
+  type: BYO
+  byo:
+    deployment:
+      image: REGISTRY/refund-harness:0.1.0
+      env:
+        - name: A2A_WIRE
+          value: "0.3"
+  sandbox:
+    network:
+      allowedDomains: []          # empty = deny all outbound; try ["example.com"] for the contrast

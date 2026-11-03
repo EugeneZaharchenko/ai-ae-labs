@@ -112,6 +112,133 @@ tasks:
     cmds:
       - go run ./routing/string {{.ARGS}}
 
+  # --- Тижневі приклади (week1…week6) ----------------------------------------
+  #
+  # Шістнадцять прикладів-супутників до тижнів курсу лежать у `weekN/partM/cmd`
+  # і НЕ входять у перелік `task list` та смоук `task all` вище: ті шукають
+  # main.go на глибині ≤3, а ці — на четвертій. Для них є окремий набір:
+  #
+  #   task week4-part2                       # без аргументів: -offline
+  #   task week4-part2 WA="-offline -faults 503,timeout"
+  #   task week4-part1 WA=""                 # справжня модель (apps/.env)
+  #   task weeks:list                        # перелік прикладів
+  #   task weeks:all                         # смоук усіх, крім серверів
+  #
+  # WA — аргументи САМОГО прикладу (прапорці `-offline`, `-query`, …), а не
+  # лаунчера, тому окремо від ARGS. Для тижнів 4–6 типове значення `-offline`,
+  # щоб задача працювала без ключа; порожній WA вмикає справжній провайдер.
+  # Два приклади — сервери на :8080 (`week2-part2`, `week6-part6`): вони не
+  # завершуються самі, тож їх немає в `weeks:all`; звільнити порт —
+  # `task kill:8080` з кореня репозиторію.
+
+  week1-part1:
+    desc: 'week1/part1 — ModelBenchmarkAgent — порівняння моделей за затримкою, ціною й якістю (без ключа)'
+    cmds:
+      - go run ./week1/part1/cmd {{.WA}}
+
+  week1-part2:
+    desc: 'week1/part2 — StrictSchemaEnforcer — типовий контракт і JSON-схема для structured output (без ключа)'
+    cmds:
+      - go run ./week1/part2/cmd {{.WA}}
+
+  week2-part1:
+    desc: 'week2/part1 — WorkflowGraphAgent — явний граф із типізованими вузлами, Chain (без ключа)'
+    cmds:
+      - go run ./week2/part1/cmd {{.WA}}
+
+  week2-part2:
+    desc: 'week2/part2 — AgentService — агент за HTTP: health, стрімінг, graceful shutdown (СЕРВЕР на :8080, без ключа)'
+    cmds:
+      - go run ./week2/part2/cmd {{.WA}}
+
+  week3-part1:
+    desc: 'week3/part1 — OntologyAwareKnowledgeBuilder — PDF → чанки з онтологією → сутності (без ключа)'
+    cmds:
+      - go run ./week3/part1/cmd {{.WA}}
+
+  week3-part2:
+    desc: 'week3/part2 — AgenticGraphRAGEngine — планувальник, гібридний пошук, реранк, кеш (без ключа)'
+    cmds:
+      - go run ./week3/part2/cmd {{.WA}}
+
+  week4-part1:
+    desc: 'week4/part1 — ReAct-цикл, написаний вручну (за замовчуванням -offline; без прапорця потрібен провайдер)'
+    cmds:
+      - go run ./week4/part1/cmd {{.WA | default "-offline"}}
+
+  week4-part2:
+    desc: 'week4/part2 — відмовостійкий harness інструментів (за замовчуванням -offline; -faults 503,timeout)'
+    cmds:
+      - go run ./week4/part2/cmd {{.WA | default "-offline"}}
+
+  week5-part1:
+    desc: 'week5/part1 — пам’ять агента як event-sourced стан (за замовчуванням -offline)'
+    cmds:
+      - go run ./week5/part1/cmd {{.WA | default "-offline"}}
+
+  week5-part2:
+    desc: 'week5/part2 — координатор, desks і людське схвалення (за замовчуванням -offline)'
+    cmds:
+      - go run ./week5/part2/cmd {{.WA | default "-offline"}}
+
+  week6-part1:
+    desc: 'week6/part1 — динамічний workflow maker/gate/critics (за замовчуванням -offline)'
+    cmds:
+      - go run ./week6/part1/cmd {{.WA | default "-offline"}}
+
+  week6-part2:
+    desc: 'week6/part2 — самополіпшувальний агент із гальмами, autoresearch (за замовчуванням -offline)'
+    cmds:
+      - go run ./week6/part2/cmd {{.WA | default "-offline"}}
+
+  week6-part3:
+    desc: 'week6/part3 — панель агентів із вузьким каналом (без ключа)'
+    cmds:
+      - go run ./week6/part3/cmd {{.WA}}
+
+  week6-part4:
+    desc: 'week6/part4 — A2A: один агент викликає інший через loopback (без ключа; -deny-callback)'
+    cmds:
+      - go run ./week6/part4/cmd {{.WA}}
+
+  week6-part5:
+    desc: 'week6/part5 — agentic SDLC: координатор і воркери, динамічний workflow (без ключа)'
+    cmds:
+      - go run ./week6/part5/cmd {{.WA}}
+
+  week6-part6:
+    desc: 'week6/part6 — harness як kagent BYO-агент (СЕРВЕР A2A на :8080; за замовчуванням -offline)'
+    cmds:
+      - go run ./week6/part6/cmd {{.WA | default "-offline"}}
+
+  weeks:list:
+    desc: 'Перелік тижневих прикладів (weekN/partM)'
+    cmds:
+      - find week* -mindepth 2 -maxdepth 3 -name main.go -exec dirname {} \; | sed 's|/cmd$||' | sort
+    silent: true
+
+  weeks:all:
+    desc: 'Смоук усіх тижневих прикладів (офлайн, без серверів week2-part2 і week6-part6)'
+    cmds:
+      - |
+        set -uo pipefail
+        failed=0
+        total=0
+        for d in $(find week* -mindepth 3 -maxdepth 3 -name main.go -exec dirname {} \; | sort); do
+          case "$d" in week2/part2/cmd|week6/part6/cmd) continue;; esac
+          case "$d" in week[456]/part[12]/cmd) args=-offline;; *) args="";; esac
+          total=$((total + 1))
+          printf '\n──── %s ────\n' "$d"
+          if go run "./$d" $args </dev/null; then
+            printf '✅ %s\n' "$d"
+          else
+            printf '❌ %s\n' "$d"
+            failed=$((failed + 1))
+          fi
+        done
+        printf '\n==> %d з %d тижневих прикладів упали\n' "$failed" "$total"
+        [ "$failed" -eq 0 ]
+
   # --- Загальні задачі --------------------------------------------------------
 
   run:
