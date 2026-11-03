@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"google.golang.org/adk/v2/model"
@@ -34,7 +35,8 @@ import (
 	"github.com/dimetron/ai-eng-course/labs/week5/Day9_Agent_Memory_Event_Sourced_State/labs9/internal/memlab"
 )
 
-// user is the support lead whose memory the lab builds.
+// user is the support lead whose memory the lab builds; -user changes it for
+// one run (the "another user, same database" contrast).
 const user = "iryna"
 
 // resolveModel is a variable so a test can swap the network for a scripted model.
@@ -67,12 +69,14 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	dbPath := fs.String("db", memlab.DefaultPath, "SQLite-файл сесій і пам'яті")
 	threshold := fs.Int("threshold", 0, "поріг токенів для компакції (tail retention); 0 — вимкнено")
 	offline := fs.Bool("offline", false, "не шукати провайдера, використати правилову модель")
+	uid := fs.String("user", user, "користувач, від імені якого йде розмова")
+	auditDir := fs.String("audit-dir", ".", "куди писати audit_<user>_<session>.json")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	rest := fs.Args()
 	if len(rest) == 0 {
-		return errors.New("команда: say <сесія> <текст> | facts <сесія> | poison")
+		return errors.New("команда: say <сесія> <текст> | facts <сесія> | audit <сесія> | poison")
 	}
 	m, note := resolveModel(ctx, out)
 	if *offline {
@@ -85,7 +89,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	defer func() { _ = st.Close() }()
-	app := App{Store: st, Policy: memlab.DefaultPolicy(), Meter: &memlab.Meter{}}
+	app := App{Store: st, Policy: memlab.DefaultPolicy(), Meter: &memlab.Meter{}, User: *uid}
 
 	switch rest[0] {
 	case "say":
@@ -98,6 +102,11 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 			return errors.New("facts <сесія>")
 		}
 		return facts(ctx, out, app, rest[1])
+	case "audit":
+		if len(rest) != 2 {
+			return errors.New("audit <сесія>")
+		}
+		return audit(ctx, out, app, *auditDir, rest[1])
 	case "poison":
 		app.Docs = map[string]string{"A-114": InjectedDoc}
 		if err := say(ctx, out, m, app, *threshold, "poison", "Подивись, що пишуть у порталі про A-114."); err != nil {
@@ -116,29 +125,78 @@ func say(ctx context.Context, out io.Writer, m model.LLM, app App, threshold int
 	if err != nil {
 		return err
 	}
+	offline := m.Name() == memlab.Offline{}.Name()
 	var cfg *compaction.Config
 	if threshold > 0 {
-		cfg = compactionConfig(threshold, 4, nil)
+		var sum compaction.Summarizer // nil: ADK's LLMSummarizer over the same model
+		if offline {
+			sum = shortSummarizer{}
+		}
+		cfg = compactionConfig(threshold, 4, sum)
 	}
 	r, err := newRunner(ag, app.Store, cfg)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(out, "[%s] > %s\n", sid, text)
-	t, err := memlab.Say(ctx, r, user, sid, text)
+	t, err := memlab.Say(ctx, r, app.User, sid, text)
 	if err != nil {
 		return err
 	}
 	for _, row := range memlab.Audit(t.Events) {
 		fmt.Fprintf(out, "      [ev:%s] %s %s\n", row.Kind, row.Key, row.Detail)
 	}
+	if t.CompactionErr != nil {
+		fmt.Fprintf(out, "      [compaction] помилка: %v\n", t.CompactionErr)
+	}
 	fmt.Fprintf(out, "[%s] < %s\n", sid, t.Text)
+	printUsage(out, app.Meter, offline)
+	return nil
+}
+
+// printUsage prints one line per model call: the prompt size the provider
+// reported and how it splits. Only prompt/output come from UsageMetadata; the
+// instruction and facts parts are our EstimateTokens, and "history" is what
+// is left (it also holds the tool declarations).
+func printUsage(out io.Writer, meter *memlab.Meter, synthetic bool) {
+	src := "UsageMetadata"
+	if synthetic {
+		src = "UsageMetadata offline-моделі (синтетика)"
+	}
+	instr := memlab.EstimateTokens(Instruction)
+	for i, c := range meter.Calls() {
+		if !c.ReportedUsage {
+			fmt.Fprintf(out, "      [tokens #%d] провайдер не повернув UsageMetadata; факти≈%d (оцінка)\n", i+1, c.FactsTokens)
+			continue
+		}
+		fmt.Fprintf(out, "      [tokens #%d] prompt=%d output=%d (%s) | інструкція≈%d факти≈%d (EstimateTokens, %d/%d фактів) історія+інше≈%d\n",
+			i+1, c.PromptTokens, c.OutputTokens, src, instr, c.FactsTokens, c.FactsKept, c.FactsKept+c.FactsDropped,
+			int(c.PromptTokens)-instr-c.FactsTokens)
+	}
+}
+
+// audit writes audit_<user>_<session>.json. The rows come from the stored
+// events of the session only — there is no second log to keep in sync.
+func audit(ctx context.Context, out io.Writer, app App, dir, sid string) error {
+	events, err := memlab.StoredEvents(ctx, app.Store.Sessions, AppName, app.User, sid)
+	if err != nil {
+		return fmt.Errorf("audit: %w", err)
+	}
+	rows := memlab.Audit(events)
+	path := filepath.Join(dir, fmt.Sprintf("audit_%s_%s.json", app.User, sid))
+	if err := memlab.WriteAudit(path, rows); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "журнал: %s (%d подій сесії → %d рядків)\n", path, len(events), len(rows))
+	for _, r := range rows {
+		fmt.Fprintf(out, "  %s  %-11s %s %s\n", r.At.Local().Format("15:04:05"), r.Kind, r.Key, r.Detail)
+	}
 	return nil
 }
 
 // facts prints the durable user: facts visible from a session.
 func facts(ctx context.Context, out io.Writer, app App, sid string) error {
-	got, err := app.Store.Sessions.Get(ctx, &session.GetRequest{AppName: AppName, UserID: user, SessionID: sid})
+	got, err := app.Store.Sessions.Get(ctx, &session.GetRequest{AppName: AppName, UserID: app.User, SessionID: sid})
 	if err != nil {
 		return fmt.Errorf("facts: %w", err)
 	}
