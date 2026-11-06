@@ -5,16 +5,10 @@
 //
 // ЯК ЦИМ КОРИСТУВАТИСЬ
 //
-//	go test ./...            — зараз зелено: тести описують ЗАГЛУШКИ стартера
-//	                           і baseline-пошук по testdata/chunks.json.
-//	                           Зелений старт означає, що середовище живе.
+//	go test ./...            — тести baseline-пошуку, кешу, re-rank і графа
+//	                           (graph_test.go, eval_test.go).
 //
-// Далі ви реалізуєте TODO у retrieval.go / graph.go, тести падають (бо
-// описують стару поведінку) — і ви переписуєте їх під свою. Місця позначені
-// TODO(студент).
-//
-// Два тести нижче — НЕ заготовки, а контракти ДЗ, і вони під t.Skip доти,
-// доки ви не візьметесь за відповідний пункт:
+// Два тести-контракти ДЗ:
 //
 //	TestRerank_ChangesOrder      — критерій «5 запитів до/після» (15 балів)
 //	TestCache_ParaphraseHits     — критерій «hit на перефразованому» (10 балів)
@@ -207,14 +201,8 @@ func TestCache_ConcurrentAccess(t *testing.T) {
 // Точний кеш ловить лише буквальний повтор. Вимога ДЗ — семантичний кеш:
 // перефразований запит теж має влучати.
 //
-// TODO(студент): приберіть t.Skip, коли реалізуєте схожість замість map-lookup.
-// І одразу додайте ДРУГИЙ тест — на false positive: два РІЗНІ за змістом
-// запити (напр. про T-2 і про T-1), які не мають ділити відповідь. Високий
-// hit-rate без виміряного false-positive rate — це не перемога, а регресія
-// якості («кеш — це межа безпеки»).
+// Тест на false positive — TestCache_NoFalsePositive у graph_test.go.
 func TestCache_ParaphraseHits(t *testing.T) {
-	t.Skip("зніміть skip, коли реалізуєте семантичний кеш замість точного map-lookup")
-
 	r := newTestRetriever(t)
 	ctx := newNodeCtx()
 
@@ -236,24 +224,6 @@ func TestCache_ParaphraseHits(t *testing.T) {
 }
 
 // --- Re-ranking --------------------------------------------------------------
-
-// TestRerank_Stub фіксує поточну поведінку: заглушка не змінює порядок.
-//
-// TODO(студент): цей тест має впасти, щойно ви реалізуєте re-ranker.
-func TestRerank_Stub(t *testing.T) {
-	t.Parallel()
-	in := SearchResult{Query: "q", Candidates: []Candidate{
-		{ChunkID: "a", Score: 0.1},
-		{ChunkID: "b", Score: 0.9},
-	}}
-	got, err := newTestRetriever(t).rerank(newNodeCtx(), in)
-	if err != nil {
-		t.Fatalf("rerank: %v", err)
-	}
-	if got.Candidates[0].ChunkID != "a" {
-		t.Fatalf("заглушка не мала змінювати порядок, отримали топ-1 = %q — схоже, re-ranker уже працює; перепишіть цей тест", got.Candidates[0].ChunkID)
-	}
-}
 
 // TestBaseline_ConfusesTariffs показує, НАВІЩО потрібен re-ranker: наївний
 // keyword overlap ставить чанк про T-1 поруч із чанком про T-2, бо тексти
@@ -281,12 +251,8 @@ func TestBaseline_ConfusesTariffs(t *testing.T) {
 // на запит про T-2 vector повертає нагору чанк про T-1, бо тексти майже
 // однакові; cross-encoder бачить пару «запит ↔ чанк» цілком і опускає його.
 //
-// TODO(студент): приберіть t.Skip і підставте свої кандидати. Пару «до/після»
-// із цього тесту можна одразу класти в README — це один із п'яти потрібних
-// прикладів.
+// Ще п'ять пар «до/після» — TestRerank_FiveQueries в eval_test.go.
 func TestRerank_ChangesOrder(t *testing.T) {
-	t.Skip("зніміть skip, коли реалізуєте re-ranker у retrieval.go")
-
 	in := SearchResult{Query: "яка ставка комісії на тарифі T-2?", Candidates: []Candidate{
 		{ChunkID: "c-A331-rate", DocumentID: "ledgerworks_soc2", Text: "Мерчант A-331 обслуговується за тарифом T-1, ставка комісії 1.8 %.", Score: 0.88},
 		{ChunkID: "c-A114-rate", DocumentID: "ledgerworks_soc2", Text: "Мерчант A-114 обслуговується за тарифом T-2, ставка комісії 2.9 %.", Score: 0.86},
