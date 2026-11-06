@@ -13,8 +13,6 @@ import (
 	"github.com/dimetron/ai-eng-course/labs/week4/Day7_ReAct_Loop_Internals/labs7/internal/react"
 )
 
-// Контрактні тести. Приберіть t.Skip, коли реалізуєте Run у react.go.
-
 // Мова завдання — довільний текст, тож «web» у ній не рідкість. Розрізняти
 // підкоманду лаунчера й завдання треба до рану: помилка тут означає або сервер,
 // якого ніхто не просив, або одноразовий ран із завданням «web webui api».
@@ -119,7 +117,6 @@ func (e *endless) NextStep(context.Context, react.History) (react.Step, error) {
 }
 
 func TestRunStopsAtIterationLimit(t *testing.T) {
-	t.Skip("прибрати, коли Run реалізовано")
 	_, _, err := Run(context.Background(), &endless{}, ledger.New().Tools(), "task", react.Budget{MaxIterations: 5})
 	if !errors.Is(err, ErrMaxIterations) {
 		t.Fatalf("err = %v; want errors.Is(err, ErrMaxIterations)", err)
@@ -127,7 +124,6 @@ func TestRunStopsAtIterationLimit(t *testing.T) {
 }
 
 func TestRunKeepsObservationsInCallOrder(t *testing.T) {
-	t.Skip("прибрати, коли Run реалізовано")
 	_, tr, err := Run(context.Background(), &react.RulePlanner{}, ledger.New().Tools(), "task", react.Budget{})
 	if err != nil {
 		t.Fatal(err)
