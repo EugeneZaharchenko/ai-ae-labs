@@ -224,3 +224,22 @@ func TestOpenFailsOnUnwritablePath(t *testing.T) {
 		t.Error("очікувалась помилка")
 	}
 }
+
+func TestHistoryIsPerSessionInOrder(t *testing.T) {
+	s, clock := openTest(t)
+	ctx := context.Background()
+	_, _ = s.Ask(ctx, req("first"))
+	*clock = clock.Add(time.Second)
+	_, _ = s.Ask(ctx, req("second"))
+	other := req("other")
+	other.SessionID = "s2"
+	_, _ = s.Ask(ctx, other)
+
+	got, err := s.History(ctx, "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].InterruptID != "first" || got[1].InterruptID != "second" {
+		t.Fatalf("History(s1) = %+v", got)
+	}
+}

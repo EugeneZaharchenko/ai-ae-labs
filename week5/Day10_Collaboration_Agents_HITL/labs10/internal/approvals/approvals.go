@@ -232,6 +232,17 @@ func (s *Store) PendingList(ctx context.Context) ([]Record, error) {
 	return out, nil
 }
 
+// History returns every request of one session, oldest first. The audit
+// command prints it next to the session events.
+func (s *Store) History(ctx context.Context, sessionID string) ([]Record, error) {
+	var out []Record
+	err := s.db.WithContext(ctx).Where("session_id = ?", sessionID).Order("requested_at").Find(&out).Error
+	if err != nil {
+		return nil, fmt.Errorf("approvals: history %s: %w", sessionID, err)
+	}
+	return out, nil
+}
+
 // Expire turns every overdue pending request into TimedOut and returns them.
 // The caller resumes each paused workflow with a denial, so the run ends with a
 // named reason instead of hanging.
