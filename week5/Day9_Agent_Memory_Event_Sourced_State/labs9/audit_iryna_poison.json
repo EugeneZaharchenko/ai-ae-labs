@@ -1,0 +1,11 @@
+[
+  {
+    "seq": 1,
+    "at": "2026-11-03T12:30:44.944266+02:00",
+    "invocation": "e-96899bae-508e-481a-8b70-7191a480ced3",
+    "author": "memory_agent",
+    "kind": "rejected",
+    "key": "integration.A-114",
+    "detail": "запис із недовіреного джерела (fetch_partner_doc) заборонено — факт лишається пропозицією для людини"
+  }
+]
