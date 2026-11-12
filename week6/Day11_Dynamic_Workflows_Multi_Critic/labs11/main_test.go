@@ -118,3 +118,5 @@ func TestMaxAttemptsInProductionRange(t *testing.T) {
 		t.Fatalf("maxAttempts = %d; тримайте 3–5: п'ята-десята спроба збільшує рахунок, а не результат", maxAttempts)
 	}
 }
+
+func init() { parse = ParseVerdict }

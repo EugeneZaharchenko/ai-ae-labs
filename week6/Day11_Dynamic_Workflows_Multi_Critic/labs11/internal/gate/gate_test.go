@@ -61,7 +61,10 @@ func TestGradeStages(t *testing.T) {
 			if !strings.Contains(rep.Output, tt.wantOut) {
 				t.Errorf("Output = %q, want it to contain %q", rep.Output, tt.wantOut)
 			}
-			if rep.Elapsed <= 0 {
+			// parse/policy finish in microseconds; on Windows the clock is too
+			// coarse for that and Elapsed can honestly be 0.
+			noExec := tt.wantStage == StageParse || tt.wantStage == StagePolicy
+			if rep.Elapsed <= 0 && !noExec {
 				t.Error("Elapsed not set")
 			}
 		})

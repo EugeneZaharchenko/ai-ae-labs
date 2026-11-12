@@ -202,7 +202,10 @@ func scrubbedEnv() []string {
 		"GOTOOLCHAIN=local", "GOPROXY=off", "GOWORK=off", "GOFLAGS=-mod=mod",
 		"CGO_ENABLED=0", "GOSUMDB=off",
 	}
-	for _, k := range []string{"PATH", "HOME", "GOCACHE", "GOROOT", "TMPDIR", "SYSTEMROOT", "LOCALAPPDATA"} {
+	// TEMP/TMP/USERPROFILE: on Windows the go tool takes its work dir from them,
+	// without them it falls back to C:\Windows and fails with "Access is denied".
+	for _, k := range []string{"PATH", "HOME", "GOCACHE", "GOROOT", "TMPDIR", "SYSTEMROOT", "LOCALAPPDATA",
+		"TEMP", "TMP", "USERPROFILE"} {
 		if v, ok := os.LookupEnv(k); ok {
 			env = append(env, k+"="+v)
 		}
