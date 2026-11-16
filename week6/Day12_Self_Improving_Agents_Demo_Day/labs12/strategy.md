@@ -1,4 +1,4 @@
-# Strategy v5: allow two subqueries for multi-part questions
+# Strategy v6 (human edit): objective citation check first, answer every part
 
 ## Metric
 - facts_found_ratio
@@ -12,11 +12,15 @@
 - read_docs = 2
 
 ## Critics
+- citations
+- completeness
 - clarity
 
 ## Instruction
-Answer in one or two short sentences.
+Answer every part of the question, one short line per part, in the order the question asks.
+Copy each figure with its unit exactly as the source writes it, and put the [DOC-ID] right after it.
+If the evidence does not cover a part, say so on that line instead of guessing.
 
 ## Stop conditions
 - max_attempts = 20
-- critic_rounds = 1
+- critic_rounds = 2
