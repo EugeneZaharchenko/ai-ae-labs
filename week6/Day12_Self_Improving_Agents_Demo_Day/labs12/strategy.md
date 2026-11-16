@@ -1,4 +1,4 @@
-# Strategy v1: one search, answer from the best snippet
+# Strategy v5: allow two subqueries for multi-part questions
 
 ## Metric
 - facts_found_ratio
@@ -7,9 +7,9 @@
 - kb_search
 
 ## Search
-- max_subqueries = 1
-- top_k = 1
-- read_docs = 0
+- max_subqueries = 2
+- top_k = 3
+- read_docs = 2
 
 ## Critics
 - clarity
