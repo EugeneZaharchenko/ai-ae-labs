@@ -199,10 +199,29 @@ func selfImprove(ctx context.Context, o options, root string, models Models, lib
 		Audit:   NewAuditLog(f, lastID),
 		GitSHA:  gitSHA(root),
 	}
+	// One wall clock for both modes: duration_sec in the log is not comparable
+	// across them (sequential: the proposer runs before the engine's timer).
+	var firstKeep, bestAt time.Duration
+	best := -1.0
 	printEntry := func(e Entry) {
-		fmt.Fprintf(out, "  #%d %-8s %.3f → %.3f  eval=%d proposer=%d tok  %.0fs  %s\n      підстава: %s\n",
-			e.ID, e.Verdict, e.PrevMetric, e.NewMetric, e.EvalTokens, e.ProposerTokens, e.DurationSec, e.DiffSummary, e.Reason)
+		t := time.Since(start)
+		if e.Verdict == VerdictKeep {
+			if firstKeep == 0 {
+				firstKeep = t
+			}
+			if e.NewMetric > best {
+				best, bestAt = e.NewMetric, t
+			}
+		}
+		fmt.Fprintf(out, "  t+%4.0fs #%d %-8s %.3f → %.3f  eval=%d proposer=%d tok  %s\n      підстава: %s\n",
+			t.Seconds(), e.ID, e.Verdict, e.PrevMetric, e.NewMetric, e.EvalTokens, e.ProposerTokens, e.DiffSummary, e.Reason)
 	}
+	defer func() {
+		if firstKeep > 0 {
+			fmt.Fprintf(out, "годинник: перший keep на t+%.0fs; найкраща метрика %.3f на t+%.0fs\n",
+				firstKeep.Seconds(), best, bestAt.Seconds())
+		}
+	}()
 	var rep Report
 	if o.parallel > 1 {
 		rep, err = runParallel(ctx, eng, models, o.parallel, printEntry, out)
