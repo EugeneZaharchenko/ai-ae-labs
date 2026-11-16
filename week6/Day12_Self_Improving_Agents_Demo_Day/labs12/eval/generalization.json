@@ -1,0 +1,31 @@
+{
+  "name": "generalization",
+  "created": "2026-11-16",
+  "cases": [
+    {
+      "id": "G1",
+      "question": "How long are a merchant's KYC files kept after offboarding, and from what ownership share is a beneficial owner identified?",
+      "facts": [
+        {"name": "kyc file retention", "type": "duration", "forms": ["5 years", "five years"]},
+        {"name": "ubo threshold", "type": "number", "forms": ["25%"]}
+      ]
+    },
+    {
+      "id": "G2",
+      "question": "What is the minimum payout amount, and how soon is a payout held for a risk review released after clearance?",
+      "facts": [
+        {"name": "minimum payout", "type": "number", "forms": ["10 eur", "€10", "10 euro"]},
+        {"name": "risk hold release", "type": "duration", "forms": ["24 hours", "twenty-four hours"]}
+      ]
+    },
+    {
+      "id": "G3",
+      "question": "During a SEV2 incident, how often do status updates go out and when is the post-mortem due? And when does a P2 support ticket get its first response?",
+      "facts": [
+        {"name": "sev2 update cadence", "type": "duration", "forms": ["60 minutes", "every hour", "sixty minutes"]},
+        {"name": "sev2 post-mortem", "type": "duration", "forms": ["10 business days", "ten business days"]},
+        {"name": "p2 first response", "type": "duration", "forms": ["4 hours", "four hours"]}
+      ]
+    }
+  ]
+}

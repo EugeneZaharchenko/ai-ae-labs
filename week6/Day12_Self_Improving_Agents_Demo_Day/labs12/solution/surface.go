@@ -62,7 +62,10 @@ func NewSurface(root, rel string) (*Surface, error) {
 	}
 
 	clean := filepath.Clean(rel)
-	if rel == "" || filepath.IsAbs(clean) || clean == "." ||
+	// On Windows "/abs" has no drive letter, so IsAbs says false, yet it is
+	// rooted: reject a leading slash or backslash and any volume name too.
+	rooted := strings.HasPrefix(rel, "/") || strings.HasPrefix(rel, `\`) || filepath.VolumeName(rel) != ""
+	if rel == "" || filepath.IsAbs(clean) || rooted || clean == "." ||
 		clean == ".." || hasDotDot(clean) {
 		return nil, fmt.Errorf("surface: %q не є відносним шляхом усередині root", rel)
 	}

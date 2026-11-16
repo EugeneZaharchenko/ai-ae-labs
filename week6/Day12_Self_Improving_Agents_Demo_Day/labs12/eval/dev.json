@@ -1,0 +1,63 @@
+{
+  "name": "dev",
+  "created": "2026-11-16",
+  "cases": [
+    {
+      "id": "DV1",
+      "question": "An AI agent receives a merchant's request to refund 3,000 EUR. Up to what amount may the agent approve a refund alone, who must give the second approval for this amount, and how fast is the refund processed?",
+      "facts": [
+        {"name": "agent approval limit", "type": "number", "forms": ["500 eur", "€500", "500 euro"]},
+        {"name": "second approver", "type": "name", "forms": ["compliance officer"]},
+        {"name": "processing time", "type": "duration", "forms": ["5 business days", "five business days"]}
+      ]
+    },
+    {
+      "id": "DV2",
+      "question": "A high-risk merchant is on the Growth tariff. What does it pay per transaction, how large is its rolling reserve and how long is it held, and how often is its KYC reviewed?",
+      "facts": [
+        {"name": "growth percentage", "type": "number", "forms": ["2.4%"]},
+        {"name": "growth fixed fee", "type": "number", "forms": ["0.25 eur", "€0.25", "0.25 euro"]},
+        {"name": "reserve share", "type": "number", "forms": ["5%"]},
+        {"name": "reserve hold", "type": "duration", "forms": ["180 days"]},
+        {"name": "high-risk review cycle", "type": "duration", "forms": ["6 months", "six months"]}
+      ]
+    },
+    {
+      "id": "DV3",
+      "question": "Payouts are down right now. Which incident severity is this, how quickly must on-call be paged, and to whom is a merchant account escalated after two missed support SLAs in one month?",
+      "facts": [
+        {"name": "severity", "type": "name", "forms": ["sev1", "sev 1", "sev-1"]},
+        {"name": "paging time", "type": "duration", "forms": ["5 minutes", "five minutes"]},
+        {"name": "escalation target", "type": "name", "forms": ["head of payments"]}
+      ]
+    },
+    {
+      "id": "DV4",
+      "question": "In which month is the annual PCI audit held, which internal service replaces card numbers in logs, and how long are application logs kept?",
+      "facts": [
+        {"name": "audit month", "type": "date", "forms": ["march"]},
+        {"name": "token service", "type": "name", "forms": ["tokenvault"]},
+        {"name": "log retention", "type": "duration", "forms": ["30 days", "thirty days"]}
+      ]
+    },
+    {
+      "id": "DV5",
+      "question": "A merchant settles in UAH and asks for an instant payout. What FX margin applies, at what time are FX rates fixed, what does the instant payout cost, and which team reports UAH settlements to the regulator?",
+      "facts": [
+        {"name": "fx margin", "type": "number", "forms": ["0.8%"]},
+        {"name": "rate fixing time", "type": "date", "forms": ["10:00"]},
+        {"name": "instant payout fee", "type": "number", "forms": ["1.0%", "1%"]},
+        {"name": "regulator reporting team", "type": "name", "forms": ["compliance"]}
+      ]
+    },
+    {
+      "id": "DV6",
+      "question": "Quote what chargeback reason code 4837 means, say which team handles it, and how many days the acquirer allows.",
+      "facts": [
+        {"name": "reason code meaning", "type": "quote", "forms": ["no cardholder authorization", "no cardholder authorisation"]},
+        {"name": "handling team", "type": "name", "forms": ["fraud team"]},
+        {"name": "acquirer deadline", "type": "duration", "forms": ["10 days", "ten days"]}
+      ]
+    }
+  ]
+}

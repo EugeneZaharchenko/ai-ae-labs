@@ -1,5 +1,22 @@
-# Дослідницька стратегія
+# Strategy v1: one search, answer from the best snippet
 
-Відповідай українською, коротко й з конкретними цифрами.
-Спочатку шукай у базі знань LEDGERWORKS, потім у вебі.
-Кожне твердження супроводжуй джерелом (ID документа, напр. REF-001).
+## Metric
+- facts_found_ratio
+
+## Sources
+- kb_search
+
+## Search
+- max_subqueries = 1
+- top_k = 1
+- read_docs = 0
+
+## Critics
+- clarity
+
+## Instruction
+Answer in one or two short sentences.
+
+## Stop conditions
+- max_attempts = 20
+- critic_rounds = 1
