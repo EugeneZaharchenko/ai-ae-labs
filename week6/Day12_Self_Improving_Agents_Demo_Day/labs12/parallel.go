@@ -96,19 +96,30 @@ var workerFocus = []string{
 	"cost: anything that makes the run faster without losing facts",
 }
 
+// proposerSlot is one worker's own proposer agent and sink.
+type proposerSlot struct {
+	agent agent.Agent
+	sink  *ProposalSink
+}
+
 // runParallel runs rounds of k concurrent candidates until the budget stops it.
+// Live, the k proposals are generated concurrently too; offline they are
+// generated in order, so the scripted fake model stays deterministic.
 func runParallel(ctx context.Context, eng *Engine, models Models, k int, onEntry func(Entry), out io.Writer) (Report, error) {
-	sink := NewProposalSink(eng.Root)
-	eng.Proposer = sink
 	var round int
-	brief := func() string {
-		return eng.Brief() + fmt.Sprintf("\nParallel round %d: several variants are scored at once; this variant must focus on %s.",
-			round, workerFocus[(sink.offered()%len(workerFocus))])
+	slots := make([]proposerSlot, k)
+	for i := range slots {
+		focus := workerFocus[i%len(workerFocus)]
+		sink := NewProposalSink(eng.Root)
+		a, err := NewProposerAgent(models.Proposer, sink, func() string {
+			return eng.Brief() + fmt.Sprintf("\nParallel round %d: several variants are scored at once; this variant must focus on %s.", round, focus)
+		})
+		if err != nil {
+			return Report{}, err
+		}
+		slots[i] = proposerSlot{agent: a, sink: sink}
 	}
-	proposer, err := NewProposerAgent(models.Proposer, sink, brief)
-	if err != nil {
-		return Report{}, err
-	}
+	eng.Proposer = slots[0].sink
 	iso, done, err := newIsolator(eng.Root)
 	if err != nil {
 		return Report{}, err
@@ -118,13 +129,18 @@ func runParallel(ctx context.Context, eng *Engine, models Models, k int, onEntry
 		return Report{}, err
 	}
 	rep := Report{Baseline: eng.CurrentScore()}
-	fmt.Fprintf(out, "базова метрика (dev): %.3f · паралельно %d кандидатів/раунд · ізоляція: %s\n", rep.Baseline, k, iso.Kind())
+	mode := "по черзі"
+	if models.Live {
+		mode = "паралельно"
+	}
+	fmt.Fprintf(out, "базова метрика (dev): %.3f · паралельно %d кандидатів/раунд · ізоляція: %s · пропозиції: %s\n",
+		rep.Baseline, k, iso.Kind(), mode)
 	for round = 1; ; round++ {
 		if why := eng.Exhausted(); why != "" {
 			rep.Stop = why
 			break
 		}
-		entries, err := eng.parallelRound(ctx, round, k, proposer, iso)
+		entries, err := eng.parallelRound(ctx, round, slots, iso, models.Live)
 		if err != nil {
 			return rep, err
 		}
@@ -149,11 +165,11 @@ type candidate struct {
 	start time.Time
 }
 
-// parallelRound proposes up to k candidates, scores the valid ones
+// parallelRound proposes up to len(slots) candidates, scores the valid ones
 // concurrently in isolated roots, and keeps at most one.
-func (e *Engine) parallelRound(ctx context.Context, round, k int, proposer agent.Agent, iso isolator) ([]Entry, error) {
+func (e *Engine) parallelRound(ctx context.Context, round int, slots []proposerSlot, iso isolator, concurrent bool) ([]Entry, error) {
 	var cands []*candidate
-	for w := 1; w <= k; w++ {
+	for w := 1; w <= len(slots); w++ {
 		if why := e.Exhausted(); why != "" {
 			break
 		}
@@ -161,15 +177,18 @@ func (e *Engine) parallelRound(ctx context.Context, round, k int, proposer agent
 		c := &candidate{start: e.Now()}
 		c.entry = e.newEntry(c.start)
 		c.entry.Attempt, c.entry.Worker = round, w
-		if _, err := labrun.Run(ctx, proposer, "propose one variant"); err != nil {
-			return nil, fmt.Errorf("пропонент: %w", err)
+		cands = append(cands, c)
+	}
+	propose := func(c *candidate) error {
+		slot := slots[c.entry.Worker-1]
+		if _, err := labrun.Run(ctx, slot.agent, "propose one variant"); err != nil {
+			return fmt.Errorf("пропонент %d: %w", c.entry.Worker, err)
 		}
-		prop, err := e.Proposer.Propose(ctx, e.doc, e.history)
+		prop, err := slot.sink.Propose(ctx, Strategy{}, nil)
 		c.entry.ProposerTokens = prop.Tokens
 		if err != nil {
 			c.entry.Verdict, c.entry.Reason = VerdictProposerFailed, err.Error()
-			cands = append(cands, c)
-			continue
+			return nil
 		}
 		c.entry.TargetPath, c.entry.DiffSummary = prop.Path, prop.Summary
 		c.entry.NewStrategy, c.entry.NewStrategySHA = prop.Content, contentSHA(prop.Content)
@@ -178,7 +197,17 @@ func (e *Engine) parallelRound(ctx context.Context, round, k int, proposer agent
 		} else {
 			c.strat = strat
 		}
-		cands = append(cands, c)
+		return nil
+	}
+	pg := new(errgroup.Group)
+	if !concurrent {
+		pg.SetLimit(1)
+	}
+	for _, c := range cands {
+		pg.Go(func() error { return propose(c) })
+	}
+	if err := pg.Wait(); err != nil {
+		return nil, err
 	}
 
 	g, gctx := errgroup.WithContext(ctx)

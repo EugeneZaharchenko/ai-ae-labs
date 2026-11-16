@@ -48,7 +48,6 @@ type ProposalSink struct {
 	mu      sync.Mutex
 	pending []Proposal
 	tokens  int
-	count   int
 }
 
 // NewProposalSink creates an empty sink for the strategy in root.
@@ -66,14 +65,6 @@ func (s *ProposalSink) Offer(p Proposal) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pending = append(s.pending, p)
-	s.count++
-}
-
-// offered counts proposals received so far.
-func (s *ProposalSink) offered() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.count
 }
 
 // Propose implements Proposer: the oldest queued proposal plus its cost.
